@@ -1,2 +1,3 @@
-# Acees_Group
-aplicacion movil para asistencia de alumnos y registro de externos
+# asistencias
+
+A new Flutter project.
