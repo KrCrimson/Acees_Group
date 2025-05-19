@@ -186,12 +186,15 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
           record['tipo'] == 'entrada' ? Icons.login : Icons.logout,
           color: record['tipo'] == 'entrada' ? Colors.green : Colors.red,
         ),
-        title: Text(record['nombre_completo'] ?? 'Nombre no disponible'),
+        title: Text(
+          '${record['nombre'] ?? ''} ${record['apellido'] ?? ''}'.trim(),
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('DNI: ${record['dni']}'),
-            Text('${record['siglas_facultad']} - ${record['siglas_escuela']}'),
+            Text('DNI: ${record['dni'] ?? 'No disponible'}'),
+            Text('${record['siglas_facultad'] ?? ''} - ${record['siglas_escuela'] ?? ''}'),
             Text(
               DateFormat('dd/MM/yyyy HH:mm').format(record['fecha_hora']),
               style: const TextStyle(fontSize: 12),
@@ -202,7 +205,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              record['tipo'].toUpperCase(),
+              record['tipo']?.toString().toUpperCase() ?? '',
               style: TextStyle(
                 color: record['tipo'] == 'entrada' ? Colors.green : Colors.red,
                 fontWeight: FontWeight.bold,
@@ -221,18 +224,19 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
 
   Future<void> _exportToCsv() async {
     try {
-      String csvContent = "Nombre,DNI,Código,Facultad,Escuela,Tipo,Fecha,Hora\n";
+      String csvContent = "Nombre,Apellido,DNI,Código,Facultad,Escuela,Tipo,Fecha,Hora\n";
       
       for (var record in _attendanceData) {
         final date = DateFormat('dd/MM/yyyy').format(record['fecha_hora']);
         final time = record['hora'] ?? DateFormat('HH:mm').format(record['fecha_hora']);
         
-        csvContent += '"${record['nombre_completo']}",'
-                     '"${record['dni']}",'
-                     '"${record['codigo_universitario']}",'
-                     '"${record['siglas_facultad']}",'
-                     '"${record['siglas_escuela']}",'
-                     '"${record['tipo']}",'
+        csvContent += '"${record['nombre'] ?? ''}",'
+                     '"${record['apellido'] ?? ''}",'
+                     '"${record['dni'] ?? ''}",'
+                     '"${record['codigo_universitario'] ?? ''}",'
+                     '"${record['siglas_facultad'] ?? ''}",'
+                     '"${record['siglas_escuela'] ?? ''}",'
+                     '"${record['tipo'] ?? ''}",'
                      '"$date","$time"\n';
       }
 
