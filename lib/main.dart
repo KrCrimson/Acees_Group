@@ -40,7 +40,7 @@ class MyApp extends StatelessWidget {
         '/register': (context) => const RegisterScreen(),
         '/admin': (context) => const AdminScreen(),
         '/user': (context) => const UserScannerScreen(), // Actualizado a UserScannerScreen
-        '/user/history': (context) => const GeneralHistoryScreen(), // Agregado para historial
+        '/user/history': (context) => const UserHistoryScreen(), // Agregado para historial
       },
     );
   }

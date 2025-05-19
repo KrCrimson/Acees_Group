@@ -16,6 +16,7 @@ dependencies:
   mobile_scanner: ^3.3.0
   fluttertoast: ^8.2.2
   intl: ^0.18.1   
+  share_plus: ^6.3.0
 
 dev_dependencies:
   flutter_test:

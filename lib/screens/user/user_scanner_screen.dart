@@ -198,7 +198,7 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const GeneralHistoryScreen(),
+            builder: (context) => const UserHistoryScreen(),
           ),
         );
       },
