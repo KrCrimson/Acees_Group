@@ -66,19 +66,37 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
   }
 
   Future<void> _registerAttendance(Map<String, dynamic> student) async {
+  try {
     final attendanceType = await _determineAttendanceType(student['dni']);
+    final now = DateTime.now();
     
     await _firestore.collection('asistencias').add({
+      // Datos del alumno
       'dni': student['dni'],
       'codigo_universitario': student['codigo_universitario'],
-      'nombre_completo': '${student['nombre']} ${student['apellido']}',
+      'nombre': student['nombre'],
+      'apellido': student['apellido'],
+      
+      // Siglas
       'siglas_facultad': student['siglas_facultad'],
       'siglas_escuela': student['siglas_escuela'],
-      'fecha_hora': FieldValue.serverTimestamp(),
+      
+      // Campos nuevos
+      'fecha': Timestamp.fromDate(now), // Fecha completa
+      'hora': DateFormat('HH:mm').format(now), // Hora separada
       'tipo': attendanceType,
       'estado': 'activo',
+      
+      // Campo adicional para búsquedas
+      'fecha_hora': Timestamp.fromDate(now), // Mantener para consultas
     });
+
+    _showToast('Asistencia registrada: ${attendanceType.toUpperCase()}');
+  } catch (e) {
+    _showToast('Error al registrar: ${e.toString()}');
+    rethrow;
   }
+}
 
   Future<String> _determineAttendanceType(String dni) async {
     final snapshot = await _firestore.collection('asistencias')
