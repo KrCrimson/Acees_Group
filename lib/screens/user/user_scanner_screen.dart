@@ -3,6 +3,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:intl/intl.dart';
+import 'user_history_screen.dart';
 
 class UserScannerScreen extends StatefulWidget {
   const UserScannerScreen({super.key});
@@ -192,6 +193,20 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
           ),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const GeneralHistoryScreen(),
+          ),
+        );
+      },
+      icon: const Icon(Icons.history),
+      label: const Text('Ver Historial'),
+      backgroundColor: Colors.blue,
+    ),
+    floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 
