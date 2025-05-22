@@ -3,12 +3,12 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'auth_service.dart';
 import 'login_screen.dart';
-import 'admin_screen.dart';
 import 'register_screen.dart';
 import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'screens/user/user_scanner_screen.dart'; // Importa la nueva pantalla
 import 'screens/user/user_history_screen.dart'; // Importa la pantalla de historial
+import 'screens/admin/admin_view.dart'; // Importa la pantalla de perfil de usuario
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
@@ -38,7 +38,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
-        '/admin': (context) => const AdminScreen(),
+        '/admin': (context) => const AdminView(),
         '/user': (context) => const UserScannerScreen(), // Actualizado a UserScannerScreen
         '/user/history': (context) => const UserHistoryScreen(), // Agregado para historial
       },
@@ -70,7 +70,7 @@ class AuthWrapper extends StatelessWidget {
                 final userData = userDataSnapshot.data;
                 if (userData != null) {
                   if (userData['rango'] == 'admin') {
-                    return const AdminScreen();
+                    return const AdminView();
                   } else {
                     return const UserScannerScreen(); // Redirige directamente al escáner
                   }

@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:intl/intl.dart';
 import 'user_history_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class UserScannerScreen extends StatefulWidget {
   const UserScannerScreen({super.key});
@@ -120,6 +121,18 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
       backgroundColor: Colors.black54,
       textColor: Colors.white,
     );
+  }
+
+  Future<void> _signOut() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al cerrar sesión: ${e.toString()}')),
+        );
+      }
+    }
   }
 
   @override
