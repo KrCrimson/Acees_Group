@@ -70,4 +70,52 @@ class AuthService with ChangeNotifier {
     final doc = await _firestore.collection('usuarios').doc(uid).get();
     return doc.data();
   }
+
+  Future<void> updateUserEmail({
+    required String newEmail,
+    required String currentPassword,
+  }) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('Usuario no autenticado');
+
+      // 1. Reautenticación requerida
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+      await user.reauthenticateWithCredential(credential);
+
+      // 2. Actualizar email
+      await user.verifyBeforeUpdateEmail(newEmail);
+    } on FirebaseAuthException catch (e) {
+      throw FirebaseAuthException(code: e.code, message: e.message);
+    }
+  }
+
+  // Método para actualizar la contraseña
+  Future<void> updateUserPassword({
+    required String newPassword,
+    required String currentPassword,
+  }) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('Usuario no autenticado');
+
+      // Reautenticación
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+      await user.reauthenticateWithCredential(credential);
+
+      // Actualizar contraseña
+      await user.updatePassword(newPassword);
+    } on FirebaseAuthException catch (e) {
+      throw FirebaseAuthException(code: e.code, message: e.message);
+    }
+  }
+
+  // Obtener datos del usuario actual
+  User? get currentUser => _auth.currentUser;
 }

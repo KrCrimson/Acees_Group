@@ -37,7 +37,7 @@ class MyApp extends StatelessWidget {
       home: const AuthWrapper(),
       routes: {
         '/login': (context) => const LoginScreen(),
-        '/register': (context) => const RegisterScreen(),
+        '/register': (context) => const UserFormDialog(defaultRole: 'guardia'),
         '/admin': (context) => const AdminView(),
         '/user': (context) => const UserScannerScreen(), // Actualizado a UserScannerScreen
         '/user/history': (context) => const UserHistoryScreen(), // Agregado para historial

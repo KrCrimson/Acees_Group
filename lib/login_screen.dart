@@ -87,7 +87,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const RegisterScreen()),
+                    MaterialPageRoute(builder: (context) => const UserFormDialog(defaultRole: 'guardia'),),
                   );
                 },
                 child: const Text('Registro Provisional'),
