@@ -24,6 +24,7 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
   Map<String, dynamic>? _currentStudent;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final _scanCooldown = const Duration(seconds: 3);
+  bool _isPrincipalEntrance = true; // true = Principal, false = Cochera
 
   Future<void> _handleBarcodeScan(String barcode) async {
     if (_isProcessing || 
@@ -68,37 +69,46 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
   }
 
   Future<void> _registerAttendance(Map<String, dynamic> student) async {
-  try {
-    final attendanceType = await _determineAttendanceType(student['dni']);
-    final now = DateTime.now();
-    
-    await _firestore.collection('asistencias').add({
-      // Datos del alumno
-      'dni': student['dni'],
-      'codigo_universitario': student['codigo_universitario'],
-      'nombre': student['nombre'],
-      'apellido': student['apellido'],
-      
-      // Siglas
-      'siglas_facultad': student['siglas_facultad'],
-      'siglas_escuela': student['siglas_escuela'],
-      
-      // Campos nuevos
-      'fecha': Timestamp.fromDate(now), // Fecha completa
-      'hora': DateFormat('HH:mm').format(now), // Hora separada
-      'tipo': attendanceType,
-      'estado': 'activo',
-      
-      // Campo adicional para búsquedas
-      'fecha_hora': Timestamp.fromDate(now), // Mantener para consultas
-    });
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) throw Exception('Usuario no autenticado');
 
-    _showToast('Asistencia registrada: ${attendanceType.toUpperCase()}');
-  } catch (e) {
-    _showToast('Error al registrar: ${e.toString()}');
-    rethrow;
+      final userDoc = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(currentUser.uid)
+          .get();
+
+      final attendanceType = await _determineAttendanceType(student['dni']);
+      final now = DateTime.now();
+      
+      await _firestore.collection('asistencias').add({
+        'dni': student['dni'],
+        'codigo_universitario': student['codigo_universitario'],
+        'nombre': student['nombre'],
+        'apellido': student['apellido'],
+        'siglas_facultad': student['siglas_facultad'],
+        'siglas_escuela': student['siglas_escuela'],
+        'fecha': Timestamp.fromDate(now),
+        'hora': DateFormat('HH:mm').format(now),
+        'tipo': attendanceType,
+        'entrada_tipo': _isPrincipalEntrance ? 'principal' : 'cochera', // Nuevo campo
+        'estado': 'activo',
+        'fecha_hora': Timestamp.fromDate(now),
+        'registrado_por': {
+          'uid': currentUser.uid,
+          'nombre': userDoc.data()?['nombre'] ?? 'Desconocido',
+          'apellido': userDoc.data()?['apellido'] ?? 'Desconocido',
+          'email': currentUser.email,
+          'rango': userDoc.data()?['rango'] ?? 'Desconocido',
+        }
+      });
+
+      _showToast('Asistencia registrada: ${attendanceType.toUpperCase()} - ${_isPrincipalEntrance ? 'Principal' : 'Cochera'}');
+    } catch (e) {
+      _showToast('Error al registrar: ${e.toString()}');
+      rethrow;
+    }
   }
-}
 
   Future<String> _determineAttendanceType(String dni) async {
     final snapshot = await _firestore.collection('asistencias')
@@ -161,6 +171,11 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
             ),
             onPressed: () => _cameraController.toggleTorch(),
           ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Cerrar sesión',
+            onPressed: _signOut,
+          ),
         ],
       ),
       body: Column(
@@ -177,7 +192,7 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
                     for (final barcode in barcodes) {
                       if (barcode.rawValue != null) {
                         _handleBarcodeScan(barcode.rawValue!);
-                        break; // Procesar solo el primer código
+                        break;
                       }
                     }
                   },
@@ -201,29 +216,55 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
                 color: Colors.grey[100],
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
               ),
-              child: _buildInfoSection(),
+              child: Column(
+                children: [
+                  // Switch para seleccionar tipo de entrada
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text('Cochera'),
+                      Switch(
+                        value: _isPrincipalEntrance,
+                        activeColor: Colors.blue,
+                        inactiveThumbColor: Colors.red,
+                        inactiveTrackColor: Colors.red.withOpacity(0.4),  
+                        onChanged: (value) {
+                          setState(() {
+                            _isPrincipalEntrance = value;
+                          });
+                        },
+                      ),
+                      const Text('Principal'), 
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: _buildStudentInfoSection(),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-      onPressed: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const UserHistoryScreen(),
-          ),
-        );
-      },
-      icon: const Icon(Icons.history),
-      label: const Text('Ver Historial'),
-      backgroundColor: Colors.blue,
-    ),
-    floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const UserHistoryScreen(),
+            ),
+          );
+        },
+        icon: const Icon(Icons.history),
+        label: const Text('Ver Historial'),
+        backgroundColor: Colors.blue,
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 
-  Widget _buildInfoSection() {
+  Widget _buildStudentInfoSection() {
     if (_currentStudent == null) {
       return const Center(
         child: Column(
@@ -264,7 +305,16 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
+        Text(
+          'Entrada: ${_isPrincipalEntrance ? 'Cochera' : 'Principal'}',
+          style: TextStyle(
+            fontSize: 16,
+            color: _isPrincipalEntrance ? Colors.blue : Colors.orange,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 10),
         if (_lastScanTime != null)
           Text(
             'Último registro: ${DateFormat('HH:mm:ss').format(_lastScanTime!)}',

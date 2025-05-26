@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'add_edit_user_dialog.dart';
 import 'user_card.dart';
 
@@ -21,6 +22,13 @@ class _AdminViewState extends State<AdminView> {
     super.dispose();
   }
 
+  void _signOut() async {
+    await FirebaseAuth.instance.signOut();
+    if (mounted) {
+      Navigator.of(context).pushReplacementNamed('/login'); // Asegúrate que esta ruta esté definida
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -28,9 +36,16 @@ class _AdminViewState extends State<AdminView> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Panel de Administrador'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'Cerrar sesión',
+              onPressed: _signOut,
+            ),
+          ],
           bottom: TabBar(
             tabs: const [
-              Tab(icon: Icon(Icons.admin_panel_settings)), 
+              Tab(icon: Icon(Icons.admin_panel_settings)),
               Tab(icon: Icon(Icons.security)),
             ],
             onTap: (index) => setState(() => _currentTabIndex = index),
@@ -52,7 +67,8 @@ class _AdminViewState extends State<AdminView> {
                     },
                   ),
                 ),
-                onChanged: (value) => setState(() => _searchQuery = value.toLowerCase()),
+                onChanged: (value) =>
+                    setState(() => _searchQuery = value.toLowerCase()),
               ),
             ),
             Expanded(
@@ -96,7 +112,8 @@ class _AdminViewState extends State<AdminView> {
         final users = snapshot.data!.docs.where((user) {
           final nombre = user['nombre'].toString().toLowerCase();
           final dni = user['dni'].toString().toLowerCase();
-          return nombre.contains(_searchQuery) || dni.contains(_searchQuery);
+          return nombre.contains(_searchQuery) ||
+              dni.contains(_searchQuery);
         }).toList();
 
         return ListView.builder(
