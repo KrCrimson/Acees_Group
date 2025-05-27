@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'add_edit_user_dialog.dart';
 import 'user_card.dart';
+import 'admin_report_screen.dart';
 
 class AdminView extends StatefulWidget {
   const AdminView({super.key});
@@ -99,6 +100,16 @@ class _AdminViewState extends State<AdminView> {
         appBar: AppBar(
           title: const Text('Panel de Administrador'),
           actions: [
+            IconButton( // Nuevo botón para ir a AdminReportScreen
+              icon: const Icon(Icons.assessment), // O Icons.picture_as_pdf u otro que prefieras
+              tooltip: 'Generar PDF Reporte',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AdminReportScreen()),
+                );
+              },
+            ),
             IconButton(
               icon: const Icon(Icons.logout),
               tooltip: 'Cerrar sesión',
