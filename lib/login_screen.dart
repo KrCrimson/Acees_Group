@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'auth_service.dart';
-import 'register_screen.dart';
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -83,15 +82,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: const Text('Iniciar Sesión'),
                     ),
               const Spacer(),
-              TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const UserFormDialog(defaultRole: 'guardia'),),
-                  );
-                },
-                child: const Text('Registro Provisional'),
-              ),
             ],
           ),
         ),

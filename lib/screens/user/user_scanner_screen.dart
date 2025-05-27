@@ -65,50 +65,70 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
         .limit(1)
         .get();
 
-    return snapshot.docs.isEmpty ? null : snapshot.docs.first.data();
+    if (snapshot.docs.isEmpty) {
+      debugPrint('Student not found with barcode: $barcode');
+      return null;
+    }
+    return snapshot.docs.first.data();
   }
 
   Future<void> _registerAttendance(Map<String, dynamic> student) async {
-    try {
-      final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser == null) throw Exception('Usuario no autenticado');
+  try {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) throw Exception('Usuario no autenticado');
 
-      final userDoc = await FirebaseFirestore.instance
-          .collection('usuarios')
-          .doc(currentUser.uid)
-          .get();
+    final userDoc = await FirebaseFirestore.instance
+        .collection('usuarios')
+        .doc(currentUser.uid)
+        .get();
 
-      final attendanceType = await _determineAttendanceType(student['dni']);
-      final now = DateTime.now();
-      
-      await _firestore.collection('asistencias').add({
-        'dni': student['dni'],
-        'codigo_universitario': student['codigo_universitario'],
-        'nombre': student['nombre'],
-        'apellido': student['apellido'],
-        'siglas_facultad': student['siglas_facultad'],
-        'siglas_escuela': student['siglas_escuela'],
-        'fecha': Timestamp.fromDate(now),
-        'hora': DateFormat('HH:mm').format(now),
-        'tipo': attendanceType,
-        'entrada_tipo': _isPrincipalEntrance ? 'principal' : 'cochera', // Nuevo campo
-        'estado': 'activo',
-        'fecha_hora': Timestamp.fromDate(now),
-        'registrado_por': {
-          'uid': currentUser.uid,
-          'nombre': userDoc.data()?['nombre'] ?? 'Desconocido',
-          'apellido': userDoc.data()?['apellido'] ?? 'Desconocido',
-          'email': currentUser.email,
-          'rango': userDoc.data()?['rango'] ?? 'Desconocido',
-        }
-      });
+    final attendanceType = await _determineAttendanceType(student['dni']);
+    final now = DateTime.now();
 
-      _showToast('Asistencia registrada: ${attendanceType.toUpperCase()} - ${_isPrincipalEntrance ? 'Principal' : 'Cochera'}');
-    } catch (e) {
-      _showToast('Error al registrar: ${e.toString()}');
-      rethrow;
-    }
+    // Registro en la colección 'asistencias'
+    await _firestore.collection('asistencias').add({
+      'dni': student['dni'],
+      'codigo_universitario': student['codigo_universitario'],
+      'nombre': student['nombre'],
+      'apellido': student['apellido'],
+      'siglas_facultad': student['siglas_facultad'],
+      'siglas_escuela': student['siglas_escuela'],
+      'fecha': Timestamp.fromDate(now),
+      'hora': DateFormat('HH:mm').format(now),
+      'tipo': attendanceType,
+      'entrada_tipo': _isPrincipalEntrance ? 'principal' : 'cochera',
+      'estado': 'activo',
+      'fecha_hora': Timestamp.fromDate(now),
+      'registrado_por': {
+        'uid': currentUser.uid,
+        'nombre': userDoc.data()?['nombre'] ?? 'Desconocido',
+        'apellido': userDoc.data()?['apellido'] ?? 'Desconocido',
+        'email': currentUser.email,
+        'rango': userDoc.data()?['rango'] ?? 'Desconocido',
+      }
+    });
+
+    // Registro en la colección 'registros' para historial de usuarios
+    await _firestore.collection('registros').add({
+      'registrador_uid': currentUser.uid,
+      'registrador_nombre': userDoc.data()?['nombre'] ?? 'Desconocido',
+      'registrador_apellido': userDoc.data()?['apellido'] ?? 'Desconocido',
+      'registrador_email': currentUser.email,
+      'alumno_dni': student['dni'],
+      'alumno_nombre': student['nombre'],
+      'alumno_apellido': student['apellido'],
+      'tipo_asistencia': attendanceType,
+      'entrada_tipo': _isPrincipalEntrance ? 'principal' : 'cochera',
+      'fecha_hora': Timestamp.fromDate(now),
+    });
+
+    _showToast('Asistencia registrada: ${attendanceType.toUpperCase()} - ${_isPrincipalEntrance ? 'Principal' : 'Cochera'}');
+  } catch (e) {
+    _showToast('Error al registrar: ${e.toString()}');
+    rethrow;
   }
+}
+
 
   Future<String> _determineAttendanceType(String dni) async {
     final snapshot = await _firestore.collection('asistencias')

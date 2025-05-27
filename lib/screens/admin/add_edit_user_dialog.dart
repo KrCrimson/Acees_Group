@@ -77,7 +77,6 @@ Future<void> showAddEditUserDialog(
                   'nombre': nombreController.text,
                   'apellido': apellidoController.text,
                   'dni': dniController.text,
-                  'email': emailController.text,
                   'rango': userRole,
                   'estado': 'activo',
                   'fecha_actualizacion': FieldValue.serverTimestamp(),

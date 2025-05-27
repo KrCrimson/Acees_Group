@@ -3,7 +3,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'auth_service.dart';
 import 'login_screen.dart';
-import 'register_screen.dart';
 import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'screens/user/user_scanner_screen.dart'; // Importa la nueva pantalla
@@ -37,7 +36,6 @@ class MyApp extends StatelessWidget {
       home: const AuthWrapper(),
       routes: {
         '/login': (context) => const LoginScreen(),
-        '/register': (context) => const UserFormDialog(defaultRole: 'guardia'),
         '/admin': (context) => const AdminView(),
         '/user': (context) => const UserScannerScreen(), // Actualizado a UserScannerScreen
         '/user/history': (context) => const UserHistoryScreen(), // Agregado para historial
