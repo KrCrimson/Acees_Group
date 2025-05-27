@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'add_edit_user_dialog.dart';
 import 'user_card.dart';
+import 'admin_report_chart_screen.dart';
 
 class AdminView extends StatefulWidget {
   const AdminView({super.key});
@@ -32,11 +33,18 @@ class _AdminViewState extends State<AdminView> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 3, // Cambia a 3 pestañas
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Panel de Administrador'),
           actions: [
+            IconButton(
+              icon: const Icon(Icons.bar_chart),
+              tooltip: 'Reportes de asistencias',
+              onPressed: () {
+                Navigator.of(context).pushNamed('/admin/report');
+              },
+            ),
             IconButton(
               icon: const Icon(Icons.logout),
               tooltip: 'Cerrar sesión',
@@ -47,6 +55,7 @@ class _AdminViewState extends State<AdminView> {
             tabs: const [
               Tab(icon: Icon(Icons.admin_panel_settings)),
               Tab(icon: Icon(Icons.security)),
+              Tab(icon: Icon(Icons.show_chart)), // Nueva pestaña para gráfico
             ],
             onTap: (index) => setState(() => _currentTabIndex = index),
           ),
@@ -76,6 +85,7 @@ class _AdminViewState extends State<AdminView> {
                 children: [
                   _buildUserList('admin'),
                   _buildUserList('guardia'),
+                  const AdminReportChartScreen(), // Nueva vista de gráfico
                 ],
               ),
             ),

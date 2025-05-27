@@ -5,6 +5,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:intl/intl.dart';
 import 'user_history_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 
 class UserScannerScreen extends StatefulWidget {
   const UserScannerScreen({super.key});
@@ -25,6 +26,7 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final _scanCooldown = const Duration(seconds: 3);
   bool _isPrincipalEntrance = true; // true = Principal, false = Cochera
+  final FlutterTts _flutterTts = FlutterTts();
 
   Future<void> _handleBarcodeScan(String barcode) async {
     if (_isProcessing || 
@@ -45,6 +47,8 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
       setState(() => _currentStudent = student);
       await _registerAttendance(student);
       _showToast("Asistencia registrada");
+      // Reproducir nombre y apellido por bocinas
+      await _speakStudentInfo(student);
       
     } catch (e) {
       _showToast("Error: ${e.toString()}");
@@ -165,9 +169,19 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
     }
   }
 
+  Future<void> _speakStudentInfo(Map<String, dynamic> student) async {
+    final nombre = student['nombre'] ?? '';
+    final apellido = student['apellido'] ?? '';
+    final texto = 'Asistencia registrada para $nombre $apellido';
+    await _flutterTts.setLanguage('es-ES');
+    await _flutterTts.setSpeechRate(0.9);
+    await _flutterTts.speak(texto);
+  }
+
   @override
   void dispose() {
     _cameraController.dispose();
+    _flutterTts.stop();
     super.dispose();
   }
 

@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'screens/user/user_scanner_screen.dart'; // Importa la nueva pantalla
 import 'screens/user/user_history_screen.dart'; // Importa la pantalla de historial
 import 'screens/admin/admin_view.dart'; // Importa la pantalla de perfil de usuario
+import 'screens/admin/admin_report_screen.dart'; // Importa la pantalla de reportes
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
@@ -37,8 +38,9 @@ class MyApp extends StatelessWidget {
       routes: {
         '/login': (context) => const LoginScreen(),
         '/admin': (context) => const AdminView(),
-        '/user': (context) => const UserScannerScreen(), // Actualizado a UserScannerScreen
-        '/user/history': (context) => const UserHistoryScreen(), // Agregado para historial
+        '/user': (context) => const UserScannerScreen(),
+        '/user/history': (context) => const UserHistoryScreen(),
+        '/admin/report': (context) => const AdminReportScreen(), // Agrega esta línea
       },
     );
   }

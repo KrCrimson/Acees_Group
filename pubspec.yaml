@@ -17,6 +17,8 @@ dependencies:
   fluttertoast: ^8.2.2
   intl: ^0.18.1   
   share_plus: ^7.0.0
+  fl_chart: ^0.63.0
+  flutter_tts: ^3.8.5
 
 dev_dependencies:
   flutter_test:

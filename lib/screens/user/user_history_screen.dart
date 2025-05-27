@@ -28,7 +28,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
     super.initState();
     _loadInitialData();
   }
-  
+
   Future<void> _loadInitialData() async {
     try {
       setState(() {
@@ -45,32 +45,32 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         return;
       }
 
-      // Consulta base
       Query query = _firestore.collection('asistencias')
           .orderBy('fecha_hora', descending: true)
           .limit(100);
 
-      // Verifica si es administrador
       final userDoc = await _firestore.collection('usuarios').doc(user.uid).get();
       final isAdmin = userDoc.data()?['rango'] == 'admin';
 
       if (!isAdmin) {
-        // Si no es admin, solo puede ver sus registros
         query = query.where('registrado_por.uid', isEqualTo: user.uid);
       } else {
-        // Si es admin, puede aplicar filtros
-        if (_selectedFilter == 'entrada' || _selectedFilter == 'salida') {
-          query = query.where('tipo', isEqualTo: _selectedFilter);
-        } else if (_selectedFilter == 'mis_registros') {
+        if (_selectedFilter == 'mis_registros') {
           query = query.where('registrado_por.uid', isEqualTo: user.uid);
         }
       }
 
-      // Filtro por rango de fechas
+      if (_selectedFilter == 'entrada' || _selectedFilter == 'salida') {
+        query = query.where('tipo', isEqualTo: _selectedFilter);
+      }
+
+      // Filtro por rango de fechas (incluye caso de un solo día)
       if (_dateRange != null) {
+        final start = DateTime(_dateRange!.start.year, _dateRange!.start.month, _dateRange!.start.day, 0, 0, 0);
+        final end = DateTime(_dateRange!.end.year, _dateRange!.end.month, _dateRange!.end.day, 23, 59, 59, 999);
         query = query
-            .where('fecha_hora', isGreaterThanOrEqualTo: Timestamp.fromDate(_dateRange!.start))
-            .where('fecha_hora', isLessThanOrEqualTo: Timestamp.fromDate(_dateRange!.end));
+            .where('fecha_hora', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+            .where('fecha_hora', isLessThanOrEqualTo: Timestamp.fromDate(end));
       }
 
       final snapshot = await query.get();
@@ -95,23 +95,6 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
       });
     }
   }
-  
-  Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedDate ?? DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-    );
-    
-    if (picked != null) {
-      setState(() {
-        _selectedDate = picked;
-        _dateRange = null;
-      });
-      await _loadInitialData();
-    }
-  }
 
   Future<void> _selectDateRange(BuildContext context) async {
     final DateTimeRange? picked = await showDateRangePicker(
@@ -120,11 +103,10 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
       lastDate: DateTime.now(),
       initialDateRange: _dateRange,
     );
-    
+
     if (picked != null) {
       setState(() {
         _dateRange = picked;
-        _selectedDate = null;
       });
       await _loadInitialData();
     }
@@ -168,33 +150,24 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
             padding: const EdgeInsets.all(8.0),
             child: Row(
               children: [
-                // Botón para seleccionar fecha única
-                ElevatedButton(
-                  onPressed: () => _selectDate(context),
-                  child: Text(
-                    _selectedDate == null
-                        ? 'Seleccionar día'
-                        : DateFormat('dd/MM/yy').format(_selectedDate!),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Botón para seleccionar rango de fechas
+                // Solo botón para seleccionar rango de fechas
                 ElevatedButton(
                   onPressed: () => _selectDateRange(context),
                   child: Text(
                     _dateRange == null
                         ? 'Seleccionar rango'
-                        : '${DateFormat('dd/MM/yy').format(_dateRange!.start)} - ${DateFormat('dd/MM/yy').format(_dateRange!.end)}',
+                        : (_dateRange!.start == _dateRange!.end
+                            ? DateFormat('dd/MM/yy').format(_dateRange!.start)
+                            : '${DateFormat('dd/MM/yy').format(_dateRange!.start)} - ${DateFormat('dd/MM/yy').format(_dateRange!.end)}'),
                   ),
                 ),
                 const SizedBox(width: 8),
-                // Botón para limpiar filtros
-                if (_selectedDate != null || _dateRange != null)
+                // Botón para limpiar filtro de rango
+                if (_dateRange != null)
                   IconButton(
                     icon: const Icon(Icons.clear),
                     onPressed: () async {
                       setState(() {
-                        _selectedDate = null;
                         _dateRange = null;
                       });
                       await _loadInitialData();
@@ -214,8 +187,8 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _exportToCsv,
-        child: const Icon(Icons.download),
         tooltip: 'Exportar a CSV',
+        child: const Icon(Icons.download),
       ),
     );
   }
@@ -262,6 +235,13 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
     final fechaHora = DateFormat('dd/MM/yyyy HH:mm').format(record['fecha_hora']);
     final tipo = record['tipo']?.toString().toUpperCase() ?? '';
     final hora = record['hora'] ?? DateFormat('HH:mm').format(record['fecha_hora']);
+    final registradoPor = record['registrado_por'];
+    String? registradoPorNombre;
+    if (registradoPor != null && registradoPor is Map<String, dynamic>) {
+      final nombre = registradoPor['nombre'] ?? '';
+      final apellido = registradoPor['apellido'] ?? '';
+      registradoPorNombre = (nombre + ' ' + apellido).trim();
+    }
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -280,6 +260,11 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
             Text('DNI: ${record['dni'] ?? 'No disponible'}'),
             Text('${record['siglas_facultad'] ?? ''} - ${record['siglas_escuela'] ?? ''}'),
             Text(fechaHora, style: const TextStyle(fontSize: 12)),
+            if (registradoPorNombre != null && registradoPorNombre.isNotEmpty)
+              Text(
+                'Registrado por: $registradoPorNombre',
+                style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
+              ),
           ],
         ),
         trailing: Column(
