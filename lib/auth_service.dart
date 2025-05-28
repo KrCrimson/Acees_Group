@@ -28,6 +28,7 @@ class AuthService with ChangeNotifier {
 
   Future<void> signOut() async {
     await _auth.signOut();
+    notifyListeners();
   }
 
   Future<void> registerUser({

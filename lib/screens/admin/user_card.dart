@@ -21,7 +21,16 @@ class UserCard extends StatelessWidget {
       child: ListTile(
         leading: CircleAvatar(child: Text(user['nombre'][0])),
         title: Text('${user['nombre']} ${user['apellido']}'),
-        subtitle: Text('DNI: ${user['dni']}'),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('DNI: ${user['dni']}'),
+            Text('Email: ${user['email']}'),
+            Text('Rol: ${user['rango']}'),
+            if (user['rango'] == 'guardia')
+              Text('Puerta a Cargo: ${user['puerta_acargo']}'),
+          ],
+        ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

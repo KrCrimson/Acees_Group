@@ -23,10 +23,18 @@ class _AdminViewState extends State<AdminView> {
     super.dispose();
   }
 
-  void _signOut() async {
-    await FirebaseAuth.instance.signOut();
-    if (mounted) {
-      Navigator.of(context).pushReplacementNamed('/login'); // Asegúrate que esta ruta esté definida
+  Future<void> _signOut() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      // Add a small delay before navigating
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al cerrar sesión: ${e.toString()}')),
+      );
     }
   }
 

@@ -160,6 +160,11 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
   Future<void> _signOut() async {
     try {
       await FirebaseAuth.instance.signOut();
+      // Add a small delay before navigating
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -172,9 +177,12 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
   Future<void> _speakStudentInfo(Map<String, dynamic> student) async {
     final nombre = student['nombre'] ?? '';
     final apellido = student['apellido'] ?? '';
-    final texto = 'Asistencia registrada para $nombre $apellido';
+    final facultad = student['siglas_facultad'] ?? '';
+    final escuela = student['siglas_escuela'] ?? '';
+    final texto =
+        'Asistencia registrada para $nombre $apellido, de la facultad $facultad, de la escuela $escuela';
     await _flutterTts.setLanguage('es-ES');
-    await _flutterTts.setSpeechRate(0.9);
+    await _flutterTts.setSpeechRate(0.5); // Slower speech rate
     await _flutterTts.speak(texto);
   }
 

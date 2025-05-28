@@ -52,16 +52,17 @@ class AuthWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context);
-    
+
     return StreamBuilder<User?>(
       stream: authService.userStream,
       builder: (_, AsyncSnapshot<User?> snapshot) {
         if (snapshot.connectionState == ConnectionState.active) {
           final user = snapshot.data;
           if (user == null) {
+            // Use pushReplacement to avoid stacking routes
             return const LoginScreen();
           }
-          
+
           // Verificar el rango del usuario
           return FutureBuilder<Map<String, dynamic>?>(
             future: authService.getUserData(user.uid),
