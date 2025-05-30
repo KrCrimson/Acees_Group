@@ -19,7 +19,13 @@ dependencies:
   share_plus: ^7.0.0
   fl_chart: ^0.63.0
   flutter_tts: ^3.8.5
-
+  expandable: ^5.0.1
+  google_fonts: ^6.1.0 # Replace with the latest version
+  flutter_svg: ^2.0.9 # Replace with the latest version
+  carousel_slider: ^4.2.1 # Replace with the latest version
+  shimmer: ^3.0.0 # Replace with the latest version
+  animations: ^2.0.8
+  
 dev_dependencies:
   flutter_test:
     sdk: flutter

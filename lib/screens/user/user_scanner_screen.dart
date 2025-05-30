@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import 'user_history_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:google_fonts/google_fonts.dart'; // Import Google Fonts
+import 'visitor_form_screen.dart'; // Import the visitor form screen
 
 class UserScannerScreen extends StatefulWidget {
   const UserScannerScreen({super.key});
@@ -14,12 +16,12 @@ class UserScannerScreen extends StatefulWidget {
   State<UserScannerScreen> createState() => _UserScannerScreenState();
 }
 
-class _UserScannerScreenState extends State<UserScannerScreen> {
+class _UserScannerScreenState extends State<UserScannerScreen> with SingleTickerProviderStateMixin {
   final MobileScannerController _cameraController = MobileScannerController(
     detectionSpeed: DetectionSpeed.normal,
     detectionTimeoutMs: 1000,
   );
-  
+  late TabController _tabController;
   bool _isProcessing = false;
   DateTime? _lastScanTime;
   Map<String, dynamic>? _currentStudent;
@@ -27,6 +29,20 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
   final _scanCooldown = const Duration(seconds: 3);
   bool _isPrincipalEntrance = true; // true = Principal, false = Cochera
   final FlutterTts _flutterTts = FlutterTts();
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _cameraController.dispose();
+    _flutterTts.stop();
+    _tabController.dispose();
+    super.dispose();
+  }
 
   Future<void> _handleBarcodeScan(String barcode) async {
     if (_isProcessing || 
@@ -39,8 +55,23 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
 
     try {
       final student = await _fetchStudentData(barcode);
-      if (student == null) {
-        _showToast("Alumno no encontrado");
+      if (!mounted) return;
+
+      if (student == null || student['dni'] == null) {
+        // Navigate to visitor form if DNI is not found or does not exist
+        final guardName = await _getGuardName();
+        final assignedDoor = await _getAssignedDoor();
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => VisitorFormScreen(
+              dni: barcode,
+              guardName: guardName,
+              assignedDoor: assignedDoor,
+            ),
+          ),
+        );
         return;
       }
 
@@ -58,6 +89,31 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
         _lastScanTime = DateTime.now();
       });
     }
+  }
+
+  Future<String> _getGuardName() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return 'Desconocido';
+
+    final userDoc = await FirebaseFirestore.instance
+        .collection('usuarios')
+        .doc(currentUser.uid)
+        .get();
+
+    final guardName = '${userDoc.data()?['nombre'] ?? 'Desconocido'} ${userDoc.data()?['apellido'] ?? 'Desconocido'}';
+    return guardName;
+  }
+
+  Future<String> _getAssignedDoor() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return 'Sin asignar';
+
+    final userDoc = await FirebaseFirestore.instance
+        .collection('usuarios')
+        .doc(currentUser.uid)
+        .get();
+
+    return userDoc.data()?['puerta_acargo'] ?? 'Sin asignar';
   }
 
   Future<Map<String, dynamic>?> _fetchStudentData(String barcode) async {
@@ -89,6 +145,15 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
     final attendanceType = await _determineAttendanceType(student['dni']);
     final now = DateTime.now();
 
+    // Fetch the guard's assigned door
+    final guardSnapshot = await FirebaseFirestore.instance
+        .collection('usuarios')
+        .doc(currentUser.uid)
+        .get();
+
+    final guardData = guardSnapshot.data();
+    final assignedDoor = guardData?['puerta_acargo'] ?? 'Sin asignar';
+
     // Registro en la colección 'asistencias'
     await _firestore.collection('asistencias').add({
       'dni': student['dni'],
@@ -109,7 +174,8 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
         'apellido': userDoc.data()?['apellido'] ?? 'Desconocido',
         'email': currentUser.email,
         'rango': userDoc.data()?['rango'] ?? 'Desconocido',
-      }
+      },
+      'puerta': assignedDoor, // Include the assigned door
     });
 
     // Registro en la colección 'registros' para historial de usuarios
@@ -186,126 +252,6 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
     await _flutterTts.speak(texto);
   }
 
-  @override
-  void dispose() {
-    _cameraController.dispose();
-    _flutterTts.stop();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Registro de Asistencia'),
-        actions: [
-          IconButton(
-            icon: ValueListenableBuilder<TorchState>(
-              valueListenable: _cameraController.torchState,
-              builder: (context, state, _) {
-                switch (state) {
-                  case TorchState.off:
-                    return const Icon(Icons.flash_off, color: Colors.grey);
-                  case TorchState.on:
-                    return const Icon(Icons.flash_on, color: Colors.yellow);
-                }
-              },
-            ),
-            onPressed: () => _cameraController.toggleTorch(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Cerrar sesión',
-            onPressed: _signOut,
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Sección del escáner
-          Expanded(
-            flex: 4,
-            child: Stack(
-              children: [
-                MobileScanner(
-                  controller: _cameraController,
-                  onDetect: (capture) {
-                    final barcodes = capture.barcodes;
-                    for (final barcode in barcodes) {
-                      if (barcode.rawValue != null) {
-                        _handleBarcodeScan(barcode.rawValue!);
-                        break;
-                      }
-                    }
-                  },
-                ),
-                if (_isProcessing)
-                  const Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-
-          // Sección de información
-          Expanded(
-            flex: 2,
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-              ),
-              child: Column(
-                children: [
-                  // Switch para seleccionar tipo de entrada
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('Cochera'),
-                      Switch(
-                        value: _isPrincipalEntrance,
-                        activeColor: Colors.blue,
-                        inactiveThumbColor: Colors.red,
-                        inactiveTrackColor: Colors.red.withOpacity(0.4),  
-                        onChanged: (value) {
-                          setState(() {
-                            _isPrincipalEntrance = value;
-                          });
-                        },
-                      ),
-                      const Text('Principal'), 
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Expanded(
-                    child: _buildStudentInfoSection(),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const UserHistoryScreen(),
-            ),
-          );
-        },
-        icon: const Icon(Icons.history),
-        label: const Text('Ver Historial'),
-        backgroundColor: Colors.blue,
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-    );
-  }
-
   Widget _buildStudentInfoSection() {
     if (_currentStudent == null) {
       return const Center(
@@ -368,6 +314,149 @@ class _UserScannerScreenState extends State<UserScannerScreen> {
             child: LinearProgressIndicator(),
           ),
       ],
+    );
+  }
+
+  Widget _buildExternalVisitorsSection() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: _firestore.collection('externos').snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return const Center(child: Text('No hay registros de externos.'));
+        }
+
+        final externalVisitors = snapshot.data!.docs;
+
+        return ListView.builder(
+          itemCount: externalVisitors.length,
+          itemBuilder: (context, index) {
+            final visitor = externalVisitors[index].data() as Map<String, dynamic>;
+            return ListTile(
+              leading: const Icon(Icons.person, color: Colors.blue),
+              title: Text(visitor['nombre'] ?? 'Desconocido'),
+              subtitle: Text('DNI: ${visitor['dni'] ?? 'Sin DNI'}'),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.indigo[700],
+        title: Text(
+          'Registro de Asistencia',
+          style: GoogleFonts.lato(
+            textStyle: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: ValueListenableBuilder<TorchState>(
+              valueListenable: _cameraController.torchState,
+              builder: (context, state, _) {
+                switch (state) {
+                  case TorchState.off:
+                    return const Icon(Icons.flash_off, color: Colors.grey);
+                  case TorchState.on:
+                    return const Icon(Icons.flash_on, color: Colors.yellow);
+                }
+              },
+            ),
+            onPressed: () => _cameraController.toggleTorch(),
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            tooltip: 'Cerrar sesión',
+            onPressed: _signOut,
+          ),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(icon: Icon(Icons.qr_code_scanner), text: 'Asistencias'),
+            Tab(icon: Icon(Icons.people), text: 'Externos'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          Column(
+            children: [
+              Expanded(
+                flex: 4,
+                child: Stack(
+                  children: [
+                    MobileScanner(
+                      controller: _cameraController,
+                      onDetect: (capture) {
+                        final barcodes = capture.barcodes;
+                        for (final barcode in barcodes) {
+                          if (barcode.rawValue != null) {
+                            _handleBarcodeScan(barcode.rawValue!);
+                            break;
+                          }
+                        }
+                      },
+                    ),
+                    if (_isProcessing)
+                      const Center(
+                        child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Expanded(
+                flex: 2,
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  ),
+                  child: _buildStudentInfoSection(),
+                ),
+              ),
+            ],
+          ),
+          _buildExternalVisitorsSection(),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: Colors.indigo[700],
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const UserHistoryScreen(),
+            ),
+          );
+        },
+        icon: const Icon(Icons.history, color: Colors.white),
+        label: Text(
+          'Ver Historial',
+          style: GoogleFonts.roboto(
+            textStyle: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 }

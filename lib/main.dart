@@ -5,10 +5,11 @@ import 'auth_service.dart';
 import 'login_screen.dart';
 import 'firebase_options.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'screens/user/user_scanner_screen.dart'; // Importa la nueva pantalla
-import 'screens/user/user_history_screen.dart'; // Importa la pantalla de historial
-import 'screens/admin/admin_view.dart'; // Importa la pantalla de perfil de usuario
-import 'screens/admin/admin_report_screen.dart'; // Importa la pantalla de reportes
+import 'screens/user/user_scanner_screen.dart';
+import 'screens/admin/admin_view.dart';
+import 'screens/admin/admin_report_chart_screen.dart';
+import 'screens/admin/admin_report_screen.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
@@ -25,29 +26,26 @@ void main() async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Sistema de Autenticación',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
       home: const AuthWrapper(),
       routes: {
         '/login': (context) => const LoginScreen(),
         '/admin': (context) => const AdminView(),
         '/user': (context) => const UserScannerScreen(),
-        '/user/history': (context) => const UserHistoryScreen(),
-        '/admin/report': (context) => const AdminReportScreen(), // Agrega esta línea
+        '/admin/report_chart': (context) => const AdminReportChartScreen(),
+        '/admin/report_general': (context) => const AdminReportScreen(),
       },
     );
   }
 }
 
 class AuthWrapper extends StatelessWidget {
-  const AuthWrapper({super.key});
+  const AuthWrapper({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -59,22 +57,23 @@ class AuthWrapper extends StatelessWidget {
         if (snapshot.connectionState == ConnectionState.active) {
           final user = snapshot.data;
           if (user == null) {
-            // Use pushReplacement to avoid stacking routes
             return const LoginScreen();
           }
 
-          // Verificar el rango del usuario
           return FutureBuilder<Map<String, dynamic>?>(
             future: authService.getUserData(user.uid),
             builder: (context, AsyncSnapshot<Map<String, dynamic>?> userDataSnapshot) {
               if (userDataSnapshot.connectionState == ConnectionState.done) {
                 final userData = userDataSnapshot.data;
                 if (userData != null) {
-                  if (userData['rango'] == 'admin') {
+                  final rango = userData['rango'];
+                  if (rango == 'admin') {
                     return const AdminView();
                   } else {
-                    return const UserScannerScreen(); // Redirige directamente al escáner
+                    return const UserScannerScreen();
                   }
+                } else {
+                  return const Scaffold(body: Center(child: Text('Error: No user data found')));
                 }
               }
               return const Scaffold(body: Center(child: CircularProgressIndicator()));

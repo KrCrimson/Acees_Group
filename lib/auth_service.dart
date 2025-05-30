@@ -18,11 +18,26 @@ class AuthService with ChangeNotifier {
     });
   }
 
-  Future<void> signInWithEmailAndPassword(String email, String password) async {
+  Future<void> signIn(String email, String password) async {
     try {
       await _auth.signInWithEmailAndPassword(email: email, password: password);
+      notifyListeners();
     } on FirebaseAuthException catch (e) {
-      throw Exception(e.message);
+      // Throw specific exceptions based on the error code
+      switch (e.code) {
+        case 'user-not-found':
+          throw Exception('Usuario no encontrado.');
+        case 'wrong-password':
+          throw Exception('Contraseña incorrecta.');
+        case 'invalid-email':
+          throw Exception('Correo electrónico inválido.');
+        case 'user-disabled':
+          throw Exception('Este usuario ha sido deshabilitado.');
+        default:
+          throw Exception('Error al iniciar sesión: ${e.message}');
+      }
+    } catch (e) {
+      throw Exception(e.toString());
     }
   }
 

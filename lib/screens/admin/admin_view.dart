@@ -4,9 +4,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'add_edit_user_dialog.dart';
 import 'user_card.dart';
 import 'admin_report_chart_screen.dart';
+import 'admin_report_screen.dart'; // Import admin_report_screen.dart
+import 'external_visits_report_screen.dart'; // Import the external visits report screen
+import 'package:google_fonts/google_fonts.dart';
+import '../../login_screen.dart';
 
 class AdminView extends StatefulWidget {
-  const AdminView({super.key});
+  const AdminView({Key? key}) : super(key: key);
 
   @override
   State<AdminView> createState() => _AdminViewState();
@@ -15,7 +19,6 @@ class AdminView extends StatefulWidget {
 class _AdminViewState extends State<AdminView> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
-  int _currentTabIndex = 0;
 
   @override
   void dispose() {
@@ -26,10 +29,11 @@ class _AdminViewState extends State<AdminView> {
   Future<void> _signOut() async {
     try {
       await FirebaseAuth.instance.signOut();
-      // Add a small delay before navigating
-      await Future.delayed(const Duration(milliseconds: 100));
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/login');
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false, // Remove all previous routes
+        );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -40,83 +44,85 @@ class _AdminViewState extends State<AdminView> {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3, // Cambia a 3 pestañas
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Panel de Administrador'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.bar_chart),
-              tooltip: 'Reportes de asistencias',
-              onPressed: () {
-                Navigator.of(context).pushNamed('/admin/report');
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Admin View'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.bar_chart),
+            tooltip: 'Reportes de asistencias',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                    builder: (context) => const AdminReportChartScreen()),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.analytics),
+            tooltip: 'Reporte General',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                    builder: (context) => const AdminReportScreen()),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.people),
+            tooltip: 'Reporte de Visitas Externas',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                    builder: (context) => const ExternalVisitsReportScreen()),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Cerrar sesión',
+            onPressed: _signOut,
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: TextField(
+              controller: _searchController,
+              decoration: const InputDecoration(
+                labelText: 'Buscar (Nombre, DNI, Facultad)',
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                });
               },
             ),
-            IconButton(
-              icon: const Icon(Icons.logout),
-              tooltip: 'Cerrar sesión',
-              onPressed: _signOut,
-            ),
-          ],
-          bottom: TabBar(
-            tabs: const [
-              Tab(icon: Icon(Icons.admin_panel_settings)),
-              Tab(icon: Icon(Icons.security)),
-              Tab(icon: Icon(Icons.show_chart)), // Nueva pestaña para gráfico
-            ],
-            onTap: (index) => setState(() => _currentTabIndex = index),
           ),
-        ),
-        body: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  labelText: 'Buscar',
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () {
-                      _searchController.clear();
-                      setState(() => _searchQuery = '');
-                    },
-                  ),
-                ),
-                onChanged: (value) =>
-                    setState(() => _searchQuery = value.toLowerCase()),
-              ),
-            ),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  _buildUserList('admin'),
-                  _buildUserList('guardia'),
-                  const AdminReportChartScreen(), // Nueva vista de gráfico
-                ],
-              ),
-            ),
-          ],
-        ),
-        floatingActionButton: _currentTabIndex == 1
-            ? FloatingActionButton(
-                onPressed: () => showAddEditUserDialog(
-                  context,
-                  userRole: 'guardia',
-                ),
-                child: const Icon(Icons.add),
-              )
-            : null,
+          Expanded(child: _buildGuardiaList()),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: Colors.indigo[700],
+        onPressed: () {
+          showAddEditUserDialog(
+            context,
+            userRole: 'guardia', // Default role for new users
+          );
+        },
+        tooltip: 'Agregar Usuario',
+        child: const Icon(Icons.add),
       ),
     );
   }
 
-  Widget _buildUserList(String role) {
+  Widget _buildGuardiaList() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('usuarios')
-          .where('rango', isEqualTo: role)
+          .where('rango', isEqualTo: 'guardia')
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
@@ -130,20 +136,58 @@ class _AdminViewState extends State<AdminView> {
         final users = snapshot.data!.docs.where((user) {
           final nombre = user['nombre'].toString().toLowerCase();
           final dni = user['dni'].toString().toLowerCase();
-          return nombre.contains(_searchQuery) ||
-              dni.contains(_searchQuery);
+          final facultad = user['puerta_acargo'].toString().toLowerCase();
+          return nombre.contains(_searchQuery.toLowerCase()) ||
+              dni.contains(_searchQuery.toLowerCase()) ||
+              facultad.contains(_searchQuery.toLowerCase());
         }).toList();
 
+        // Group users by faculty
+        Map<String, List<DocumentSnapshot>> groupedUsers = {};
+        for (var user in users) {
+          final facultad = user['puerta_acargo'] ?? 'Sin Facultad';
+          if (!groupedUsers.containsKey(facultad)) {
+            groupedUsers[facultad] = [];
+          }
+          groupedUsers[facultad]!.add(user);
+        }
+
         return ListView.builder(
-          itemCount: users.length,
-          itemBuilder: (context, index) => UserCard(
-            user: users[index],
-            onEdit: () => showAddEditUserDialog(
-              context,
-              user: users[index],
-              userRole: role,
-            ),
-          ),
+          itemCount: groupedUsers.length,
+          itemBuilder: (context, index) {
+            final facultad = groupedUsers.keys.toList()[index];
+            final usersInFacultad = groupedUsers[facultad]!;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Text(
+                    facultad,
+                    style: GoogleFonts.roboto(
+                        fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: usersInFacultad.length,
+                  itemBuilder: (context, index) {
+                    final user = usersInFacultad[index];
+                    return UserCard(
+                      user: user,
+                      onEdit: () => showAddEditUserDialog(
+                        context,
+                        user: user,
+                        userRole: 'guardia',
+                      ),
+                    );
+                  },
+                ),
+              ],
+            );
+          },
         );
       },
     );

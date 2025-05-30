@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class AddEditUserDialog extends StatefulWidget {
   final DocumentSnapshot? user;
@@ -19,24 +20,20 @@ class _AddEditUserDialogState extends State<AddEditUserDialog> {
   final _dniController = TextEditingController();
   final _emailController = TextEditingController();
   String? _selectedPuerta;
+  String _status = 'activo'; // Default status
   bool _isEditing = false;
 
   @override
   void initState() {
     super.initState();
-    _isEditing = widget.user != null;
-    if (_isEditing) {
+    if (widget.user != null) {
+      _isEditing = true;
       _nombreController.text = widget.user!['nombre'] ?? '';
       _apellidoController.text = widget.user!['apellido'] ?? '';
       _dniController.text = widget.user!['dni'] ?? '';
       _emailController.text = widget.user!['email'] ?? '';
       _selectedPuerta = widget.user!['puerta_acargo'];
-
-      // Ensure _selectedPuerta matches a valid DropdownMenuItem value
-      if (_selectedPuerta != null &&
-          !['faing', 'facsa', 'facem', 'faedcoh'].contains(_selectedPuerta)) {
-        _selectedPuerta = null; // Set to null if it's an invalid value
-      }
+      _status = widget.user!['estado'] ?? 'activo';
     }
   }
 
@@ -49,17 +46,6 @@ class _AddEditUserDialogState extends State<AddEditUserDialog> {
     super.dispose();
   }
 
-  Future<bool> _isDoorAssignmentValid(String puerta, String? userId) async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('usuarios')
-        .where('rango', isEqualTo: 'guardia')
-        .where('puerta_acargo', isEqualTo: puerta)
-        .get();
-
-    final count = snapshot.docs.where((doc) => doc.id != userId).length;
-    return count < 3;
-  }
-
   Future<void> _submit() async {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
@@ -69,41 +55,39 @@ class _AddEditUserDialogState extends State<AddEditUserDialog> {
       final dni = _dniController.text.trim();
       final email = _emailController.text.trim();
 
-      if (_selectedPuerta == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Por favor, seleccione una puerta.')),
-        );
-        return;
-      }
+      final userData = {
+        'nombre': nombre,
+        'apellido': apellido,
+        'dni': dni,
+        'email': email,
+        'rango': widget.userRole,
+        'puerta_acargo': _selectedPuerta,
+        'estado': _isEditing ? widget.user!['estado'] : _status,
+        'fecha_modificacion': Timestamp.now(),
+      };
 
-      final isValidAssignment = await _isDoorAssignmentValid(
-          _selectedPuerta!, widget.user?.id);
-
-      if (!isValidAssignment) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Máximo 3 guardias por puerta permitidos.')),
-        );
-        return;
+      if (!_isEditing) {
+        userData['fecha_creacion'] = Timestamp.now(); // Add creation date only for new users
       }
 
       try {
-        final userData = {
-          'nombre': nombre,
-          'apellido': apellido,
-          'dni': dni,
-          'email': email,
-          'rango': widget.userRole,
-          'puerta_acargo': _selectedPuerta,
-        };
-
         if (_isEditing) {
           await FirebaseFirestore.instance
               .collection('usuarios')
               .doc(widget.user!.id)
               .update(userData);
         } else {
-          await FirebaseFirestore.instance.collection('usuarios').add(userData);
+          // Create user in Firestore
+          final newUserDoc = await FirebaseFirestore.instance.collection('usuarios').add(userData);
+
+          // Create user in Firebase Authentication
+          final authResult = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+            email: email,
+            password: dni, // Use DNI as the default password
+          );
+
+          // Link Firestore user document with Firebase Authentication UID
+          await newUserDoc.update({'auth_uid': authResult.user!.uid});
         }
 
         Navigator.of(context).pop();
@@ -118,7 +102,16 @@ class _AddEditUserDialogState extends State<AddEditUserDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(_isEditing ? 'Editar ${widget.userRole}' : 'Agregar ${widget.userRole}'),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15.0),
+      ),
+      title: Text(
+        _isEditing ? 'Editar ${widget.userRole}' : 'Agregar ${widget.userRole}',
+        style: const TextStyle(
+          fontWeight: FontWeight.w500,
+          color: Colors.indigo,
+        ),
+      ),
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,
@@ -126,31 +119,63 @@ class _AddEditUserDialogState extends State<AddEditUserDialog> {
             children: [
               TextFormField(
                 controller: _nombreController,
-                decoration: const InputDecoration(labelText: 'Nombre'),
+                decoration: const InputDecoration(
+                  labelText: 'Nombre',
+                  border: OutlineInputBorder(),
+                ),
                 validator: (value) =>
                     value == null || value.isEmpty ? 'Ingrese un nombre' : null,
               ),
+              const SizedBox(height: 8),
               TextFormField(
                 controller: _apellidoController,
-                decoration: const InputDecoration(labelText: 'Apellido'),
+                decoration: const InputDecoration(
+                  labelText: 'Apellido',
+                  border: OutlineInputBorder(),
+                ),
                 validator: (value) =>
                     value == null || value.isEmpty ? 'Ingrese un apellido' : null,
               ),
+              const SizedBox(height: 8),
               TextFormField(
                 controller: _dniController,
-                decoration: const InputDecoration(labelText: 'DNI'),
+                decoration: const InputDecoration(
+                  labelText: 'DNI',
+                  border: OutlineInputBorder(),
+                ),
                 validator: (value) =>
                     value == null || value.isEmpty ? 'Ingrese un DNI' : null,
               ),
+              const SizedBox(height: 8),
               TextFormField(
                 controller: _emailController,
-                decoration: const InputDecoration(labelText: 'Email'),
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                ),
                 validator: (value) =>
                     value == null || value.isEmpty ? 'Ingrese un Email' : null,
               ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(
+                  labelText: 'Estado',
+                  border: OutlineInputBorder(),
+                ),
+                value: _status,
+                items: const [
+                  DropdownMenuItem(value: 'activo', child: Text('Activo')),
+                  DropdownMenuItem(value: 'inactivo', child: Text('Inactivo')),
+                ],
+                onChanged: (value) => setState(() => _status = value!),
+              ),
+              const SizedBox(height: 8),
               if (widget.userRole == 'guardia')
                 DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(labelText: 'Puerta a Cargo'),
+                  decoration: const InputDecoration(
+                    labelText: 'Puerta a Cargo',
+                    border: OutlineInputBorder(),
+                  ),
                   value: _selectedPuerta,
                   items: const [
                     DropdownMenuItem(value: null, child: Text('Sin asignar')),
@@ -162,7 +187,6 @@ class _AddEditUserDialogState extends State<AddEditUserDialog> {
                     DropdownMenuItem(value: 'fau', child: Text('FAU')),
                   ],
                   onChanged: (value) => setState(() => _selectedPuerta = value),
-                  validator: (value) => null, // Allow null values
                 ),
             ],
           ),
@@ -174,6 +198,13 @@ class _AddEditUserDialogState extends State<AddEditUserDialog> {
           child: const Text('Cancelar'),
         ),
         ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue[700],
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10.0),
+            ),
+          ),
           onPressed: _submit,
           child: const Text('Guardar'),
         ),

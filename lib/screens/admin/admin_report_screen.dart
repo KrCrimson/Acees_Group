@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AdminReportScreen extends StatefulWidget {
-  const AdminReportScreen({super.key});
+  const AdminReportScreen({Key? key}) : super(key: key);
 
   @override
   State<AdminReportScreen> createState() => _AdminReportScreenState();
@@ -136,26 +137,38 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Reporte de Asistencias'),
+        backgroundColor: Colors.indigo[700],
+        title: Text(
+          'Reporte de Asistencias',
+          style: GoogleFonts.lato(
+            textStyle: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: _loadAsistencias,
           ),
         ],
       ),
-      body: Column(
-        children: [
-          _buildFiltros(context),
-          const Divider(),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _errorMessage != null
-                  ? Center(child: Text(_errorMessage!))
-                  : _buildListado(),
-          ),
-        ],
+      body: Container(
+        color: Colors.grey[100],
+        child: Column(
+          children: [
+            _buildFiltros(context),
+            const Divider(),
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _errorMessage != null
+                      ? Center(child: Text(_errorMessage!))
+                      : _buildListado(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -163,10 +176,17 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
   Widget _buildFiltros(BuildContext context) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.all(16.0),
       child: Row(
         children: [
-          // Rango de fechas
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.indigo[700],
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10.0),
+              ),
+            ),
             onPressed: () => _selectDateRange(context),
             child: Text(
               _dateRange == null
@@ -256,17 +276,25 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
     }
     return ListView.builder(
       itemCount: _asistencias.length,
+      padding: const EdgeInsets.all(8.0),
       itemBuilder: (context, index) {
         final a = _asistencias[index];
         final fechaHora = DateFormat('dd/MM/yyyy HH:mm').format(a['fecha_hora']);
         return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          elevation: 2,
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10.0),
+          ),
           child: ListTile(
             leading: Icon(
               a['tipo'] == 'entrada' ? Icons.login : Icons.logout,
               color: a['tipo'] == 'entrada' ? Colors.green : Colors.red,
             ),
-            title: Text('${a['nombre'] ?? ''} ${a['apellido'] ?? ''}'),
+            title: Text(
+              '${a['nombre'] ?? ''} ${a['apellido'] ?? ''}',
+              style: GoogleFonts.roboto(fontWeight: FontWeight.w500),
+            ),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
