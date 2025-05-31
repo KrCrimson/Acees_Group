@@ -9,12 +9,19 @@ import 'screens/user/user_scanner_screen.dart';
 import 'screens/admin/admin_view.dart';
 import 'screens/admin/admin_report_chart_screen.dart';
 import 'screens/admin/admin_report_screen.dart';
+import 'services/alarm_service.dart'; // Import the alarm service
+import 'screens/admin/alarm_details_screen.dart'; // Import the alarm details screen
+import 'screens/user/user_alarm_details_screen.dart'; // Import the user alarm details screen
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  // Initialize the alarm service
+  AlarmService();
+
   runApp(
     MultiProvider(
       providers: [
@@ -39,6 +46,8 @@ class MyApp extends StatelessWidget {
         '/user': (context) => const UserScannerScreen(),
         '/admin/report_chart': (context) => const AdminReportChartScreen(),
         '/admin/report_general': (context) => const AdminReportScreen(),
+        '/admin/alarm_details': (context) => const AlarmDetailsScreen(),
+        '/user/alarm_details': (context) => const UserAlarmDetailsScreen(), // Add route for user alarm details
       },
     );
   }
