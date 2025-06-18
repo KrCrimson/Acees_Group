@@ -112,12 +112,22 @@ class _LoginScreenState extends State<LoginScreen> {
                       : const Text('Iniciar Sesión'),
                 ),
                 const SizedBox(height: 16),
-                TextButton(
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green[700],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                    textStyle: const TextStyle(fontSize: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12.0),
+                    ),
+                  ),
                   onPressed: () {
-                    Navigator.pushNamed(context, '/register');
+                    Navigator.pushNamed(context, '/student_register');
                   },
-                  child: const Text('¿No tienes una cuenta? Regístrate'),
+                  child: const Text('Registro Alumno'),
                 ),
+                const SizedBox(height: 16),
               ],
             ),
           ),

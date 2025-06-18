@@ -12,6 +12,8 @@ import 'screens/admin/admin_report_screen.dart';
 import 'services/alarm_service.dart'; // Import the alarm service
 import 'screens/admin/alarm_details_screen.dart'; // Import the alarm details screen
 import 'screens/user/user_alarm_details_screen.dart'; // Import the user alarm details screen
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'registro_alumno.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,7 +35,7 @@ void main() async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -47,14 +49,15 @@ class MyApp extends StatelessWidget {
         '/admin/report_chart': (context) => const AdminReportChartScreen(),
         '/admin/report_general': (context) => const AdminReportScreen(),
         '/admin/alarm_details': (context) => const AlarmDetailsScreen(),
-        '/user/alarm_details': (context) => const UserAlarmDetailsScreen(), // Add route for user alarm details
+        '/user/alarm_details': (context) => const UserAlarmDetailsScreen(),
+        '/student_register': (context) => const StudentRegisterScreen(),
       },
     );
   }
 }
 
 class AuthWrapper extends StatelessWidget {
-  const AuthWrapper({Key? key}) : super(key: key);
+  const AuthWrapper({super.key});
 
   @override
   Widget build(BuildContext context) {
