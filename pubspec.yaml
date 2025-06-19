@@ -25,7 +25,6 @@ dependencies:
   carousel_slider: ^4.2.1 # Replace with the latest version
   shimmer: ^3.0.0 # Replace with the latest version
   animations: ^2.0.8
-  firebase_messaging: ^15.0.2
   cupertino_icons: ^1.0.2
   
 dev_dependencies:

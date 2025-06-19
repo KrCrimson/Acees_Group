@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'pending_all_exit_screen.dart'; // Importa la pantalla de pendientes de salida
 
 class UserHistoryScreen extends StatefulWidget {
   const UserHistoryScreen({super.key});
@@ -150,7 +151,6 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
             padding: const EdgeInsets.all(8.0),
             child: Row(
               children: [
-                // Solo botón para seleccionar rango de fechas
                 ElevatedButton(
                   onPressed: () => _selectDateRange(context),
                   child: Text(
@@ -162,7 +162,6 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                // Botón para limpiar filtro de rango
                 if (_dateRange != null)
                   IconButton(
                     icon: const Icon(Icons.clear),
@@ -173,6 +172,20 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                       await _loadInitialData();
                     },
                   ),
+                const Spacer(),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.warning, color: Colors.red),
+                  label: const Text('Pendientes de salida', style: TextStyle(color: Colors.red)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red[50],
+                  ),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const PendingAllExitScreen()),
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -242,6 +255,8 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
       final apellido = registradoPor['apellido'] ?? '';
       registradoPorNombre = (nombre + ' ' + apellido).trim();
     }
+    final entradaTipo = record['entrada_tipo'] ?? 'Desconocido';
+    final puerta = record['puerta'] ?? '-';
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -260,6 +275,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
             Text('DNI: ${record['dni'] ?? 'No disponible'}'),
             Text('${record['siglas_facultad'] ?? ''} - ${record['siglas_escuela'] ?? ''}'),
             Text(fechaHora, style: const TextStyle(fontSize: 12)),
+            Text('Entrada por: $entradaTipo | Puerta: $puerta', style: const TextStyle(fontSize: 12, color: Colors.deepPurple)),
             if (registradoPorNombre != null && registradoPorNombre.isNotEmpty)
               Text(
                 'Registrado por: $registradoPorNombre',

@@ -14,6 +14,7 @@ class AdminReportChartScreen extends StatefulWidget {
 class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
   String _selectedView = 'faculty'; // Default view
   String _selectedChartType = 'bar'; // Default chart type
+  String _selectedSpecialChart = 'none'; // Nuevo: para gráficos especiales
   DateTimeRange? _selectedDateRange;
   List<Map<String, dynamic>> _attendanceData = [];
   bool _isLoading = false;
@@ -64,11 +65,16 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
-
     if (_attendanceData.isEmpty) {
       return const Center(child: Text('No attendance data available.'));
     }
-
+    // Nuevo: gráficos especiales
+    if (_selectedSpecialChart == 'guardPerformance') {
+      return _buildGuardPerformanceChart();
+    }
+    if (_selectedSpecialChart == 'inOutFlow') {
+      return _buildInOutFlowChart();
+    }
     switch (_selectedChartType) {
       case 'bar':
         return _buildBarChart();
@@ -79,6 +85,128 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
       default:
         return const Center(child: Text('Invalid chart type.'));
     }
+  }
+
+  // Gráfico de rendimiento de guardias
+  Widget _buildGuardPerformanceChart() {
+    Map<String, int> guardiaMap = {};
+    for (var record in _attendanceData) {
+      final guardiaData = record['registrado_por'];
+      String guardia = 'Desconocido';
+      if (guardiaData is Map<String, dynamic>) {
+        guardia = guardiaData['nombre'] != null && guardiaData['apellido'] != null
+            ? '${guardiaData['nombre']} ${guardiaData['apellido']}'
+            : (guardiaData['email'] ?? 'Desconocido');
+      }
+      guardiaMap[guardia] = (guardiaMap[guardia] ?? 0) + 1;
+    }
+    final keys = guardiaMap.keys.toList();
+    final values = guardiaMap.values.toList();
+    List<BarChartGroupData> barGroups = [];
+    for (int i = 0; i < keys.length; i++) {
+      barGroups.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              toY: values[i].toDouble(),
+              gradient: LinearGradient(colors: [Colors.green, Colors.lightGreen]),
+              width: 16,
+            ),
+          ],
+        ),
+      );
+    }
+    return BarChart(
+      BarChartData(
+        barGroups: barGroups,
+        titlesData: FlTitlesData(
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (double value, TitleMeta meta) {
+                final index = value.toInt();
+                if (index >= 0 && index < keys.length) {
+                  return Text(keys[index], style: const TextStyle(fontSize: 10));
+                }
+                return const Text('');
+              },
+            ),
+          ),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(showTitles: true),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Gráfico de ingresos y egresos
+  Widget _buildInOutFlowChart() {
+    Map<String, int> ingresos = {};
+    Map<String, int> egresos = {};
+    for (var record in _attendanceData) {
+      final fecha = record['fecha_hora'] as Timestamp?;
+      final tipo = record['tipo'] ?? 'entrada';
+      if (fecha != null) {
+        final day = DateFormat('dd/MM').format(fecha.toDate());
+        if (tipo == 'entrada') {
+          ingresos[day] = (ingresos[day] ?? 0) + 1;
+        } else if (tipo == 'salida') {
+          egresos[day] = (egresos[day] ?? 0) + 1;
+        }
+      }
+    }
+    final days = {...ingresos.keys, ...egresos.keys}.toList()..sort((a, b) => DateFormat('dd/MM').parse(a).compareTo(DateFormat('dd/MM').parse(b)));
+    List<FlSpot> ingresoSpots = [];
+    List<FlSpot> egresoSpots = [];
+    for (int i = 0; i < days.length; i++) {
+      ingresoSpots.add(FlSpot(i.toDouble(), (ingresos[days[i]] ?? 0).toDouble()));
+      egresoSpots.add(FlSpot(i.toDouble(), (egresos[days[i]] ?? 0).toDouble()));
+    }
+    return LineChart(
+      LineChartData(
+        lineBarsData: [
+          LineChartBarData(
+            spots: ingresoSpots,
+            isCurved: true,
+            color: Colors.blue,
+            barWidth: 4,
+            isStrokeCapRound: true,
+            belowBarData: BarAreaData(show: true, color: Colors.blue.withOpacity(0.2)),
+            dotData: FlDotData(show: false),
+          ),
+          LineChartBarData(
+            spots: egresoSpots,
+            isCurved: true,
+            color: Colors.red,
+            barWidth: 4,
+            isStrokeCapRound: true,
+            belowBarData: BarAreaData(show: true, color: Colors.red.withOpacity(0.2)),
+            dotData: FlDotData(show: false),
+          ),
+        ],
+        titlesData: FlTitlesData(
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              getTitlesWidget: (value, meta) {
+                final index = value.toInt();
+                if (index >= 0 && index < days.length) {
+                  return Text(days[index], style: const TextStyle(fontSize: 10));
+                }
+                return const Text('');
+              },
+            ),
+          ),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(showTitles: true),
+          ),
+        ),
+        gridData: FlGridData(show: true),
+        borderData: FlBorderData(show: true),
+      ),
+    );
   }
 
   Widget _buildBarChart() {
@@ -340,11 +468,12 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
                       DropdownMenuItem(value: 'school', child: Text('Por Escuela')),
                       DropdownMenuItem(value: 'timeOfDay', child: Text('Por Hora del Día')),
                       DropdownMenuItem(value: 'entranceType', child: Text('Por Tipo de Entrada')),
-                      DropdownMenuItem(value: 'puerta', child: Text('Por Puerta')), // Added option for doors
+                      DropdownMenuItem(value: 'puerta', child: Text('Por Puerta')),
                     ],
                     onChanged: (value) {
                       setState(() {
                         _selectedView = value!;
+                        _selectedSpecialChart = 'none';
                       });
                       _loadAttendanceData();
                     },
@@ -359,6 +488,21 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
                     onChanged: (value) {
                       setState(() {
                         _selectedChartType = value!;
+                        _selectedSpecialChart = 'none';
+                      });
+                    },
+                  ),
+                  // Nuevo: Selector de gráficos especiales
+                  DropdownButton<String>(
+                    value: _selectedSpecialChart,
+                    items: const [
+                      DropdownMenuItem(value: 'none', child: Text('Gráficos Comunes')),
+                      DropdownMenuItem(value: 'guardPerformance', child: Text('Rendimiento de Guardias')),
+                      DropdownMenuItem(value: 'inOutFlow', child: Text('Ingresos/Egresos')),
+                    ],
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedSpecialChart = value!;
                       });
                     },
                   ),

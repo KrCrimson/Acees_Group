@@ -389,50 +389,76 @@ class _UserScannerScreenState extends State<UserScannerScreen> with SingleTicker
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
+      body: Column(
         children: [
-          Column(
-            children: [
-              Expanded(
-                flex: 4,
-                child: Stack(
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('Entrada por: '),
+                Switch(
+                  value: _isPrincipalEntrance,
+                  onChanged: (val) {
+                    setState(() {
+                      _isPrincipalEntrance = val;
+                    });
+                  },
+                  activeColor: Colors.indigo,
+                  inactiveThumbColor: Colors.blueGrey,
+                ),
+                Text(_isPrincipalEntrance ? 'Principal' : 'Cochera'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                Column(
                   children: [
-                    MobileScanner(
-                      controller: _cameraController,
-                      onDetect: (capture) {
-                        final barcodes = capture.barcodes;
-                        for (final barcode in barcodes) {
-                          if (barcode.rawValue != null) {
-                            _handleBarcodeScan(barcode.rawValue!);
-                            break;
-                          }
-                        }
-                      },
-                    ),
-                    if (_isProcessing)
-                      const Center(
-                        child: CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
+                    Expanded(
+                      flex: 4,
+                      child: Stack(
+                        children: [
+                          MobileScanner(
+                            controller: _cameraController,
+                            onDetect: (capture) {
+                              final barcodes = capture.barcodes;
+                              for (final barcode in barcodes) {
+                                if (barcode.rawValue != null) {
+                                  _handleBarcodeScan(barcode.rawValue!);
+                                  break;
+                                }
+                              }
+                            },
+                          ),
+                          if (_isProcessing)
+                            const Center(
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            ),
+                        ],
                       ),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                        ),
+                        child: _buildStudentInfoSection(),
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              Expanded(
-                flex: 2,
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                  ),
-                  child: _buildStudentInfoSection(),
-                ),
-              ),
-            ],
+                _buildExternalVisitorsSection(),
+              ],
+            ),
           ),
-          _buildExternalVisitorsSection(),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
