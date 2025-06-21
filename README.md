@@ -8,7 +8,6 @@ El control de accesos en universidades es fundamental para la seguridad, la gest
 - **Registro de accesos:** Los guardias escanean el QR del alumno para registrar entrada/salida. Los datos se almacenan en Firestore.
 - **Historial y reportes:** Alumnos y admins pueden consultar el historial de asistencias, aplicar filtros avanzados (DNI, nombre, facultad, escuela, fechas) y exportar a CSV.
 - **Roles:**
-  - **Alumno:** Consulta su historial y pendientes de salida.
   - **Guardia:** Registra accesos y ve pendientes de salida.
   - **Admin:** Visualiza reportes, gráficos de rendimiento y flujo de accesos.
 - **Filtros avanzados:** Permiten búsquedas por facultad, escuela (dependiente de la facultad), nombre, DNI y rango de fechas.
