@@ -1,70 +1,75 @@
-# Sistema de Control de Accesos - Flutter + Firebase
+# Sistema de Control de Accesos Universitarios
 
-## Descripción General
-Aplicación móvil para el control de accesos universitarios, con roles de usuario (alumno, guardia, admin), registro de entradas y salidas, reportes y notificaciones. Utiliza Flutter, Firebase Auth, Firestore y notificaciones push.
+## ¿Por qué lo hacemos?
+El control de accesos en universidades es fundamental para la seguridad, la gestión de aforos y el registro de asistencia. Este sistema digitaliza y automatiza el proceso, permitiendo un monitoreo en tiempo real, reportes avanzados y una experiencia moderna para alumnos, guardias y administradores.
 
-## Características principales
-- **Autenticación:** Login seguro con Firebase Auth.
-- **Registro de alumnos:** Formulario de registro y guardado en Firestore.
-- **Escaneo QR:** Para registrar entradas y salidas.
+## ¿Cómo funciona?
+- **Usuarios:** Se autentican mediante correo y contraseña usando Firebase Auth.
+- **Registro de accesos:** Los guardias escanean el QR del alumno para registrar entrada/salida. Los datos se almacenan en Firestore.
+- **Historial y reportes:** Alumnos y admins pueden consultar el historial de asistencias, aplicar filtros avanzados (DNI, nombre, facultad, escuela, fechas) y exportar a CSV.
 - **Roles:**
-  - **Alumno:** Acceso a su historial y registro de visitas.
-  - **Guardia:** Escaneo y registro de accesos, visualización de pendientes de salida.
-  - **Admin:** Panel de reportes, gráficos de rendimiento, gestión de usuarios y visualización de ingresos/egresos.
-- **Reportes y gráficos:** Estadísticas por facultad, escuela, hora, tipo de entrada, puerta, rendimiento de guardias y flujo de ingresos/egresos.
-- **Notificaciones:** (En proceso de integración) Notificaciones push para alertar sobre pendientes de salida y eventos importantes.
+  - **Alumno:** Consulta su historial y pendientes de salida.
+  - **Guardia:** Registra accesos y ve pendientes de salida.
+  - **Admin:** Visualiza reportes, gráficos de rendimiento y flujo de accesos.
+- **Filtros avanzados:** Permiten búsquedas por facultad, escuela (dependiente de la facultad), nombre, DNI y rango de fechas.
 
-## Estructura del proyecto
-- `lib/`
-  - `main.dart`: Inicialización, rutas y lógica de autenticación.
-  - `auth_service.dart`: Lógica de login, registro y gestión de usuarios.
-  - `login_screen.dart`, `registro_alumno.dart`: Pantallas de acceso y registro.
-  - `screens/`
-    - `user/`: Pantallas de usuario/alumno (escaneo, historial, pendientes, etc).
-    - `admin/`: Pantallas de admin (reportes, gráficos, gestión de usuarios).
-    - `services/`: Servicios auxiliares (alarmas, etc).
+## ¿Qué usamos?
+- **Flutter:** Framework principal para la app multiplataforma.
+- **Firebase:**
+  - **Auth:** Autenticación de usuarios.
+  - **Firestore:** Base de datos en tiempo real.
+  - **Cloud Functions:** (opcional) Para lógica de backend y notificaciones.
+- **Otras librerías:**
+  - `provider`, `mobile_scanner`, `intl`, `share_plus`, `fl_chart`, `flutter_tts`, `expandable`, `google_fonts`, `flutter_svg`, `carousel_slider`, `shimmer`, `animations`, `cupertino_icons`.
 
-## Instalación y configuración
-1. Clona el repositorio y ejecuta `flutter pub get`.
-2. Agrega tu archivo `google-services.json` en `android/app/` y/o `GoogleService-Info.plist` en `ios/Runner/`.
-3. Configura Firebase Cloud Messaging en la consola de Firebase.
-4. Ejecuta la app con `flutter run`.
-
-## Dependencias principales
-```yaml
-firebase_core: ^3.1.1
-firebase_auth: ^5.5.3
-cloud_firestore: ^5.0.1
-firebase_messaging: ^15.0.2
-provider: ^6.1.1
-mobile_scanner: ^3.3.0
-fluttertoast: ^8.2.2
-intl: ^0.18.1
-share_plus: ^7.0.0
-fl_chart: ^0.63.0
-flutter_tts: ^3.8.5
-expandable: ^5.0.1
-google_fonts: ^6.1.0
-flutter_svg: ^2.0.9
-carousel_slider: ^4.2.1
-shimmer: ^3.0.0
-animations: ^2.0.8
-cupertino_icons: ^1.0.2
+## Árbol del proyecto (resumido)
+```
+Acees_Group-Arce/
+├── android/
+├── ios/
+├── linux/
+├── macos/
+├── web/
+├── windows/
+├── lib/
+│   ├── main.dart
+│   ├── auth_service.dart
+│   ├── login_screen.dart
+│   ├── registro_alumno.dart
+│   ├── firebase_options.dart
+│   └── screens/
+│       ├── admin/
+│       │   ├── admin_report_chart_screen.dart
+│       │   ├── admin_report_screen.dart
+│       │   ├── admin_view.dart
+│       │   ├── add_edit_user_dialog.dart
+│       │   ├── alarm_details_screen.dart
+│       │   ├── external_visits_report_screen.dart
+│       │   ├── pending_exit_screen.dart
+│       │   └── user_card.dart
+│       └── user/
+│           ├── user_history_screen.dart
+│           ├── user_scanner_screen.dart
+│           ├── user_alarm_details_screen.dart
+│           ├── user_notifications_screen.dart
+│           ├── pending_all_exit_screen.dart
+│           └── visitor_form_screen.dart
+├── pubspec.yaml
+├── firebase.json
+└── README.md
 ```
 
-## Notificaciones push (en proceso)
-- Se está integrando `firebase_messaging` para notificaciones push.
-- Asegúrate de tener permisos y configuración en Firebase Console.
-- El token FCM se obtiene al iniciar la app y se usará para enviar alertas a usuarios con pendientes de salida.
+## Dependencias principales
+```
+flutter, firebase_core, firebase_auth, cloud_firestore, provider, mobile_scanner, fluttertoast, intl, share_plus, fl_chart, flutter_tts, expandable, google_fonts, flutter_svg, carousel_slider, shimmer, animations, cupertino_icons
+```
 
-## Reportes y gráficos
-- Gráficos por facultad, escuela, hora, tipo de entrada, puerta.
-- **Nuevos:**
-  - Gráficos de rendimiento de guardias (quién registra más alumnos).
-  - Gráficos de ingresos y egresos por día/semana/usuario.
+## Conclusiones
+- El sistema facilita el control de accesos y la gestión de asistencia en entornos universitarios.
+- Los filtros avanzados y la exportación de datos permiten análisis detallados.
+- La arquitectura modular y el uso de Firebase aseguran escalabilidad y mantenimiento sencillo.
+- El sistema es multiplataforma (Android, iOS, Web, Windows, Linux, macOS).
+- Se puede ampliar fácilmente con nuevas funcionalidades como notificaciones push, reportes personalizados o integración con otros sistemas.
 
-## Contribuciones
-Pull requests y sugerencias son bienvenidas.
-
-## Licencia
-MIT
+---
+Desarrollado con Flutter y Firebase.
