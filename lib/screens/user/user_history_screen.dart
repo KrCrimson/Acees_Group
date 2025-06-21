@@ -24,10 +24,28 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
   String? _errorMessage;
   final List<Map<String, dynamic>> _attendanceData = [];
 
+  // NUEVO: Filtros avanzados
+  String? _dniFilter;
+  String? _nombreFilter;
+  String? _facultadFilter;
+  String? _escuelaFilter;
+  List<String> _facultadesDisponibles = [];
+  List<String> _escuelasDisponibles = [];
+
   @override
   void initState() {
     super.initState();
+    _loadFacultadesEscuelas();
     _loadInitialData();
+  }
+
+  Future<void> _loadFacultadesEscuelas() async {
+    final facSnap = await _firestore.collection('facultades').get();
+    final escSnap = await _firestore.collection('escuelas').get();
+    setState(() {
+      _facultadesDisponibles = facSnap.docs.map((d) => d.data()['nombre'] as String).toList();
+      _escuelasDisponibles = escSnap.docs.map((d) => d.data()['nombre'] as String).toList();
+    });
   }
 
   Future<void> _loadInitialData() async {
@@ -65,6 +83,20 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         query = query.where('tipo', isEqualTo: _selectedFilter);
       }
 
+      // Filtros avanzados
+      if (_dniFilter != null && _dniFilter!.isNotEmpty) {
+        query = query.where('dni', isEqualTo: _dniFilter);
+      }
+      if (_nombreFilter != null && _nombreFilter!.isNotEmpty) {
+        query = query.where('nombre', isEqualTo: _nombreFilter);
+      }
+      if (_facultadFilter != null && _facultadFilter!.isNotEmpty) {
+        query = query.where('siglas_facultad', isEqualTo: _facultadFilter);
+      }
+      if (_escuelaFilter != null && _escuelaFilter!.isNotEmpty) {
+        query = query.where('siglas_escuela', isEqualTo: _escuelaFilter);
+      }
+
       // Filtro por rango de fechas (incluye caso de un solo día)
       if (_dateRange != null) {
         final start = DateTime(_dateRange!.start.year, _dateRange!.start.month, _dateRange!.start.day, 0, 0, 0);
@@ -92,7 +124,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Error: ${e.toString()}';
+        _errorMessage = 'Error: \\${e.toString()}';
       });
     }
   }
@@ -149,42 +181,119 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child: Row(
+            child: Column(
               children: [
-                ElevatedButton(
-                  onPressed: () => _selectDateRange(context),
-                  child: Text(
-                    _dateRange == null
-                        ? 'Seleccionar rango'
-                        : (_dateRange!.start == _dateRange!.end
-                            ? DateFormat('dd/MM/yy').format(_dateRange!.start)
-                            : '${DateFormat('dd/MM/yy').format(_dateRange!.start)} - ${DateFormat('dd/MM/yy').format(_dateRange!.end)}'),
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        decoration: const InputDecoration(labelText: 'DNI'),
+                        onChanged: (v) {
+                          _dniFilter = v;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        decoration: const InputDecoration(labelText: 'Nombre'),
+                        onChanged: (v) {
+                          _nombreFilter = v;
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                if (_dateRange != null)
-                  IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () async {
-                      setState(() {
-                        _dateRange = null;
-                      });
-                      await _loadInitialData();
-                    },
-                  ),
-                const Spacer(),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.warning, color: Colors.red),
-                  label: const Text('Pendientes de salida', style: TextStyle(color: Colors.red)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red[50],
-                  ),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const PendingAllExitScreen()),
-                    );
-                  },
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(labelText: 'Facultad'),
+                        value: _facultadFilter,
+                        items: _facultadesDisponibles.map((f) => DropdownMenuItem<String>(
+                          value: f,
+                          child: Text(f),
+                        )).toList(),
+                        onChanged: (v) async {
+                          setState(() {
+                            _facultadFilter = v;
+                            _escuelaFilter = null;
+                            _escuelasDisponibles = [];
+                          });
+                          if (v != null && v.isNotEmpty) {
+                            // Buscar la sigla de la facultad seleccionada
+                            final facSnap = await _firestore.collection('facultades').where('nombre', isEqualTo: v).limit(1).get();
+                            String? siglaFacultad;
+                            if (facSnap.docs.isNotEmpty) {
+                              siglaFacultad = facSnap.docs.first.data()['siglas'] as String?;
+                            }
+                            if (siglaFacultad != null) {
+                              final escSnap = await _firestore.collection('escuelas')
+                                .where('siglas_facultad', isEqualTo: siglaFacultad)
+                                .get();
+                              setState(() {
+                                _escuelasDisponibles = escSnap.docs.map((d) => d.data()['nombre'] as String).toList();
+                              });
+                            }
+                          }
+                        },
+                        isExpanded: true,
+                        hint: const Text('Seleccione facultad'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    if (_facultadFilter != null && _facultadFilter!.isNotEmpty)
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          decoration: const InputDecoration(labelText: 'Escuela'),
+                          value: _escuelaFilter != null && _escuelasDisponibles.contains(_escuelaFilter)
+                              ? _escuelaFilter
+                              : null,
+                          items: _escuelasDisponibles.map((e) => DropdownMenuItem<String>(
+                            value: e,
+                            child: Text(e),
+                          )).toList(),
+                          onChanged: (v) {
+                            setState(() {
+                              _escuelaFilter = v;
+                            });
+                          },
+                          isExpanded: true,
+                          hint: const Text('Seleccione escuela'),
+                          disabledHint: const Text('No hay escuelas'),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.filter_alt),
+                      label: const Text('Aplicar filtros'),
+                      onPressed: _loadInitialData,
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.clear),
+                      label: const Text('Limpiar filtros'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[300],
+                        foregroundColor: Colors.black,
+                      ),
+                      onPressed: () async {
+                        setState(() {
+                          _dniFilter = null;
+                          _nombreFilter = null;
+                          _facultadFilter = null;
+                          _escuelaFilter = null;
+                          _dateRange = null;
+                          _escuelasDisponibles = [];
+                        });
+                        await _loadInitialData();
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),
