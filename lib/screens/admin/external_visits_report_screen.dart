@@ -16,6 +16,7 @@ class _ExternalVisitsReportScreenState extends State<ExternalVisitsReportScreen>
   String _selectedChartType = 'pie'; // Default chart type
   List<Map<String, dynamic>> _visitData = [];
   bool _isLoading = false;
+  bool _showList = true; // Default view is list
 
   @override
   void initState() {
@@ -212,6 +213,31 @@ class _ExternalVisitsReportScreenState extends State<ExternalVisitsReportScreen>
     return colorPalette[index % colorPalette.length];
   }
 
+  Widget _buildToggleButton() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        ElevatedButton(
+          onPressed: () {
+            setState(() {
+              _showList = true;
+            });
+          },
+          child: const Text('Ver Listado'),
+        ),
+        const SizedBox(width: 10),
+        ElevatedButton(
+          onPressed: () {
+            setState(() {
+              _showList = false;
+            });
+          },
+          child: const Text('Ver Gráficos'),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -231,58 +257,10 @@ class _ExternalVisitsReportScreenState extends State<ExternalVisitsReportScreen>
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                DropdownButton<String>(
-                  value: _selectedTimeRange,
-                  items: const [
-                    DropdownMenuItem(value: 'day', child: Text('Hoy')),
-                    DropdownMenuItem(value: 'week', child: Text('Última Semana')),
-                    DropdownMenuItem(value: 'month', child: Text('Último Mes')),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedTimeRange = value!;
-                    });
-                    _loadVisitData();
-                  },
-                ),
-                DropdownButton<String>(
-                  value: _selectedChartType,
-                  items: const [
-                    DropdownMenuItem(value: 'pie', child: Text('Gráfico Circular')),
-                    DropdownMenuItem(value: 'bar', child: Text('Gráfico de Barras')),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedChartType = value!;
-                    });
-                  },
-                ),
-              ],
-            ),
+            _buildToggleButton(),
             const SizedBox(height: 20),
             Expanded(
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: _buildChart(),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 1,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: _buildExternalVisitorsList(),
-                    ),
-                  ),
-                ],
-              ),
+              child: _showList ? _buildExternalVisitorsList() : _buildChart(),
             ),
           ],
         ),

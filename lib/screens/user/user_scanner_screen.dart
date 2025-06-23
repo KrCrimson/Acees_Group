@@ -175,21 +175,7 @@ class _UserScannerScreenState extends State<UserScannerScreen> with SingleTicker
         'email': currentUser.email,
         'rango': userDoc.data()?['rango'] ?? 'Desconocido',
       },
-      'puerta': assignedDoor, // Include the assigned door
-    });
-
-    // Registro en la colección 'registros' para historial de usuarios
-    await _firestore.collection('registros').add({
-      'registrador_uid': currentUser.uid,
-      'registrador_nombre': userDoc.data()?['nombre'] ?? 'Desconocido',
-      'registrador_apellido': userDoc.data()?['apellido'] ?? 'Desconocido',
-      'registrador_email': currentUser.email,
-      'alumno_dni': student['dni'],
-      'alumno_nombre': student['nombre'],
-      'alumno_apellido': student['apellido'],
-      'tipo_asistencia': attendanceType,
-      'entrada_tipo': _isPrincipalEntrance ? 'principal' : 'cochera',
-      'fecha_hora': Timestamp.fromDate(now),
+      'puerta': assignedDoor,
     });
 
     _showToast('Asistencia registrada: ${attendanceType.toUpperCase()} - ${_isPrincipalEntrance ? 'Principal' : 'Cochera'}');

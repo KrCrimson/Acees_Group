@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class VisitorFormScreen extends StatefulWidget {
   final String dni;
@@ -77,6 +79,35 @@ class _VisitorFormScreenState extends State<VisitorFormScreen> {
         );
       }
     }
+  }
+
+  Future<void> _fetchVisitorDataFromReniec(String dni) async {
+    final apiUrl = 'https://apis-token-16290.4EP5oQrZ5NCqVOPUmpLzIaKNTxPnKGMq/reniec/$dni';
+
+    try {
+      final response = await http.get(Uri.parse(apiUrl));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _nameController.text = data['nombre'] ?? '';
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se encontró información en RENIEC')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al consultar RENIEC: ${e.toString()}')),
+      );
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchVisitorDataFromReniec(widget.dni);
   }
 
   @override

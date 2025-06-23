@@ -11,7 +11,6 @@ class PendingAllExitScreen extends StatefulWidget {
 }
 
 class _PendingAllExitScreenState extends State<PendingAllExitScreen> {
-  // Obtiene alumnos cuyo último registro es una entrada sin salida
   Stream<List<Map<String, dynamic>>> _getAlumnosSinSalida() async* {
     final snapshot = await FirebaseFirestore.instance
         .collection('asistencias')
@@ -26,9 +25,14 @@ class _PendingAllExitScreenState extends State<PendingAllExitScreen> {
         ultimoRegistroPorDni[dni] = data;
       }
     }
-    // Solo los que su último registro es 'entrada'
     final pendientes = ultimoRegistroPorDni.values.where((e) => e['tipo'] == 'entrada').toList();
     yield pendientes;
+  }
+
+  Color _getColorBasedOnTime(DateTime fechaHora) {
+    final now = DateTime.now();
+    final difference = now.difference(fechaHora);
+    return difference.inHours > 12 ? Colors.red : Colors.black;
   }
 
   @override
@@ -51,18 +55,17 @@ class _PendingAllExitScreenState extends State<PendingAllExitScreen> {
             itemCount: alumnos.length,
             itemBuilder: (context, index) {
               final data = alumnos[index];
-              final fecha = (data['fecha_hora'] as Timestamp?)?.toDate();
+              final nombre = data['nombre'] ?? 'Sin nombre';
+              final dni = data['dni'] ?? 'Sin DNI';
+              final fechaHora = (data['fecha_hora'] as Timestamp?)?.toDate();
+              final color = fechaHora != null ? _getColorBasedOnTime(fechaHora) : Colors.black;
+
               return Card(
-                color: Colors.red[100],
                 child: ListTile(
-                  leading: const Icon(Icons.warning, color: Colors.red),
-                  title: Text(data['nombre'] ?? 'Desconocido', style: const TextStyle(color: Colors.red)),
-                  subtitle: Text(
-                    'DNI: ${data['dni'] ?? '-'}\n'
-                    'Fecha: ${fecha != null ? DateFormat('dd/MM/yyyy HH:mm').format(fecha) : '-'}\n'
-                    'Facultad: ${data['facultad'] ?? '-'} | Puerta: ${data['puerta'] ?? '-'}',
-                  ),
-                  trailing: const Text('¡Sin salida!', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                  title: Text('$nombre ($dni)', style: TextStyle(color: color)),
+                  subtitle: fechaHora != null
+                      ? Text('Última entrada: ${DateFormat('dd/MM/yyyy HH:mm').format(fechaHora)}')
+                      : const Text('Sin fecha registrada'),
                 ),
               );
             },

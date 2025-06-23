@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:share_plus/share_plus.dart';
+import 'dart:convert';
+import 'dart:io';
 
 class AdminReportScreen extends StatefulWidget {
   const AdminReportScreen({Key? key}) : super(key: key);
@@ -133,6 +136,51 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
     }
   }
 
+  Future<void> _exportToCSV() async {
+    if (_asistencias.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay datos para exportar.')),
+      );
+      return;
+    }
+
+    final headers = ['Nombre', 'Apellido', 'DNI', 'Facultad', 'Escuela', 'Fecha', 'Tipo'];
+    final rows = _asistencias.map((a) {
+      return [
+        a['nombre'] ?? '',
+        a['apellido'] ?? '',
+        a['dni'] ?? '',
+        a['siglas_facultad'] ?? '',
+        a['siglas_escuela'] ?? '',
+        DateFormat('dd/MM/yyyy HH:mm').format(a['fecha_hora']),
+        a['tipo'] ?? '',
+      ];
+    }).toList();
+
+    final csvContent = StringBuffer();
+    csvContent.writeln(headers.join(','));
+    for (var row in rows) {
+      csvContent.writeln(row.map((e) => e.toString()).join(','));
+    }
+
+    final bytes = utf8.encode(csvContent.toString());
+    final fileName = 'reporte_asistencias_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv';
+
+    try {
+      await Share.shareXFiles([
+        XFile.fromData(
+          bytes,
+          name: fileName,
+          mimeType: 'text/csv',
+        )
+      ], text: 'Reporte de Asistencias');
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al exportar: ${e.toString()}')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -151,6 +199,10 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: _loadAsistencias,
+          ),
+          IconButton(
+            icon: const Icon(Icons.download, color: Colors.white),
+            onPressed: _exportToCSV,
           ),
         ],
       ),
