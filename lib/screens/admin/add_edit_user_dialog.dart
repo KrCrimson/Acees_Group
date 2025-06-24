@@ -59,14 +59,15 @@ class _AddEditUserDialogState extends State<AddEditUserDialog> {
         'nombre': nombre,
         'apellido': apellido,
         'dni': dni,
-        'email': email,
         'rango': widget.userRole,
         'puerta_acargo': _selectedPuerta,
-        'estado': _isEditing ? widget.user!['estado'] : _status,
+        'estado': _status,
         'fecha_modificacion': Timestamp.now(),
       };
 
+      // Solo incluir email si no estamos editando (nuevo usuario)
       if (!_isEditing) {
+        userData['email'] = email.trim().toLowerCase(); // Guardar email en lowercase
         userData['fecha_creacion'] = Timestamp.now(); // Add creation date only for new users
       }
 
@@ -77,17 +78,21 @@ class _AddEditUserDialogState extends State<AddEditUserDialog> {
               .doc(widget.user!.id)
               .update(userData);
         } else {
-          // Create user in Firestore
-          final newUserDoc = await FirebaseFirestore.instance.collection('usuarios').add(userData);
-
-          // Create user in Firebase Authentication
+          // Create user in Firebase Authentication first
           final authResult = await FirebaseAuth.instance.createUserWithEmailAndPassword(
             email: email,
             password: dni, // Use DNI as the default password
           );
 
-          // Link Firestore user document with Firebase Authentication UID
-          await newUserDoc.update({'auth_uid': authResult.user!.uid});
+          // Create user in Firestore using the Firebase Auth UID as document ID
+          await FirebaseFirestore.instance
+              .collection('usuarios')
+              .doc(authResult.user!.uid) // Use UID as document ID
+              .set({
+            ...userData,
+            'uid': authResult.user!.uid, // Store UID in the document
+            'auth_uid': authResult.user!.uid, // For compatibility
+          });
         }
 
         Navigator.of(context).pop();
@@ -106,7 +111,7 @@ class _AddEditUserDialogState extends State<AddEditUserDialog> {
         borderRadius: BorderRadius.circular(15.0),
       ),
       title: Text(
-        _isEditing ? 'Editar ${widget.userRole}' : 'Agregar ${widget.userRole}',
+        _isEditing ? 'Editar Usuario' : 'Agregar Usuario',
         style: const TextStyle(
           fontWeight: FontWeight.w500,
           color: Colors.indigo,
@@ -149,9 +154,13 @@ class _AddEditUserDialogState extends State<AddEditUserDialog> {
               const SizedBox(height: 8),
               TextFormField(
                 controller: _emailController,
-                decoration: const InputDecoration(
+                enabled: !_isEditing, // Deshabilitar edición del email cuando se está editando
+                decoration: InputDecoration(
                   labelText: 'Email',
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
+                  filled: _isEditing,
+                  fillColor: _isEditing ? Colors.grey[200] : null,
+                  suffixIcon: _isEditing ? const Icon(Icons.lock, color: Colors.grey) : null,
                 ),
                 validator: (value) =>
                     value == null || value.isEmpty ? 'Ingrese un Email' : null,

@@ -18,17 +18,74 @@ class UserCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.all(8),
+      color: isActive ? null : Colors.grey[100], // Cambiar color si está inactivo
       child: ListTile(
-        leading: CircleAvatar(child: Text(user['nombre'][0])),
-        title: Text('${user['nombre']} ${user['apellido']}'),
+        leading: CircleAvatar(
+          backgroundColor: isActive ? Colors.blue : Colors.grey,
+          child: Text(
+            user['nombre'][0],
+            style: TextStyle(
+              color: isActive ? Colors.white : Colors.black54,
+            ),
+          ),
+        ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                '${user['nombre']} ${user['apellido']}',
+                style: TextStyle(
+                  color: isActive ? Colors.black : Colors.grey[600],
+                  fontWeight: isActive ? FontWeight.normal : FontWeight.w300,
+                ),
+              ),
+            ),
+            if (!isActive)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.red[100],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red[300]!),
+                ),
+                child: Text(
+                  'INACTIVO',
+                  style: TextStyle(
+                    color: Colors.red[700],
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('DNI: ${user['dni']}'),
-            Text('Email: ${user['email']}'),
-            Text('Rol: ${user['rango']}'),
+            Text(
+              'DNI: ${user['dni']}',
+              style: TextStyle(color: isActive ? Colors.black87 : Colors.grey[500]),
+            ),
+            Text(
+              'Email: ${user['email']}',
+              style: TextStyle(color: isActive ? Colors.black87 : Colors.grey[500]),
+            ),
+            Text(
+              'Rol: ${user['rango']}',
+              style: TextStyle(color: isActive ? Colors.black87 : Colors.grey[500]),
+            ),
             if (user['rango'] == 'guardia')
-              Text('Puerta a Cargo: ${user['puerta_acargo']}'),
+              Text(
+                'Puerta a Cargo: ${user['puerta_acargo'] ?? 'Sin asignar'}',
+                style: TextStyle(color: isActive ? Colors.black87 : Colors.grey[500]),
+              ),
+            Text(
+              'Estado: ${user['estado']}',
+              style: TextStyle(
+                color: isActive ? Colors.green[600] : Colors.red[600],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ],
         ),
         trailing: Row(

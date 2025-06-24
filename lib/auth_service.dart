@@ -25,8 +25,27 @@ class AuthService with ChangeNotifier {
   Future<void> signIn(String email, String password) async {
     try {
       print('AuthService: Starting sign in for: $email');
+      
+      // PRIMERO: Intentar autenticación en Firebase Auth
       final userCredential = await _auth.signInWithEmailAndPassword(email: email, password: password);
-      print('AuthService: Sign in successful for: ${userCredential.user?.uid}');
+      print('AuthService: Firebase Auth successful for: ${userCredential.user?.uid}');
+      
+      // SEGUNDO: Verificar el estado en Firestore DESPUÉS de la autenticación exitosa
+      final userData = await getUserData(userCredential.user!.uid);
+      
+      if (userData == null) {
+        // Si no existe en Firestore, cerrar sesión y mostrar error
+        await _auth.signOut();
+        throw Exception('Usuario no encontrado en el sistema.');
+      }
+      
+      if (userData['estado'] == 'inactivo') {
+        // Si está inactivo, cerrar sesión inmediatamente
+        await _auth.signOut();
+        throw Exception('Su cuenta está inactiva. Comuníquese con su superior.');
+      }
+      
+      print('AuthService: User is active, login successful');
       notifyListeners();
     } on FirebaseAuthException catch (e) {
       print('AuthService: Sign in error: ${e.code} - ${e.message}');
@@ -95,7 +114,7 @@ class AuthService with ChangeNotifier {
         'apellido': apellido,
         'rango': rango,
         'estado': estado,
-        'email': email,
+        'email': email.trim().toLowerCase(), // Guardar email en lowercase
         'telefono': telefono,
         'usuario': usuario,
         'uid': userCredential.user?.uid,
@@ -107,8 +126,46 @@ class AuthService with ChangeNotifier {
   }
 
   Future<Map<String, dynamic>?> getUserData(String uid) async {
-    final doc = await _firestore.collection('usuarios').doc(uid).get();
-    return doc.data();
+    try {
+      print('AuthService: Looking for user data with UID: $uid');
+      
+      // Primero intentar buscar por UID como documento ID
+      final doc = await _firestore.collection('usuarios').doc(uid).get();
+      if (doc.exists) {
+        print('AuthService: Found user by document ID');
+        return doc.data();
+      }
+      
+      // Si no encuentra por UID, buscar por campo 'uid'
+      var querySnapshot = await _firestore
+          .collection('usuarios')
+          .where('uid', isEqualTo: uid)
+          .limit(1)
+          .get();
+      
+      if (querySnapshot.docs.isNotEmpty) {
+        print('AuthService: Found user by uid field');
+        return querySnapshot.docs.first.data();
+      }
+      
+      // Si no encuentra por 'uid', buscar por 'auth_uid' (para compatibilidad)
+      querySnapshot = await _firestore
+          .collection('usuarios')
+          .where('auth_uid', isEqualTo: uid)
+          .limit(1)
+          .get();
+      
+      if (querySnapshot.docs.isNotEmpty) {
+        print('AuthService: Found user by auth_uid field');
+        return querySnapshot.docs.first.data();
+      }
+      
+      print('AuthService: User not found in any search method');
+      return null;
+    } catch (e) {
+      print('AuthService: Error getting user data: $e');
+      return null;
+    }
   }
 
   Future<void> updateUserEmail({
