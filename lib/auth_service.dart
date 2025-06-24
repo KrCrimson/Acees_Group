@@ -8,21 +8,28 @@ class AuthService with ChangeNotifier {
 
   User? _user;
   User? get user => _user;
+  bool _isSigningOut = false;
+  bool get isSigningOut => _isSigningOut;
 
   Stream<User?> get userStream => _auth.authStateChanges();
 
   AuthService() {
     _auth.authStateChanges().listen((User? user) {
+      print('AuthService: User state changed - ${user?.uid ?? 'null'}');
       _user = user;
+      _isSigningOut = false;
       notifyListeners();
     });
   }
 
   Future<void> signIn(String email, String password) async {
     try {
-      await _auth.signInWithEmailAndPassword(email: email, password: password);
+      print('AuthService: Starting sign in for: $email');
+      final userCredential = await _auth.signInWithEmailAndPassword(email: email, password: password);
+      print('AuthService: Sign in successful for: ${userCredential.user?.uid}');
       notifyListeners();
     } on FirebaseAuthException catch (e) {
+      print('AuthService: Sign in error: ${e.code} - ${e.message}');
       // Throw specific exceptions based on the error code
       switch (e.code) {
         case 'user-not-found':
@@ -37,13 +44,30 @@ class AuthService with ChangeNotifier {
           throw Exception('Error al iniciar sesión: ${e.message}');
       }
     } catch (e) {
+      print('AuthService: General sign in error: $e');
       throw Exception(e.toString());
     }
   }
 
   Future<void> signOut() async {
-    await _auth.signOut();
-    notifyListeners();
+    try {
+      print('AuthService: Starting sign out process');
+      _isSigningOut = true;
+      notifyListeners();
+      
+      await Future.delayed(const Duration(milliseconds: 100));
+      await _auth.signOut();
+      
+      _user = null;
+      _isSigningOut = false;
+      print('AuthService: Sign out completed');
+      notifyListeners();
+    } catch (e) {
+      print('AuthService: Error during sign out: $e');
+      _isSigningOut = false;
+      notifyListeners();
+      rethrow;
+    }
   }
 
   Future<void> registerUser({

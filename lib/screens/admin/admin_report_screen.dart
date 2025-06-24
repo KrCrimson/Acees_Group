@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:share_plus/share_plus.dart';
+import 'dart:convert';
+import 'dart:io';
 
 class AdminReportScreen extends StatefulWidget {
   const AdminReportScreen({Key? key}) : super(key: key);
@@ -17,16 +20,19 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
   String _selectedFacultad = 'todas';
   String _selectedEscuela = 'todas';
   String _selectedTurno = 'todos';
+  String _selectedGuardia = 'todos'; // Nuevo filtro por guardia
   bool _isLoading = false;
   String? _errorMessage;
   List<Map<String, dynamic>> _asistencias = [];
   List<String> _facultades = [];
   List<String> _escuelas = [];
+  List<Map<String, dynamic>> _guardias = []; // Lista de guardias
 
   @override
   void initState() {
     super.initState();
     _fetchFacultades();
+    _fetchGuardias(); // Nuevo método para cargar guardias
     _loadAsistencias();
   }
 
@@ -104,6 +110,19 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
         }).toList();
       }
 
+      // Filtro por guardia
+      if (_selectedGuardia != 'todos') {
+        asistencias = asistencias.where((a) {
+          final guardiaData = a['registrado_por'];
+          if (guardiaData is Map<String, dynamic>) {
+            // Comparar con el uid del guardia registrado
+            final guardId = guardiaData['uid'] ?? guardiaData['email'];
+            return guardId == _selectedGuardia;
+          }
+          return false;
+        }).toList();
+      }
+
       setState(() {
         _asistencias = asistencias;
         _isLoading = false;
@@ -115,6 +134,35 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
             'Verifica que la colección y los campos coincidan exactamente en nombre y mayúsculas/minúsculas. '
             'Si el error es de índice, usa el enlace que da el error para crearlo de nuevo.';
       });
+    }
+  }
+
+  Future<void> _fetchGuardias() async {
+    try {
+      final snapshot = await _firestore
+          .collection('usuarios')
+          .where('rango', isEqualTo: 'guardia')
+          .get();
+      
+      List<Map<String, dynamic>> guardiasList = [];
+      
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final guardInfo = {
+          'id': data['uid'] ?? doc.id, // Usar el UID del usuario o el ID del documento como fallback
+          'nombre': data['nombre'] != null && data['apellido'] != null
+              ? '${data['nombre']} ${data['apellido']}'
+              : (data['email'] ?? 'Desconocido'),
+          'email': data['email'] ?? '',
+        };
+        guardiasList.add(guardInfo);
+      }
+      
+      setState(() {
+        _guardias = guardiasList;
+      });
+    } catch (e) {
+      print('Error loading guardias: $e');
     }
   }
 
@@ -130,6 +178,51 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
         _dateRange = picked;
       });
       await _loadAsistencias();
+    }
+  }
+
+  Future<void> _exportToCSV() async {
+    if (_asistencias.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay datos para exportar.')),
+      );
+      return;
+    }
+
+    final headers = ['Nombre', 'Apellido', 'DNI', 'Facultad', 'Escuela', 'Fecha', 'Tipo'];
+    final rows = _asistencias.map((a) {
+      return [
+        a['nombre'] ?? '',
+        a['apellido'] ?? '',
+        a['dni'] ?? '',
+        a['siglas_facultad'] ?? '',
+        a['siglas_escuela'] ?? '',
+        DateFormat('dd/MM/yyyy HH:mm').format(a['fecha_hora']),
+        a['tipo'] ?? '',
+      ];
+    }).toList();
+
+    final csvContent = StringBuffer();
+    csvContent.writeln(headers.join(','));
+    for (var row in rows) {
+      csvContent.writeln(row.map((e) => e.toString()).join(','));
+    }
+
+    final bytes = utf8.encode(csvContent.toString());
+    final fileName = 'reporte_asistencias_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv';
+
+    try {
+      await Share.shareXFiles([
+        XFile.fromData(
+          bytes,
+          name: fileName,
+          mimeType: 'text/csv',
+        )
+      ], text: 'Reporte de Asistencias');
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al exportar: ${e.toString()}')),
+      );
     }
   }
 
@@ -151,6 +244,10 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: _loadAsistencias,
+          ),
+          IconButton(
+            icon: const Icon(Icons.download, color: Colors.white),
+            onPressed: _exportToCSV,
           ),
         ],
       ),
@@ -262,6 +359,22 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
             ],
             onChanged: (value) async {
               setState(() => _selectedTurno = value!);
+              await _loadAsistencias();
+            },
+          ),
+          const SizedBox(width: 8),
+          // Guardia
+          DropdownButton<String>(
+            value: _selectedGuardia,
+            items: [
+              const DropdownMenuItem(value: 'todos', child: Text('Todos los guardias')),
+              ..._guardias.map((g) => DropdownMenuItem(
+                value: g['id'] as String,
+                child: Text(g['nombre'] as String),
+              )),
+            ],
+            onChanged: (value) async {
+              setState(() => _selectedGuardia = value!);
               await _loadAsistencias();
             },
           ),

@@ -3,6 +3,9 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import '../../auth_service.dart';
+import '../../login_screen.dart';
 import 'user_history_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -175,21 +178,7 @@ class _UserScannerScreenState extends State<UserScannerScreen> with SingleTicker
         'email': currentUser.email,
         'rango': userDoc.data()?['rango'] ?? 'Desconocido',
       },
-      'puerta': assignedDoor, // Include the assigned door
-    });
-
-    // Registro en la colección 'registros' para historial de usuarios
-    await _firestore.collection('registros').add({
-      'registrador_uid': currentUser.uid,
-      'registrador_nombre': userDoc.data()?['nombre'] ?? 'Desconocido',
-      'registrador_apellido': userDoc.data()?['apellido'] ?? 'Desconocido',
-      'registrador_email': currentUser.email,
-      'alumno_dni': student['dni'],
-      'alumno_nombre': student['nombre'],
-      'alumno_apellido': student['apellido'],
-      'tipo_asistencia': attendanceType,
-      'entrada_tipo': _isPrincipalEntrance ? 'principal' : 'cochera',
-      'fecha_hora': Timestamp.fromDate(now),
+      'puerta': assignedDoor,
     });
 
     _showToast('Asistencia registrada: ${attendanceType.toUpperCase()} - ${_isPrincipalEntrance ? 'Principal' : 'Cochera'}');
@@ -225,11 +214,13 @@ class _UserScannerScreenState extends State<UserScannerScreen> with SingleTicker
 
   Future<void> _signOut() async {
     try {
-      await FirebaseAuth.instance.signOut();
-      // Add a small delay before navigating
-      await Future.delayed(const Duration(milliseconds: 100));
+      final authService = Provider.of<AuthService>(context, listen: false);
+      await authService.signOut();
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/login');
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false, // Remove all previous routes
+        );
       }
     } catch (e) {
       if (mounted) {

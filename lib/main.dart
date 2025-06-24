@@ -63,25 +63,36 @@ class AuthWrapper extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: authService.userStream,
       builder: (_, AsyncSnapshot<User?> snapshot) {
+        print('AuthWrapper: Connection state: ${snapshot.connectionState}');
+        print('AuthWrapper: Has data: ${snapshot.hasData}');
+        print('AuthWrapper: User: ${snapshot.data?.uid ?? 'null'}');
+        
         if (snapshot.connectionState == ConnectionState.active) {
           final user = snapshot.data;
           if (user == null) {
+            print('AuthWrapper: No user, showing LoginScreen');
             return const LoginScreen();
           }
 
+          print('AuthWrapper: User found, fetching user data');
           return FutureBuilder<Map<String, dynamic>?>(
             future: authService.getUserData(user.uid),
             builder: (context, AsyncSnapshot<Map<String, dynamic>?> userDataSnapshot) {
+              print('UserData: Connection state: ${userDataSnapshot.connectionState}');
+              print('UserData: Has data: ${userDataSnapshot.hasData}');
+              
               if (userDataSnapshot.connectionState == ConnectionState.done) {
                 final userData = userDataSnapshot.data;
                 if (userData != null) {
                   final rango = userData['rango'];
+                  print('UserData: Rango found: $rango');
                   if (rango == 'admin') {
                     return const AdminView();
                   } else {
                     return const UserScannerScreen();
                   }
                 } else {
+                  print('UserData: No data found');
                   return const Scaffold(body: Center(child: Text('Error: No user data found')));
                 }
               }

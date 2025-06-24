@@ -8,6 +8,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:1002228149306:android:543c4c3901f88dffcf1903",
+        "android_client_info": {
+          "package_name": "com.example.acees_group"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCkgYZXq0rGpTejpJ3sxqWP2OxQ3n5l_Cc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:1002228149306:android:7cb84d780a9b0e5ecf1903",
         "android_client_info": {
           "package_name": "com.example.app_asistencia"
@@ -30,6 +49,25 @@
         "mobilesdk_app_id": "1:1002228149306:android:cee87507fca4c17ecf1903",
         "android_client_info": {
           "package_name": "com.example.asistencias"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCkgYZXq0rGpTejpJ3sxqWP2OxQ3n5l_Cc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1002228149306:android:1ca230d9e8fb5ff4cf1903",
+        "android_client_info": {
+          "package_name": "com.example.exa_u2_sab"
         }
       },
       "oauth_client": [],

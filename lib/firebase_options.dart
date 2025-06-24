@@ -47,8 +47,8 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyD66JZZh_9kJBsqnNflxINZO_bVz1IRoXs',
-    appId: '1:1002228149306:web:a9add9c8f8233ff1cf1903',
+    apiKey: 'AIzaSyCk5bDoujrfMfk9Dwma2IXBqr_HYvo5dzg',
+    appId: '1:1002228149306:web:2f27624b4e93291acf1903',
     messagingSenderId: '1002228149306',
     projectId: 'harinatodoproposito',
     authDomain: 'harinatodoproposito.firebaseapp.com',
@@ -58,7 +58,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyCkgYZXq0rGpTejpJ3sxqWP2OxQ3n5l_Cc',
-    appId: '1:1002228149306:android:cee87507fca4c17ecf1903',
+    appId: '1:1002228149306:android:543c4c3901f88dffcf1903',
     messagingSenderId: '1002228149306',
     projectId: 'harinatodoproposito',
     databaseURL: 'https://harinatodoproposito-default-rtdb.firebaseio.com',

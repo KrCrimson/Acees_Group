@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
+import '../../auth_service.dart';
 import 'add_edit_user_dialog.dart';
 import 'user_card.dart';
 import 'admin_report_chart_screen.dart';
@@ -8,6 +9,7 @@ import 'admin_report_screen.dart'; // Import admin_report_screen.dart
 import 'external_visits_report_screen.dart'; // Import the external visits report screen
 import 'package:google_fonts/google_fonts.dart';
 import '../../login_screen.dart';
+import 'pending_exit_screen.dart'; // Import PendingExitScreen
 
 class AdminView extends StatefulWidget {
   const AdminView({Key? key}) : super(key: key);
@@ -28,7 +30,8 @@ class _AdminViewState extends State<AdminView> {
 
   Future<void> _signOut() async {
     try {
-      await FirebaseAuth.instance.signOut();
+      final authService = Provider.of<AuthService>(context, listen: false);
+      await authService.signOut();
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -75,6 +78,17 @@ class _AdminViewState extends State<AdminView> {
               Navigator.of(context).push(
                 MaterialPageRoute(
                     builder: (context) => const ExternalVisitsReportScreen()),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.pending_actions),
+            tooltip: 'Pendientes de salida',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const PendingExitScreen(),
+                ),
               );
             },
           ),

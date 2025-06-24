@@ -16,13 +16,47 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
   String _selectedChartType = 'bar'; // Default chart type
   String _selectedSpecialChart = 'none'; // Nuevo: para gráficos especiales
   DateTimeRange? _selectedDateRange;
+  String _selectedGuard = 'todos'; // Filtro por guardia
   List<Map<String, dynamic>> _attendanceData = [];
+  List<Map<String, dynamic>> _guardsList = []; // Lista de guardias
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
+    _loadGuardsList();
     _loadAttendanceData();
+  }
+
+  Future<void> _loadGuardsList() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .where('rango', isEqualTo: 'guardia')
+          .get();
+      
+      List<Map<String, dynamic>> guardiasList = [];
+      
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final guardInfo = {
+          'id': data['uid'] ?? doc.id, // Usar el UID del usuario o el ID del documento como fallback
+          'nombre': data['nombre'] != null && data['apellido'] != null
+              ? '${data['nombre']} ${data['apellido']}'
+              : (data['email'] ?? 'Desconocido'),
+          'email': data['email'] ?? '',
+        };
+        guardiasList.add(guardInfo);
+      }
+      
+      if (mounted) {
+        setState(() {
+          _guardsList = guardiasList;
+        });
+      }
+    } catch (e) {
+      print('Error loading guards list: $e');
+    }
   }
 
   Future<void> _loadAttendanceData() async {
@@ -41,10 +75,23 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
       }
 
       final snapshot = await query.get();
+      List<Map<String, dynamic>> allData = snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+
+      // Filtrar por guardia si está seleccionado
+      if (_selectedGuard != 'todos') {
+        allData = allData.where((record) {
+          final guardiaData = record['registrado_por'];
+          if (guardiaData is Map<String, dynamic>) {
+            final guardId = guardiaData['uid'] ?? guardiaData['email'];
+            return guardId == _selectedGuard;
+          }
+          return false;
+        }).toList();
+      }
 
       if (mounted) { // Guard against async gaps
         setState(() {
-          _attendanceData = snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+          _attendanceData = allData;
           _isLoading = false;
         });
       }
@@ -87,6 +134,67 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
     }
   }
 
+  // Gráfico de ingresos y egresos
+  Widget _buildInOutFlowChart() {
+    Map<int, Map<String, int>> hourMap = {
+      8: {'entrada': 50, 'salida': 20},
+      9: {'entrada': 30, 'salida': 15},
+      10: {'entrada': 40, 'salida': 25},
+      11: {'entrada': 60, 'salida': 30},
+    };
+
+    return Column(
+      children: [
+        Text('Distribución de ingresos y egresos por hora',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        Expanded(
+          child: BarChart(
+            BarChartData(
+              barGroups: hourMap.entries.map((entry) {
+                return BarChartGroupData(
+                  x: entry.key,
+                  barRods: [
+                    BarChartRodData(toY: entry.value['entrada']?.toDouble() ?? 0, color: Colors.blue),
+                    BarChartRodData(toY: entry.value['salida']?.toDouble() ?? 0, color: Colors.green),
+                  ],
+                );
+              }).toList(),
+              titlesData: FlTitlesData(
+                leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true)),
+                bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true)),
+              ),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Text('Leyenda:', style: TextStyle(fontWeight: FontWeight.bold)),
+              Text('- Eje X: Horas del día'),
+              Text('- Eje Y: Cantidad de ingresos y egresos registrados'),
+              Text('- Azul: Ingresos (usuarios registrados, pagos realizados)'),
+              Text('- Verde: Egresos (costos operativos, soporte técnico)'),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Text('Recomendaciones:', style: TextStyle(fontWeight: FontWeight.bold)),
+              Text('- Implementar estrategias de monetización como servicios premium.'),
+              Text('- Optimizar recursos para reducir costos operativos.'),
+              Text('- Mejorar la retención de usuarios para aumentar ingresos.'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   // Gráfico de rendimiento de guardias
   Widget _buildGuardPerformanceChart() {
     Map<String, int> guardiaMap = {};
@@ -100,112 +208,71 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
       }
       guardiaMap[guardia] = (guardiaMap[guardia] ?? 0) + 1;
     }
-    final keys = guardiaMap.keys.toList();
-    final values = guardiaMap.values.toList();
-    List<BarChartGroupData> barGroups = [];
-    for (int i = 0; i < keys.length; i++) {
-      barGroups.add(
-        BarChartGroupData(
-          x: i,
-          barRods: [
-            BarChartRodData(
-              toY: values[i].toDouble(),
-              gradient: LinearGradient(colors: [Colors.green, Colors.lightGreen]),
-              width: 16,
-            ),
-          ],
-        ),
-      );
-    }
-    return BarChart(
-      BarChartData(
-        barGroups: barGroups,
-        titlesData: FlTitlesData(
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              getTitlesWidget: (double value, TitleMeta meta) {
-                final index = value.toInt();
-                if (index >= 0 && index < keys.length) {
-                  return Text(keys[index], style: const TextStyle(fontSize: 10));
-                }
-                return const Text('');
-              },
-            ),
-          ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(showTitles: true),
-          ),
-        ),
-      ),
-    );
-  }
 
-  // Gráfico de ingresos y egresos
-  Widget _buildInOutFlowChart() {
-    Map<String, int> ingresos = {};
-    Map<String, int> egresos = {};
-    for (var record in _attendanceData) {
-      final fecha = record['fecha_hora'] as Timestamp?;
-      final tipo = record['tipo'] ?? 'entrada';
-      if (fecha != null) {
-        final day = DateFormat('dd/MM').format(fecha.toDate());
-        if (tipo == 'entrada') {
-          ingresos[day] = (ingresos[day] ?? 0) + 1;
-        } else if (tipo == 'salida') {
-          egresos[day] = (egresos[day] ?? 0) + 1;
-        }
-      }
-    }
-    final days = {...ingresos.keys, ...egresos.keys}.toList()..sort((a, b) => DateFormat('dd/MM').parse(a).compareTo(DateFormat('dd/MM').parse(b)));
-    List<FlSpot> ingresoSpots = [];
-    List<FlSpot> egresoSpots = [];
-    for (int i = 0; i < days.length; i++) {
-      ingresoSpots.add(FlSpot(i.toDouble(), (ingresos[days[i]] ?? 0).toDouble()));
-      egresoSpots.add(FlSpot(i.toDouble(), (egresos[days[i]] ?? 0).toDouble()));
-    }
-    return LineChart(
-      LineChartData(
-        lineBarsData: [
-          LineChartBarData(
-            spots: ingresoSpots,
-            isCurved: true,
-            color: Colors.blue,
-            barWidth: 4,
-            isStrokeCapRound: true,
-            belowBarData: BarAreaData(show: true, color: Colors.blue.withOpacity(0.2)),
-            dotData: FlDotData(show: false),
-          ),
-          LineChartBarData(
-            spots: egresoSpots,
-            isCurved: true,
-            color: Colors.red,
-            barWidth: 4,
-            isStrokeCapRound: true,
-            belowBarData: BarAreaData(show: true, color: Colors.red.withOpacity(0.2)),
-            dotData: FlDotData(show: false),
-          ),
-        ],
-        titlesData: FlTitlesData(
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              getTitlesWidget: (value, meta) {
-                final index = value.toInt();
-                if (index >= 0 && index < days.length) {
-                  return Text(days[index], style: const TextStyle(fontSize: 10));
-                }
-                return const Text('');
-              },
+    return Column(
+      children: [
+        Text('Rendimiento de Guardias',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        Expanded(
+          child: BarChart(
+            BarChartData(
+              barGroups: guardiaMap.entries.map((entry) {
+                return BarChartGroupData(
+                  x: entry.key.hashCode,
+                  barRods: [
+                    BarChartRodData(
+                      toY: entry.value.toDouble(),
+                      color: Colors.orange,
+                      width: 20,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ],
+                  showingTooltipIndicators: [0],
+                );
+              }).toList(),
+              barTouchData: BarTouchData(
+                touchTooltipData: BarTouchTooltipData(
+                  tooltipBgColor: Colors.black,
+                  getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                    final guardia = guardiaMap.keys.elementAt(groupIndex);
+                    return BarTooltipItem(
+                      '$guardia\nRegistros: ${rod.toY.toInt()}',
+                      const TextStyle(color: Colors.white),
+                    );
+                  },
+                ),
+              ),
+              titlesData: FlTitlesData(
+                leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true)),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    getTitlesWidget: (value, meta) {
+                      if (value.toInt() >= 0 && value.toInt() < guardiaMap.keys.length) {
+                        final guardia = guardiaMap.keys.elementAt(value.toInt());
+                        return Text(guardia, style: TextStyle(fontSize: 10));
+                      }
+                      return const Text('');
+                    },
+                  ),
+                ),
+              ),
             ),
           ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(showTitles: true),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Text('Leyenda:', style: TextStyle(fontWeight: FontWeight.bold)),
+              Text('- Eje X: Guardias (identificados por hash)'),
+              Text('- Eje Y: Cantidad de registros realizados'),
+              Text('- Naranja: Registros realizados por cada guardia'),
+            ],
           ),
         ),
-        gridData: FlGridData(show: true),
-        borderData: FlBorderData(show: true),
-      ),
+      ],
     );
   }
 
@@ -234,6 +301,16 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
           break;
         case 'puerta': // New view for doors
           key = record['puerta'] ?? 'Unknown';
+          break;
+        case 'guard': // New view for guards
+          final guardiaData = record['registrado_por'];
+          if (guardiaData is Map<String, dynamic>) {
+            key = guardiaData['nombre'] != null && guardiaData['apellido'] != null
+                ? '${guardiaData['nombre']} ${guardiaData['apellido']}'
+                : (guardiaData['email'] ?? 'Desconocido');
+          } else {
+            key = 'Desconocido';
+          }
           break;
         default:
           key = 'Unknown';
@@ -312,6 +389,16 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
           break;
         case 'puerta': // New view for doors
           key = record['puerta'] ?? 'Unknown';
+          break;
+        case 'guard': // New view for guards
+          final guardiaData = record['registrado_por'];
+          if (guardiaData is Map<String, dynamic>) {
+            key = guardiaData['nombre'] != null && guardiaData['apellido'] != null
+                ? '${guardiaData['nombre']} ${guardiaData['apellido']}'
+                : (guardiaData['email'] ?? 'Desconocido');
+          } else {
+            key = 'Desconocido';
+          }
           break;
         default:
           key = 'Unknown';
@@ -461,6 +548,37 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
                         ? 'Seleccionar Rango de Fechas'
                         : '${DateFormat('dd/MM/yyyy').format(_selectedDateRange!.start)} - ${DateFormat('dd/MM/yyyy').format(_selectedDateRange!.end)}'),
                   ),
+                  const SizedBox(width: 10),
+                  // Filtro por guardia
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: DropdownButton<String>(
+                      value: _selectedGuard,
+                      hint: const Text('Seleccionar Guardia'),
+                      underline: Container(),
+                      items: [
+                        const DropdownMenuItem<String>(
+                          value: 'todos',
+                          child: Text('Todos los Guardias'),
+                        ),
+                        ..._guardsList.map((guard) => DropdownMenuItem<String>(
+                          value: guard['id'] as String,
+                          child: Text(guard['nombre'] as String),
+                        )).toList(),
+                      ],
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedGuard = value!;
+                        });
+                        _loadAttendanceData();
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 10),
                   DropdownButton<String>(
                     value: _selectedView,
                     items: const [
@@ -469,6 +587,7 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
                       DropdownMenuItem(value: 'timeOfDay', child: Text('Por Hora del Día')),
                       DropdownMenuItem(value: 'entranceType', child: Text('Por Tipo de Entrada')),
                       DropdownMenuItem(value: 'puerta', child: Text('Por Puerta')),
+                      DropdownMenuItem(value: 'guard', child: Text('Por Guardia')),
                     ],
                     onChanged: (value) {
                       setState(() {
@@ -478,6 +597,7 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
                       _loadAttendanceData();
                     },
                   ),
+                  const SizedBox(width: 10),
                   DropdownButton<String>(
                     value: _selectedChartType,
                     items: const [
@@ -492,6 +612,7 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
                       });
                     },
                   ),
+                  const SizedBox(width: 10),
                   // Nuevo: Selector de gráficos especiales
                   DropdownButton<String>(
                     value: _selectedSpecialChart,

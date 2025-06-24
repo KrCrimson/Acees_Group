@@ -16,6 +16,7 @@ class _ExternalVisitsReportScreenState extends State<ExternalVisitsReportScreen>
   String _selectedChartType = 'pie'; // Default chart type
   List<Map<String, dynamic>> _visitData = [];
   bool _isLoading = false;
+  bool _showList = true; // Default view is list
 
   @override
   void initState() {
@@ -39,6 +40,8 @@ class _ExternalVisitsReportScreenState extends State<ExternalVisitsReportScreen>
         query = query.where('fecha_hora', isGreaterThanOrEqualTo: Timestamp.fromDate(now.subtract(const Duration(days: 7))));
       } else if (_selectedTimeRange == 'month') {
         query = query.where('fecha_hora', isGreaterThanOrEqualTo: Timestamp.fromDate(DateTime(now.year, now.month, 1)));
+      } else if (_selectedTimeRange == 'year') {
+        query = query.where('fecha_hora', isGreaterThanOrEqualTo: Timestamp.fromDate(DateTime(now.year, 1, 1)));
       }
 
       final snapshot = await query.get();
@@ -67,108 +70,106 @@ class _ExternalVisitsReportScreenState extends State<ExternalVisitsReportScreen>
       return const Center(child: Text('No visit data available.'));
     }
 
+    Map<String, int> visitCounts = {};
+    for (var visit in _visitData) {
+      final name = visit['nombre'] ?? 'Desconocido';
+      visitCounts[name] = (visitCounts[name] ?? 0) + 1;
+    }
+
     if (_selectedChartType == 'pie') {
-      return _buildPieChart();
+      List<PieChartSectionData> sections = [];
+      int totalVisits = visitCounts.values.fold(0, (sum, count) => sum + count);
+      visitCounts.forEach((name, count) {
+        final percentage = (count / totalVisits) * 100;
+        sections.add(
+          PieChartSectionData(
+            value: percentage,
+            title: '$name ($count)',
+            color: _getChartColor(visitCounts.keys.toList().indexOf(name)),
+            titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+          ),
+        );
+      });
+
+      return SizedBox(
+        height: 400,
+        child: PieChart(
+          PieChartData(
+            sections: sections,
+            centerSpaceRadius: 60,
+            borderData: FlBorderData(show: false),
+          ),
+        ),
+      );
     } else if (_selectedChartType == 'bar') {
-      return _buildBarChart();
+      List<BarChartGroupData> barGroups = [];
+      visitCounts.forEach((name, count) {
+        barGroups.add(
+          BarChartGroupData(
+            x: visitCounts.keys.toList().indexOf(name),
+            barRods: [
+              BarChartRodData(
+                toY: count.toDouble(),
+                color: _getChartColor(visitCounts.keys.toList().indexOf(name)),
+                width: 16,
+              ),
+            ],
+          ),
+        );
+      });
+
+      return SizedBox(
+        height: 400,
+        child: BarChart(
+          BarChartData(
+            barGroups: barGroups,
+            titlesData: FlTitlesData(
+              bottomTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  getTitlesWidget: (value, meta) {
+                    final index = value.toInt();
+                    if (index >= 0 && index < visitCounts.keys.toList().length) {
+                      return Text(
+                        '${visitCounts.keys.toList()[index]} (${visitCounts.values.toList()[index]})',
+                        style: const TextStyle(fontSize: 10, color: Colors.black),
+                      );
+                    }
+                    return const Text('');
+                  },
+                ),
+              ),
+              leftTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  getTitlesWidget: (value, meta) => Text(
+                    value.toInt().toString(),
+                    style: const TextStyle(fontSize: 10, color: Colors.black),
+                  ),
+                ),
+              ),
+              topTitles: AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              rightTitles: AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+            ),
+          ),
+        ),
+      );
     }
 
     return const Center(child: Text('Invalid chart type.'));
   }
 
-  Widget _buildPieChart() {
-    Map<String, int> visitCounts = {};
-    for (var visit in _visitData) {
-      final name = visit['nombre'] ?? 'Desconocido';
-      visitCounts[name] = (visitCounts[name] ?? 0) + 1;
-    }
-
-    List<PieChartSectionData> sections = [];
-    int totalVisits = visitCounts.values.fold(0, (sum, count) => sum + count);
-    visitCounts.forEach((name, count) {
-      final percentage = (count / totalVisits) * 100;
-      sections.add(
-        PieChartSectionData(
-          value: percentage,
-          title: '${name.split(' ')[0]} (${percentage.toStringAsFixed(1)}%)',
-          color: _getChartColor(visitCounts.keys.toList().indexOf(name)),
-          titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black), // Text color set to black
-        ),
-      );
-    });
-
-    return PieChart(
-      PieChartData(
-        sections: sections,
-        centerSpaceRadius: 40,
-        borderData: FlBorderData(show: false),
-      ),
-    );
-  }
-
-  Widget _buildBarChart() {
-    Map<String, int> visitCounts = {};
-    for (var visit in _visitData) {
-      final name = visit['nombre'] ?? 'Desconocido';
-      visitCounts[name] = (visitCounts[name] ?? 0) + 1;
-    }
-
-    List<BarChartGroupData> barGroups = [];
-    visitCounts.forEach((name, count) {
-      barGroups.add(
-        BarChartGroupData(
-          x: visitCounts.keys.toList().indexOf(name),
-          barRods: [
-            BarChartRodData(
-              toY: count.toDouble(),
-              color: _getChartColor(visitCounts.keys.toList().indexOf(name)),
-              width: 16,
-            ),
-          ],
-        ),
-      );
-    });
-
-    return BarChart(
-      BarChartData(
-        barGroups: barGroups,
-        titlesData: FlTitlesData(
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              getTitlesWidget: (value, meta) {
-                final index = value.toInt();
-                if (index >= 0 && index < visitCounts.keys.toList().length) {
-                  return Text(
-                    visitCounts.keys.toList()[index],
-                    style: const TextStyle(fontSize: 10, color: Colors.black), // Text color set to black
-                  );
-                }
-                return const Text('');
-              },
-            ),
-          ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              getTitlesWidget: (value, meta) => Text(
-                value.toInt().toString(),
-                style: const TextStyle(fontSize: 10, color: Colors.black), // Text color set to black
-              ),
-            ),
-          ),
-          topTitles: AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          rightTitles: AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildExternalVisitorsList() {
+    Map<String, int> visitCounts = {};
+    for (var visit in _visitData) {
+      final name = visit['nombre'] ?? 'Desconocido';
+      visitCounts[name] = (visitCounts[name] ?? 0) + 1;
+    }
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('externos').snapshots(),
       builder: (context, snapshot) {
@@ -186,10 +187,32 @@ class _ExternalVisitsReportScreenState extends State<ExternalVisitsReportScreen>
           itemCount: externalVisitors.length,
           itemBuilder: (context, index) {
             final visitor = externalVisitors[index].data() as Map<String, dynamic>;
-            return ListTile(
-              leading: const Icon(Icons.person, color: Colors.blue),
-              title: Text(visitor['nombre'] ?? 'Desconocido'),
-              subtitle: Text('DNI: ${visitor['dni'] ?? 'Sin DNI'}'),
+            final name = visitor['nombre'] ?? 'Desconocido';
+            final visitCount = visitCounts[name] ?? 0;
+
+            return Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15.0),
+              ),
+              elevation: 5,
+              margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 15),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Colors.indigo,
+                  child: const Icon(Icons.person, color: Colors.white),
+                ),
+                title: Text(
+                  '$name ($visitCount visitas)',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                subtitle: Text(
+                  'DNI: ${visitor['dni'] ?? 'Sin DNI'}',
+                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+              ),
             );
           },
         );
@@ -212,6 +235,116 @@ class _ExternalVisitsReportScreenState extends State<ExternalVisitsReportScreen>
     return colorPalette[index % colorPalette.length];
   }
 
+  Widget _buildToggleButton() {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigo,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10.0),
+                ),
+              ),
+              onPressed: () {
+                setState(() {
+                  _selectedTimeRange = 'day';
+                  _loadVisitData();
+                });
+              },
+              child: const Text('Hoy', style: TextStyle(color: Colors.white)),
+            ),
+            const SizedBox(width: 10),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigo,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10.0),
+                ),
+              ),
+              onPressed: () {
+                setState(() {
+                  _selectedTimeRange = 'week';
+                  _loadVisitData();
+                });
+              },
+              child: const Text('Semana', style: TextStyle(color: Colors.white)),
+            ),
+            const SizedBox(width: 10),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigo,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10.0),
+                ),
+              ),
+              onPressed: () {
+                setState(() {
+                  _selectedTimeRange = 'month';
+                  _loadVisitData();
+                });
+              },
+              child: const Text('Mes', style: TextStyle(color: Colors.white)),
+            ),
+            const SizedBox(width: 10),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigo,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10.0),
+                ),
+              ),
+              onPressed: () {
+                setState(() {
+                  _selectedTimeRange = 'year';
+                  _loadVisitData();
+                });
+              },
+              child: const Text('Año', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigo,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10.0),
+                ),
+              ),
+              onPressed: () {
+                setState(() {
+                  _showList = true;
+                });
+              },
+              child: const Text('Ver Listado', style: TextStyle(color: Colors.white)),
+            ),
+            const SizedBox(width: 2),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigo,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(50.0),
+                ),
+              ),
+              onPressed: () {
+                setState(() {
+                  _showList = false;
+                });
+              },
+              child: const Text('Ver Gráficos', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -231,58 +364,10 @@ class _ExternalVisitsReportScreenState extends State<ExternalVisitsReportScreen>
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                DropdownButton<String>(
-                  value: _selectedTimeRange,
-                  items: const [
-                    DropdownMenuItem(value: 'day', child: Text('Hoy')),
-                    DropdownMenuItem(value: 'week', child: Text('Última Semana')),
-                    DropdownMenuItem(value: 'month', child: Text('Último Mes')),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedTimeRange = value!;
-                    });
-                    _loadVisitData();
-                  },
-                ),
-                DropdownButton<String>(
-                  value: _selectedChartType,
-                  items: const [
-                    DropdownMenuItem(value: 'pie', child: Text('Gráfico Circular')),
-                    DropdownMenuItem(value: 'bar', child: Text('Gráfico de Barras')),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedChartType = value!;
-                    });
-                  },
-                ),
-              ],
-            ),
+            _buildToggleButton(),
             const SizedBox(height: 20),
             Expanded(
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: _buildChart(),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 1,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: _buildExternalVisitorsList(),
-                    ),
-                  ),
-                ],
-              ),
+              child: _showList ? _buildExternalVisitorsList() : _buildChart(),
             ),
           ],
         ),
