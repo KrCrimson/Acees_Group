@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'pending_all_exit_screen.dart'; // Importa la pantalla de pendientes de salida
-import 'user_alarm_details_screen.dart'; // Importa la pantalla de detalles de alarma
+import 'user_alarm_details_screen.dart'; // Importa la pantalla de alarma
 
 class UserHistoryScreen extends StatefulWidget {
   const UserHistoryScreen({super.key});
@@ -42,19 +42,11 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
 
   Future<void> _loadFacultadesEscuelas() async {
     final facSnap = await _firestore.collection('facultades').get();
+    final escSnap = await _firestore.collection('escuelas').get();
     setState(() {
-      _facultadesDisponibles = facSnap.docs.map((d) => d.data()['siglas'].toString().toUpperCase()).toList();
+      _facultadesDisponibles = facSnap.docs.map((d) => d.data()['nombre'] as String).toList();
+      _escuelasDisponibles = escSnap.docs.map((d) => d.data()['nombre'] as String).toList();
     });
-
-    if (_facultadFilter != null && _facultadFilter!.isNotEmpty) {
-      final escSnap = await _firestore
-          .collection('escuelas')
-          .where('siglas_facultad', isEqualTo: _facultadFilter!.toUpperCase())
-          .get();
-      setState(() {
-        _escuelasDisponibles = escSnap.docs.map((d) => d.data()['siglas'].toString().toUpperCase()).toList();
-      });
-    }
   }
 
   Future<void> _loadInitialData() async {
@@ -64,20 +56,55 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         _errorMessage = null;
       });
 
+      final user = _auth.currentUser;
+      if (user == null) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Usuario no autenticado';
+        });
+        return;
+      }
+
       Query query = _firestore.collection('asistencias')
           .orderBy('fecha_hora', descending: true)
           .limit(100);
+
+      final userDoc = await _firestore.collection('usuarios').doc(user.uid).get();
+      final isAdmin = userDoc.data()?['rango'] == 'admin';
+
+      if (!isAdmin) {
+        query = query.where('registrado_por.uid', isEqualTo: user.uid);
+      } else {
+        if (_selectedFilter == 'mis_registros') {
+          query = query.where('registrado_por.uid', isEqualTo: user.uid);
+        }
+      }
 
       if (_selectedFilter == 'entrada' || _selectedFilter == 'salida') {
         query = query.where('tipo', isEqualTo: _selectedFilter);
       }
 
+      // Filtros avanzados
+      if (_dniFilter != null && _dniFilter!.isNotEmpty) {
+        query = query.where('dni', isEqualTo: _dniFilter);
+      }
+      if (_nombreFilter != null && _nombreFilter!.isNotEmpty) {
+        query = query.where('nombre', isEqualTo: _nombreFilter);
+      }
       if (_facultadFilter != null && _facultadFilter!.isNotEmpty) {
-        query = query.where('siglas_facultad', isEqualTo: _facultadFilter!.toUpperCase());
+        query = query.where('siglas_facultad', isEqualTo: _facultadFilter);
+      }
+      if (_escuelaFilter != null && _escuelaFilter!.isNotEmpty) {
+        query = query.where('siglas_escuela', isEqualTo: _escuelaFilter);
       }
 
-      if (_escuelaFilter != null && _escuelaFilter!.isNotEmpty) {
-        query = query.where('siglas_escuela', isEqualTo: _escuelaFilter!.toUpperCase());
+      // Filtro por rango de fechas (incluye caso de un solo día)
+      if (_dateRange != null) {
+        final start = DateTime(_dateRange!.start.year, _dateRange!.start.month, _dateRange!.start.day, 0, 0, 0);
+        final end = DateTime(_dateRange!.end.year, _dateRange!.end.month, _dateRange!.end.day, 23, 59, 59, 999);
+        query = query
+            .where('fecha_hora', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+            .where('fecha_hora', isLessThanOrEqualTo: Timestamp.fromDate(end));
       }
 
       final snapshot = await query.get();
@@ -98,7 +125,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Error: ${e.toString()}';
+        _errorMessage = 'Error: \\${e.toString()}';
       });
     }
   }
@@ -119,31 +146,36 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
     }
   }
 
-  void _onFacultadChanged(String? nuevaFacultad) async {
-    if (nuevaFacultad != null && nuevaFacultad.isNotEmpty) {
-      setState(() {
-        _facultadFilter = nuevaFacultad;
-        _escuelaFilter = null; // Reinicia el filtro de escuela
-        _escuelasDisponibles = []; // Limpia las escuelas disponibles
-      });
-
-      final escSnap = await _firestore
-          .collection('escuelas')
-          .where('siglas_facultad', isEqualTo: nuevaFacultad.toUpperCase())
-          .get();
-
-      setState(() {
-        _escuelasDisponibles = escSnap.docs.map((d) => d.data()['siglas'].toString().toUpperCase()).toList();
-      });
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Mis Registros de Asistencia'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.warning_amber_rounded),
+            tooltip: 'Ver alumnos dentro después de las 9',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const PendingAllExitScreen(),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.groups),
+            tooltip: 'Ver visitas de externos',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const UserAlarmDetailsScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadInitialData,
@@ -207,7 +239,29 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                           value: f,
                           child: Text(f),
                         )).toList(),
-                        onChanged: _onFacultadChanged,
+                        onChanged: (v) async {
+                          setState(() {
+                            _facultadFilter = v;
+                            _escuelaFilter = null;
+                            _escuelasDisponibles = [];
+                          });
+                          if (v != null && v.isNotEmpty) {
+                            // Buscar la sigla de la facultad seleccionada
+                            final facSnap = await _firestore.collection('facultades').where('nombre', isEqualTo: v).limit(1).get();
+                            String? siglaFacultad;
+                            if (facSnap.docs.isNotEmpty) {
+                              siglaFacultad = facSnap.docs.first.data()['siglas'] as String?;
+                            }
+                            if (siglaFacultad != null) {
+                              final escSnap = await _firestore.collection('escuelas')
+                                .where('siglas_facultad', isEqualTo: siglaFacultad)
+                                .get();
+                              setState(() {
+                                _escuelasDisponibles = escSnap.docs.map((d) => d.data()['nombre'] as String).toList();
+                              });
+                            }
+                          }
+                        },
                         isExpanded: true,
                         hint: const Text('Seleccione facultad'),
                       ),
@@ -282,32 +336,6 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         onPressed: _exportToCsv,
         tooltip: 'Exportar a CSV',
         child: const Icon(Icons.download),
-      ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => PendingAllExitScreen()),
-                );
-              },
-              child: Text('Ir a pendientes de salida'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => UserAlarmDetailsScreen()),
-                );
-              },
-              child: Text('Ir a detalles de alarma'),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -409,17 +437,12 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
 
   Future<void> _exportToCsv() async {
     try {
-      if (_attendanceData.isEmpty) {
-        _showToast('No hay datos para exportar');
-        return;
-      }
-
       String csvContent = "Nombre,Apellido,DNI,Código,Facultad,Escuela,Tipo,Fecha,Hora\n";
-
+      
       for (var record in _attendanceData) {
         final date = DateFormat('dd/MM/yyyy').format(record['fecha_hora']);
         final time = record['hora'] ?? DateFormat('HH:mm').format(record['fecha_hora']);
-
+        
         csvContent += '"${record['nombre'] ?? ''}",'
                      '"${record['apellido'] ?? ''}",'
                      '"${record['dni'] ?? ''}",'
@@ -444,14 +467,5 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         SnackBar(content: Text('Error al exportar: ${e.toString()}')),
       );
     }
-  }
-
-  void _showToast(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-      ),
-    );
   }
 }

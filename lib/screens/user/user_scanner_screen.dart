@@ -8,6 +8,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_fonts/google_fonts.dart'; // Import Google Fonts
 import 'visitor_form_screen.dart'; // Import the visitor form screen
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class UserScannerScreen extends StatefulWidget {
   const UserScannerScreen({super.key});
@@ -58,10 +60,46 @@ class _UserScannerScreenState extends State<UserScannerScreen> with SingleTicker
       if (!mounted) return;
 
       if (student == null || student['dni'] == null) {
-        // Navigate to visitor form if DNI is not found or does not exist
+        // Buscar nombre externo en BD o API
+        String? externalName;
+        bool foundExtern = false;
+        final extSnap = await _firestore.collection('externos')
+            .where('dni', isEqualTo: barcode)
+            .limit(1)
+            .get();
+        if (extSnap.docs.isNotEmpty) {
+          externalName = extSnap.docs.first.data()['nombre'] as String?;
+          foundExtern = true;
+        } else {
+          // Consultar API externa
+          try {
+            final response = await http.get(
+              Uri.parse('https://api.apis.net.pe/v1/dni?numero=$barcode'),
+              headers: {'Authorization': 'Bearer apis-token-16172.YnjI01QPbvQ2cuf5U3nsb5qOUgiLZ7tW'},
+            );
+            if (response.statusCode == 200) {
+              final data = json.decode(response.body);
+              externalName = data['nombre'] ?? '';
+              if (externalName != null && externalName.isNotEmpty) {
+                foundExtern = true;
+              }
+            } else {
+              _showToast("No se pudo consultar el DNI en la API externa.");
+            }
+          } catch (e) {
+            _showToast("Error de red al consultar API externa.");
+          }
+        }
+        if (!foundExtern) {
+          _showToast("DNI no encontrado en la base de datos ni en la API externa.");
+          setState(() {
+            _isProcessing = false;
+            _lastScanTime = DateTime.now();
+          });
+          return;
+        }
         final guardName = await _getGuardName();
         final assignedDoor = await _getAssignedDoor();
-
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -69,6 +107,7 @@ class _UserScannerScreenState extends State<UserScannerScreen> with SingleTicker
               dni: barcode,
               guardName: guardName,
               assignedDoor: assignedDoor,
+              nombre: externalName, // <-- Pasa el nombre aquí
             ),
           ),
         );
@@ -82,7 +121,7 @@ class _UserScannerScreenState extends State<UserScannerScreen> with SingleTicker
       await _speakStudentInfo(student);
       
     } catch (e) {
-      _showToast("Error: ${e.toString()}");
+      _showToast("Error: [200b][200b${e.toString()}");
     } finally {
       setState(() {
         _isProcessing = false;
@@ -175,7 +214,21 @@ class _UserScannerScreenState extends State<UserScannerScreen> with SingleTicker
         'email': currentUser.email,
         'rango': userDoc.data()?['rango'] ?? 'Desconocido',
       },
-      'puerta': assignedDoor,
+      'puerta': assignedDoor, // Include the assigned door
+    });
+
+    // Registro en la colección 'registros' para historial de usuarios
+    await _firestore.collection('registros').add({
+      'registrador_uid': currentUser.uid,
+      'registrador_nombre': userDoc.data()?['nombre'] ?? 'Desconocido',
+      'registrador_apellido': userDoc.data()?['apellido'] ?? 'Desconocido',
+      'registrador_email': currentUser.email,
+      'alumno_dni': student['dni'],
+      'alumno_nombre': student['nombre'],
+      'alumno_apellido': student['apellido'],
+      'tipo_asistencia': attendanceType,
+      'entrada_tipo': _isPrincipalEntrance ? 'principal' : 'cochera',
+      'fecha_hora': Timestamp.fromDate(now),
     });
 
     _showToast('Asistencia registrada: ${attendanceType.toUpperCase()} - ${_isPrincipalEntrance ? 'Principal' : 'Cochera'}');

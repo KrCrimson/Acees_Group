@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class VisitorFormScreen extends StatefulWidget {
   final String dni;
   final String guardName;
   final String assignedDoor;
+  final String? nombre; // <-- Agrega esto
 
   const VisitorFormScreen({
     Key? key,
     required this.dni,
     required this.guardName,
     required this.assignedDoor,
+    this.nombre, // <-- Agrega esto
   }) : super(key: key);
 
   @override
@@ -25,6 +27,52 @@ class _VisitorFormScreenState extends State<VisitorFormScreen> {
   final _nameController = TextEditingController();
   final _reasonController = TextEditingController();
   String? _selectedFaculty;
+  bool _isLoadingName = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchNameIfNeeded();
+  }
+
+  Future<void> _fetchNameIfNeeded() async {
+    // Usa el nombre proporcionado si existe
+    if (widget.nombre != null && widget.nombre!.isNotEmpty) {
+      _nameController.text = widget.nombre!;
+      setState(() {});
+      return;
+    }
+    // Verifica si el externo ya está en la BD
+    final extSnap = await FirebaseFirestore.instance
+        .collection('externos')
+        .where('dni', isEqualTo: widget.dni)
+        .limit(1)
+        .get();
+    if (extSnap.docs.isNotEmpty) {
+      final nombre = extSnap.docs.first.data()['nombre'] as String?;
+      if (nombre != null && nombre.isNotEmpty) {
+        _nameController.text = nombre;
+        setState(() {});
+        return;
+      }
+    }
+    // Si no está, consulta la API externa
+    setState(() => _isLoadingName = true);
+    try {
+      final response = await http.get(
+        Uri.parse('https://api.apis.net.pe/v1/dni?numero=${widget.dni}'),
+        headers: {'Authorization': 'Bearer apis-token-16172.YnjI01QPbvQ2cuf5U3nsb5qOUgiLZ7tW'},
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final nombre = data['nombre'] ?? '';
+        if (nombre.isNotEmpty) {
+          _nameController.text = nombre;
+        }
+      }
+    } catch (_) {}
+    setState(() => _isLoadingName = false);
+  }
 
   Future<void> _submitForm() async {
     if (_formKey.currentState!.validate()) {
@@ -81,35 +129,6 @@ class _VisitorFormScreenState extends State<VisitorFormScreen> {
     }
   }
 
-  Future<void> _fetchVisitorDataFromReniec(String dni) async {
-    final apiUrl = 'https://apis-token-16290.4EP5oQrZ5NCqVOPUmpLzIaKNTxPnKGMq/reniec/$dni';
-
-    try {
-      final response = await http.get(Uri.parse(apiUrl));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        setState(() {
-          _nameController.text = data['nombre'] ?? '';
-        });
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No se encontró información en RENIEC')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al consultar RENIEC: ${e.toString()}')),
-      );
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchVisitorDataFromReniec(widget.dni);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -130,9 +149,13 @@ class _VisitorFormScreenState extends State<VisitorFormScreen> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _nameController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Nombre del visitante',
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
+                  suffixIcon: _isLoadingName ? const Padding(
+                    padding: EdgeInsets.all(8.0),
+                    child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                  ) : null,
                 ),
                 validator: (value) =>
                     value == null || value.isEmpty ? 'Ingrese el nombre' : null,

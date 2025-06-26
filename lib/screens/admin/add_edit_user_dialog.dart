@@ -19,9 +19,11 @@ class _AddEditUserDialogState extends State<AddEditUserDialog> {
   final _apellidoController = TextEditingController();
   final _dniController = TextEditingController();
   final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   String? _selectedPuerta;
   String _status = 'activo'; // Default status
   bool _isEditing = false;
+  bool _showPassword = false;
 
   @override
   void initState() {
@@ -43,6 +45,7 @@ class _AddEditUserDialogState extends State<AddEditUserDialog> {
     _apellidoController.dispose();
     _dniController.dispose();
     _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
@@ -54,6 +57,7 @@ class _AddEditUserDialogState extends State<AddEditUserDialog> {
       final apellido = _apellidoController.text.trim();
       final dni = _dniController.text.trim();
       final email = _emailController.text.trim();
+      final password = _isEditing ? null : _passwordController.text.trim();
 
       final userData = {
         'nombre': nombre,
@@ -72,25 +76,43 @@ class _AddEditUserDialogState extends State<AddEditUserDialog> {
 
       try {
         if (_isEditing) {
-          await FirebaseFirestore.instance
-              .collection('usuarios')
-              .doc(widget.user!.id)
-              .update(userData);
+          await widget.user!.reference.update(userData);
+          Navigator.of(context).pop();
         } else {
-          // Create user in Firestore
-          final newUserDoc = await FirebaseFirestore.instance.collection('usuarios').add(userData);
-
-          // Create user in Firebase Authentication
+          // Crear usuario en Firebase Authentication
           final authResult = await FirebaseAuth.instance.createUserWithEmailAndPassword(
             email: email,
-            password: dni, // Use DNI as the default password
+            password: password!,
           );
 
-          // Link Firestore user document with Firebase Authentication UID
-          await newUserDoc.update({'auth_uid': authResult.user!.uid});
-        }
+          // Guardar datos en Firestore usando el UID de Auth como ID
+          await FirebaseFirestore.instance
+              .collection('usuarios')
+              .doc(authResult.user!.uid)
+              .set({
+                ...userData,
+                'auth_uid': authResult.user!.uid,
+              });
 
-        Navigator.of(context).pop();
+          // Mostrar la contraseña al admin para que la copie
+          if (context.mounted) {
+            await showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Usuario creado'),
+                content: SelectableText('La contraseña del usuario es: $password'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('OK'),
+                  ),
+                ],
+              ),
+            );
+            // Cerrar el AlertDialog principal después de mostrar la contraseña
+            Navigator.of(context).pop();
+          }
+        }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: ${e.toString()}')),
@@ -157,6 +179,22 @@ class _AddEditUserDialogState extends State<AddEditUserDialog> {
                     value == null || value.isEmpty ? 'Ingrese un Email' : null,
               ),
               const SizedBox(height: 8),
+              if (!_isEditing)
+                TextFormField(
+                  controller: _passwordController,
+                  obscureText: !_showPassword,
+                  decoration: InputDecoration(
+                    labelText: 'Contraseña',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: Icon(_showPassword ? Icons.visibility : Icons.visibility_off),
+                      onPressed: () => setState(() => _showPassword = !_showPassword),
+                    ),
+                  ),
+                  validator: (value) =>
+                      value == null || value.isEmpty ? 'Ingrese una contraseña' : null,
+                ),
+              if (!_isEditing) const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 decoration: const InputDecoration(
                   labelText: 'Estado',

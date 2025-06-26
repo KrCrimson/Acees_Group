@@ -8,7 +8,15 @@ import 'admin_report_screen.dart'; // Import admin_report_screen.dart
 import 'external_visits_report_screen.dart'; // Import the external visits report screen
 import 'package:google_fonts/google_fonts.dart';
 import '../../login_screen.dart';
-import 'pending_exit_screen.dart'; // Import PendingExitScreen
+import 'pending_exit_screen.dart';
+
+enum _AdminMenuOption {
+  reportChart,
+  reportGeneral,
+  reportVisits,
+  pendingExit,
+  logout,
+}
 
 class AdminView extends StatefulWidget {
   const AdminView({Key? key}) : super(key: key);
@@ -46,78 +54,179 @@ class _AdminViewState extends State<AdminView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Admin View'),
+        backgroundColor: Colors.indigo.withOpacity(0.85),
+        elevation: 8,
+        title: Text(
+          'Panel de Administración',
+          style: GoogleFonts.lato(fontWeight: FontWeight.bold, fontSize: 22),
+        ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.bar_chart),
-            tooltip: 'Reportes de asistencias',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                    builder: (context) => const AdminReportChartScreen()),
-              );
+          PopupMenuButton<_AdminMenuOption>(
+            icon: const Icon(Icons.menu, color: Colors.white),
+            color: Colors.white,
+            onSelected: (option) {
+              switch (option) {
+                case _AdminMenuOption.reportChart:
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (context) => const AdminReportChartScreen()),
+                  );
+                  break;
+                case _AdminMenuOption.reportGeneral:
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (context) => const AdminReportScreen()),
+                  );
+                  break;
+                case _AdminMenuOption.reportVisits:
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (context) => const ExternalVisitsReportScreen()),
+                  );
+                  break;
+                case _AdminMenuOption.pendingExit:
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (context) => const PendingExitScreen()),
+                  );
+                  break;
+                case _AdminMenuOption.logout:
+                  _signOut();
+                  break;
+              }
             },
-          ),
-          IconButton(
-            icon: const Icon(Icons.analytics),
-            tooltip: 'Reporte General',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                    builder: (context) => const AdminReportScreen()),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.people),
-            tooltip: 'Reporte de Visitas Externas',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                    builder: (context) => const ExternalVisitsReportScreen()),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.pending_actions),
-            tooltip: 'Pendientes de salida',
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => const PendingExitScreen(),
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: _AdminMenuOption.reportChart,
+                child: Row(
+                  children: [
+                    Icon(Icons.bar_chart, color: Colors.deepPurpleAccent),
+                    const SizedBox(width: 8),
+                    const Text('Reportes de asistencias'),
+                  ],
                 ),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Cerrar sesión',
-            onPressed: _signOut,
+              ),
+              PopupMenuItem(
+                value: _AdminMenuOption.reportGeneral,
+                child: Row(
+                  children: [
+                    Icon(Icons.analytics, color: Colors.orangeAccent),
+                    const SizedBox(width: 8),
+                    const Text('Reporte General'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: _AdminMenuOption.reportVisits,
+                child: Row(
+                  children: [
+                    Icon(Icons.people, color: Colors.teal),
+                    const SizedBox(width: 8),
+                    const Text('Reporte de Visitas Externas'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: _AdminMenuOption.pendingExit,
+                child: Row(
+                  children: [
+                    Icon(Icons.pending_actions, color: Colors.deepOrange),
+                    const SizedBox(width: 8),
+                    const Text('Salidas Pendientes'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: _AdminMenuOption.logout,
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, color: Colors.redAccent),
+                    const SizedBox(width: 8),
+                    const Text('Cerrar sesión'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: const InputDecoration(
-                labelText: 'Buscar (Nombre, DNI, Facultad)',
-              ),
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                });
-              },
-            ),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF536976),
+              Color(0xFF292E49),
+            ],
           ),
-          Expanded(child: _buildGuardiaList()),
-        ],
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: Colors.white,
+                      child: Icon(Icons.admin_panel_settings, color: Colors.indigo[700]),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        '¡Bienvenido, Administrador!',
+                        style: GoogleFonts.lato(
+                          fontSize: 18,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+                child: Material(
+                  elevation: 4,
+                  borderRadius: BorderRadius.circular(16),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.search, color: Colors.indigo),
+                      labelText: 'Buscar (Nombre, DNI, Facultad)',
+                      labelStyle: TextStyle(color: Colors.blueGrey[600]),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16.0),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value;
+                      });
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Expanded(child: _buildGuardiaList()),
+            ],
+          ),
+        ),
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.indigo[700],
+        backgroundColor: Colors.amber[700],
+        elevation: 8,
         onPressed: () {
           showAddEditUserDialog(
             context,
@@ -138,7 +247,7 @@ class _AdminViewState extends State<AdminView> {
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
+          return Center(child: Text('Error: [${snapshot.error}', style: TextStyle(color: Colors.white)));
         }
 
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -156,29 +265,56 @@ class _AdminViewState extends State<AdminView> {
 
         // Group users by faculty
         Map<String, List<DocumentSnapshot>> groupedUsers = {};
+        List<DocumentSnapshot> unassignedUsers = [];
         for (var user in users) {
-          final facultad = user['puerta_acargo'] ?? 'Sin Facultad';
-          if (!groupedUsers.containsKey(facultad)) {
-            groupedUsers[facultad] = [];
+          final facultadRaw = user['puerta_acargo'];
+          final facultad = (facultadRaw == null || facultadRaw.toString().trim().isEmpty || facultadRaw.toString().toLowerCase() == 'sin asignar')
+              ? null
+              : facultadRaw;
+          if (facultad == null) {
+            unassignedUsers.add(user);
+          } else {
+            if (!groupedUsers.containsKey(facultad)) {
+              groupedUsers[facultad] = [];
+            }
+            groupedUsers[facultad]!.add(user);
           }
-          groupedUsers[facultad]!.add(user);
+        }
+
+        final allSections = [
+          ...groupedUsers.keys.map((facultad) => _SectionData(facultad, groupedUsers[facultad]!)),
+        ];
+        if (unassignedUsers.isNotEmpty) {
+          allSections.add(_SectionData('Sin Puerta Asignada', unassignedUsers));
         }
 
         return ListView.builder(
-          itemCount: groupedUsers.length,
+          itemCount: allSections.length,
           itemBuilder: (context, index) {
-            final facultad = groupedUsers.keys.toList()[index];
-            final usersInFacultad = groupedUsers[facultad]!;
+            final section = allSections[index];
+            final facultad = section.facultad;
+            final usersInFacultad = section.users;
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: Text(
-                    facultad,
-                    style: GoogleFonts.roboto(
-                        fontSize: 18, fontWeight: FontWeight.bold),
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+                  child: Material(
+                    elevation: 2,
+                    borderRadius: BorderRadius.circular(12),
+                    color: facultad == 'Sin Puerta Asignada' ? Colors.red[100] : Colors.indigo[50],
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6),
+                      child: Text(
+                        facultad,
+                        style: GoogleFonts.roboto(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: facultad == 'Sin Puerta Asignada' ? Colors.red[900] : Colors.indigo[900],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
                 ListView.builder(
@@ -204,4 +340,10 @@ class _AdminViewState extends State<AdminView> {
       },
     );
   }
+}
+
+class _SectionData {
+  final String facultad;
+  final List<DocumentSnapshot> users;
+  _SectionData(this.facultad, this.users);
 }

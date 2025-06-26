@@ -49,85 +49,162 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100],
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF536976),
+              Color(0xFF292E49),
+            ],
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                // Logo o icono
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  child: CircleAvatar(
+                    radius: 40,
+                    backgroundColor: Colors.white,
+                    child: Icon(Icons.lock_outline, size: 48, color: Colors.indigo[700]),
+                  ),
+                ),
                 Text(
-                  'Iniciar Sesión',
+                  '¡Bienvenido!',
                   style: GoogleFonts.lato(
                     textStyle: const TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.indigo,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Por favor, inicia sesión para continuar',
+                  style: GoogleFonts.lato(
+                    textStyle: const TextStyle(
+                      fontSize: 16,
+                      color: Colors.white70,
                     ),
                   ),
                 ),
                 const SizedBox(height: 32),
-                TextFormField(
-                  controller: _emailController,
-                  decoration: InputDecoration(
-                    labelText: 'Correo Electrónico',
-                    labelStyle: TextStyle(color: Colors.blueGrey[600]),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12.0),
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 16,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Iniciar Sesión',
+                          style: GoogleFonts.lato(
+                            textStyle: const TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.indigo,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+                        TextFormField(
+                          controller: _emailController,
+                          decoration: InputDecoration(
+                            prefixIcon: const Icon(Icons.email_outlined, color: Colors.indigo),
+                            labelText: 'Correo Electrónico',
+                            labelStyle: TextStyle(color: Colors.blueGrey[600]),
+                            filled: true,
+                            fillColor: Colors.grey[100],
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12.0),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                          validator: (value) =>
+                              value == null || value.isEmpty ? 'Ingrese su correo electrónico' : null,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _passwordController,
+                          obscureText: true,
+                          decoration: InputDecoration(
+                            prefixIcon: const Icon(Icons.lock_outline, color: Colors.indigo),
+                            labelText: 'Contraseña',
+                            labelStyle: TextStyle(color: Colors.blueGrey[600]),
+                            filled: true,
+                            fillColor: Colors.grey[100],
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12.0),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                          validator: (value) =>
+                              value == null || value.isEmpty ? 'Ingrese su contraseña' : null,
+                        ),
+                        const SizedBox(height: 28),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.indigo[700],
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
+                              textStyle: const TextStyle(fontSize: 18),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12.0),
+                              ),
+                              elevation: 4,
+                            ),
+                            onPressed: _submit,
+                            child: _isLoading
+                                ? const CircularProgressIndicator(color: Colors.white)
+                                : const Text('Iniciar Sesión'),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green[700],
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                              textStyle: const TextStyle(fontSize: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12.0),
+                              ),
+                              elevation: 2,
+                            ),
+                            onPressed: () {
+                              Navigator.pushNamed(context, '/student_register');
+                            },
+                            child: const Text('Registro Alumno'),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  validator: (value) =>
-                      value == null || value.isEmpty ? 'Ingrese su correo electrónico' : null,
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: 'Contraseña',
-                    labelStyle: TextStyle(color: Colors.blueGrey[600]),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12.0),
-                    ),
-                  ),
-                  validator: (value) =>
-                      value == null || value.isEmpty ? 'Ingrese su contraseña' : null,
-                ),
-                const SizedBox(height: 32),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo[700],
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
-                    textStyle: const TextStyle(fontSize: 18),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12.0),
-                    ),
-                  ),
-                  onPressed: _submit,
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Iniciar Sesión'),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green[700],
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                    textStyle: const TextStyle(fontSize: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12.0),
-                    ),
-                  ),
-                  onPressed: () {
-                    Navigator.pushNamed(context, '/student_register');
-                  },
-                  child: const Text('Registro Alumno'),
-                ),
-                const SizedBox(height: 16),
               ],
             ),
           ),

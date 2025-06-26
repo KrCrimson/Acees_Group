@@ -2,9 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:share_plus/share_plus.dart';
-import 'dart:convert';
-import 'dart:io';
 
 class AdminReportScreen extends StatefulWidget {
   const AdminReportScreen({Key? key}) : super(key: key);
@@ -136,56 +133,13 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
     }
   }
 
-  Future<void> _exportToCSV() async {
-    if (_asistencias.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay datos para exportar.')),
-      );
-      return;
-    }
-
-    final headers = ['Nombre', 'Apellido', 'DNI', 'Facultad', 'Escuela', 'Fecha', 'Tipo'];
-    final rows = _asistencias.map((a) {
-      return [
-        a['nombre'] ?? '',
-        a['apellido'] ?? '',
-        a['dni'] ?? '',
-        a['siglas_facultad'] ?? '',
-        a['siglas_escuela'] ?? '',
-        DateFormat('dd/MM/yyyy HH:mm').format(a['fecha_hora']),
-        a['tipo'] ?? '',
-      ];
-    }).toList();
-
-    final csvContent = StringBuffer();
-    csvContent.writeln(headers.join(','));
-    for (var row in rows) {
-      csvContent.writeln(row.map((e) => e.toString()).join(','));
-    }
-
-    final bytes = utf8.encode(csvContent.toString());
-    final fileName = 'reporte_asistencias_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv';
-
-    try {
-      await Share.shareXFiles([
-        XFile.fromData(
-          bytes,
-          name: fileName,
-          mimeType: 'text/csv',
-        )
-      ], text: 'Reporte de Asistencias');
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al exportar: ${e.toString()}')),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.indigo[700],
+        backgroundColor: Colors.indigo.withOpacity(0.9),
+        elevation: 8,
         title: Text(
           'Reporte de Asistencias',
           style: GoogleFonts.lato(
@@ -197,29 +151,57 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
+            icon: const Icon(Icons.refresh, color: Colors.amber),
+            tooltip: 'Refrescar',
             onPressed: _loadAsistencias,
-          ),
-          IconButton(
-            icon: const Icon(Icons.download, color: Colors.white),
-            onPressed: _exportToCSV,
           ),
         ],
       ),
       body: Container(
-        color: Colors.grey[100],
-        child: Column(
-          children: [
-            _buildFiltros(context),
-            const Divider(),
-            Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _errorMessage != null
-                      ? Center(child: Text(_errorMessage!))
-                      : _buildListado(),
-            ),
-          ],
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF536976),
+              Color(0xFF292E49),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+                child: Material(
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(18),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: _buildFiltros(context),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 400),
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _errorMessage != null
+                          ? Center(child: Text(_errorMessage!, style: const TextStyle(color: Colors.red)))
+                          : _buildListado(),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -228,19 +210,20 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
   Widget _buildFiltros(BuildContext context) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.all(16.0),
       child: Row(
         children: [
-          ElevatedButton(
+          ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.indigo[700],
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(10.0),
               ),
+              elevation: 2,
             ),
+            icon: const Icon(Icons.date_range),
             onPressed: () => _selectDateRange(context),
-            child: Text(
+            label: Text(
               _dateRange == null
                   ? 'Seleccionar rango'
                   : (_dateRange!.start == _dateRange!.end
@@ -250,8 +233,10 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
           ),
           const SizedBox(width: 8),
           if (_dateRange != null)
-            IconButton(
-              icon: const Icon(Icons.clear),
+            ActionChip(
+              label: const Text('Limpiar'),
+              avatar: const Icon(Icons.clear, size: 18),
+              backgroundColor: Colors.red[100],
               onPressed: () async {
                 setState(() {
                   _dateRange = null;
@@ -260,9 +245,10 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
               },
             ),
           const SizedBox(width: 8),
-          // Tipo
           DropdownButton<String>(
             value: _selectedTipo,
+            dropdownColor: Colors.white,
+            style: GoogleFonts.lato(color: Colors.indigo[900]),
             items: const [
               DropdownMenuItem(value: 'todos', child: Text('Todos')),
               DropdownMenuItem(value: 'entrada', child: Text('Entradas')),
@@ -274,9 +260,10 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
             },
           ),
           const SizedBox(width: 8),
-          // Facultad
           DropdownButton<String>(
             value: _selectedFacultad,
+            dropdownColor: Colors.white,
+            style: GoogleFonts.lato(color: Colors.indigo[900]),
             items: [
               const DropdownMenuItem(value: 'todas', child: Text('Todas las facultades')),
               ..._facultades.map((f) => DropdownMenuItem(value: f, child: Text(f))),
@@ -291,9 +278,10 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
             },
           ),
           const SizedBox(width: 8),
-          // Escuela
           DropdownButton<String>(
             value: _selectedEscuela,
+            dropdownColor: Colors.white,
+            style: GoogleFonts.lato(color: Colors.indigo[900]),
             items: [
               const DropdownMenuItem(value: 'todas', child: Text('Todas las escuelas')),
               ..._escuelas.map((e) => DropdownMenuItem(value: e, child: Text(e))),
@@ -304,9 +292,10 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
             },
           ),
           const SizedBox(width: 8),
-          // Turno
           DropdownButton<String>(
             value: _selectedTurno,
+            dropdownColor: Colors.white,
+            style: GoogleFonts.lato(color: Colors.indigo[900]),
             items: const [
               DropdownMenuItem(value: 'todos', child: Text('Todos los turnos')),
               DropdownMenuItem(value: 'mañana', child: Text('Mañana (8-12)')),
@@ -324,42 +313,42 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
 
   Widget _buildListado() {
     if (_asistencias.isEmpty) {
-      return const Center(child: Text('No se encontraron asistencias.'));
+      return Center(
+        child: Text('No hay asistencias registradas.',
+            style: GoogleFonts.lato(fontSize: 18, color: Colors.white)),
+      );
     }
     return ListView.builder(
       itemCount: _asistencias.length,
-      padding: const EdgeInsets.all(8.0),
       itemBuilder: (context, index) {
-        final a = _asistencias[index];
-        final fechaHora = DateFormat('dd/MM/yyyy HH:mm').format(a['fecha_hora']);
-        return Card(
-          elevation: 2,
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10.0),
-          ),
-          child: ListTile(
-            leading: Icon(
-              a['tipo'] == 'entrada' ? Icons.login : Icons.logout,
-              color: a['tipo'] == 'entrada' ? Colors.green : Colors.red,
-            ),
-            title: Text(
-              '${a['nombre'] ?? ''} ${a['apellido'] ?? ''}',
-              style: GoogleFonts.roboto(fontWeight: FontWeight.w500),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('DNI: ${a['dni'] ?? ''}'),
-                Text('${a['siglas_facultad'] ?? ''} - ${a['siglas_escuela'] ?? ''}'),
-                Text(fechaHora, style: const TextStyle(fontSize: 12)),
-              ],
-            ),
-            trailing: Text(
-              (a['tipo'] ?? '').toString().toUpperCase(),
-              style: TextStyle(
-                color: a['tipo'] == 'entrada' ? Colors.green : Colors.red,
-                fontWeight: FontWeight.bold,
+        final asistencia = _asistencias[index];
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6),
+          child: Card(
+            elevation: 4,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: asistencia['tipo'] == 'entrada' ? Colors.green[200] : Colors.red[200],
+                child: Icon(
+                  asistencia['tipo'] == 'entrada' ? Icons.login : Icons.logout,
+                  color: asistencia['tipo'] == 'entrada' ? Colors.green[900] : Colors.red[900],
+                ),
+              ),
+              title: Text(
+                '${asistencia['nombre']} ${asistencia['apellido']}',
+                style: GoogleFonts.lato(fontWeight: FontWeight.bold),
+              ),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('DNI: ${asistencia['dni']}'),
+                  Text('Facultad: ${asistencia['siglas_facultad'] ?? '-'}'),
+                  Text('Escuela: ${asistencia['siglas_escuela'] ?? '-'}'),
+                  Text('Fecha: ${DateFormat('dd/MM/yyyy HH:mm').format(asistencia['fecha_hora'])}'),
+                  Text('Tipo: ${asistencia['tipo']}'),
+                  Text('Registrado por: ${asistencia['registrado_por']?['nombre'] ?? '-'}'),
+                ],
               ),
             ),
           ),

@@ -14,9 +14,9 @@ class ExternalVisitsReportScreen extends StatefulWidget {
 class _ExternalVisitsReportScreenState extends State<ExternalVisitsReportScreen> {
   String _selectedTimeRange = 'day'; // Default time range
   String _selectedChartType = 'pie'; // Default chart type
+  String _selectedView = 'chart'; // Nuevo: chart o list
   List<Map<String, dynamic>> _visitData = [];
   bool _isLoading = false;
-  bool _showList = true; // Default view is list
 
   @override
   void initState() {
@@ -86,16 +86,28 @@ class _ExternalVisitsReportScreenState extends State<ExternalVisitsReportScreen>
 
     List<PieChartSectionData> sections = [];
     int totalVisits = visitCounts.values.fold(0, (sum, count) => sum + count);
+    final colorList = [
+      Colors.indigo,
+      Colors.blue,
+      Colors.green,
+      Colors.orange,
+      Colors.purple,
+      Colors.teal,
+      Colors.amber,
+    ];
+    int colorIndex = 0;
     visitCounts.forEach((name, count) {
       final percentage = (count / totalVisits) * 100;
       sections.add(
         PieChartSectionData(
           value: percentage,
-          title: '${name.split(' ')[0]} (${percentage.toStringAsFixed(1)}%)',
-          color: _getChartColor(visitCounts.keys.toList().indexOf(name)),
-          titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black), // Text color set to black
+          title: '${name.split(' ')[0]} ($count)\n${percentage.toStringAsFixed(1)}%',
+          color: colorList[colorIndex % colorList.length],
+          radius: 60,
+          titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
         ),
       );
+      colorIndex++;
     });
 
     return PieChart(
@@ -103,7 +115,14 @@ class _ExternalVisitsReportScreenState extends State<ExternalVisitsReportScreen>
         sections: sections,
         centerSpaceRadius: 40,
         borderData: FlBorderData(show: false),
+        sectionsSpace: 2,
+        pieTouchData: PieTouchData(
+          enabled: true,
+          touchCallback: (event, response) {},
+        ),
       ),
+      duration: const Duration(milliseconds: 700),
+      curve: Curves.easeInOut,
     );
   }
 
@@ -115,6 +134,16 @@ class _ExternalVisitsReportScreenState extends State<ExternalVisitsReportScreen>
     }
 
     List<BarChartGroupData> barGroups = [];
+    final colorList = [
+      Colors.indigo,
+      Colors.blue,
+      Colors.green,
+      Colors.orange,
+      Colors.purple,
+      Colors.teal,
+      Colors.amber,
+    ];
+    int colorIndex = 0;
     visitCounts.forEach((name, count) {
       barGroups.add(
         BarChartGroupData(
@@ -122,12 +151,22 @@ class _ExternalVisitsReportScreenState extends State<ExternalVisitsReportScreen>
           barRods: [
             BarChartRodData(
               toY: count.toDouble(),
-              color: _getChartColor(visitCounts.keys.toList().indexOf(name)),
-              width: 16,
+              borderRadius: BorderRadius.circular(8),
+              gradient: LinearGradient(colors: [
+                colorList[colorIndex % colorList.length],
+                colorList[(colorIndex + 1) % colorList.length].withOpacity(0.7),
+              ]),
+              width: 18,
+              backDrawRodData: BackgroundBarChartRodData(
+                show: true,
+                toY: 0,
+                color: Colors.grey[200],
+              ),
             ),
           ],
         ),
       );
+      colorIndex++;
     });
 
     return BarChart(
@@ -137,16 +176,33 @@ class _ExternalVisitsReportScreenState extends State<ExternalVisitsReportScreen>
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              getTitlesWidget: (value, meta) {
+              getTitlesWidget: (double value, TitleMeta meta) {
                 final index = value.toInt();
                 if (index >= 0 && index < visitCounts.keys.toList().length) {
-                  return Text(
-                    visitCounts.keys.toList()[index],
-                    style: const TextStyle(fontSize: 10, color: Colors.black), // Text color set to black
+                  final name = visitCounts.keys.toList()[index];
+                  final count = visitCounts[name] ?? 0;
+                  final shortName = name.length > 10 ? name.substring(0, 10) + '…' : name;
+                  return Transform.rotate(
+                    angle: -0.6,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          shortName,
+                          style: const TextStyle(fontSize: 9, color: Colors.black),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          '($count)',
+                          style: const TextStyle(fontSize: 9, color: Colors.blueGrey),
+                        ),
+                      ],
+                    ),
                   );
                 }
                 return const Text('');
               },
+              reservedSize: 38,
             ),
           ),
           leftTitles: AxisTitles(
@@ -154,7 +210,7 @@ class _ExternalVisitsReportScreenState extends State<ExternalVisitsReportScreen>
               showTitles: true,
               getTitlesWidget: (value, meta) => Text(
                 value.toInt().toString(),
-                style: const TextStyle(fontSize: 10, color: Colors.black), // Text color set to black
+                style: const TextStyle(fontSize: 10, color: Colors.black),
               ),
             ),
           ),
@@ -165,7 +221,31 @@ class _ExternalVisitsReportScreenState extends State<ExternalVisitsReportScreen>
             sideTitles: SideTitles(showTitles: false),
           ),
         ),
+        gridData: FlGridData(show: true, drawVerticalLine: false),
+        borderData: FlBorderData(show: false),
+        barTouchData: BarTouchData(
+          enabled: true,
+          touchTooltipData: BarTouchTooltipData(
+            getTooltipColor: (group) => Colors.indigo[100] ?? Colors.indigo,
+            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              return BarTooltipItem(
+                '${visitCounts.keys.toList()[group.x]}\n',
+                const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
+                children: [
+                  TextSpan(
+                    text: rod.toY.toStringAsFixed(0),
+                    style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+        alignment: BarChartAlignment.spaceAround,
+        maxY: visitCounts.values.isNotEmpty ? (visitCounts.values.reduce((a, b) => a > b ? a : b) * 1.2) : 10,
       ),
+      duration: const Duration(milliseconds: 700),
+      curve: Curves.easeInOut,
     );
   }
 
@@ -178,19 +258,50 @@ class _ExternalVisitsReportScreenState extends State<ExternalVisitsReportScreen>
         }
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(child: Text('No hay registros de externos.'));
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.celebration, color: Colors.green[300], size: 60),
+                const SizedBox(height: 12),
+                Text(
+                  '¡No hay registros de externos!',
+                  style: GoogleFonts.lato(fontSize: 20, color: Colors.white, fontWeight: FontWeight.w600),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          );
         }
 
         final externalVisitors = snapshot.data!.docs;
 
-        return ListView.builder(
+        return ListView.separated(
           itemCount: externalVisitors.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           itemBuilder: (context, index) {
-            final visitor = externalVisitors[index].data() as Map<String, dynamic>;
-            return ListTile(
-              leading: const Icon(Icons.person, color: Colors.blue),
-              title: Text(visitor['nombre'] ?? 'Desconocido'),
-              subtitle: Text('DNI: ${visitor['dni'] ?? 'Sin DNI'}'),
+            final v = externalVisitors[index].data() as Map<String, dynamic>;
+            return Card(
+              elevation: 4,
+              color: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                leading: CircleAvatar(
+                  backgroundColor: Colors.indigo[100],
+                  radius: 28,
+                  child: const Icon(Icons.person, color: Colors.indigo, size: 32),
+                ),
+                title: Text(
+                  v['nombre'] ?? 'Desconocido',
+                  style: GoogleFonts.lato(fontWeight: FontWeight.bold, fontSize: 19, color: Colors.indigo[900]),
+                ),
+                subtitle: Text(
+                  'DNI: ${v['dni'] ?? '-'}',
+                  style: GoogleFonts.lato(fontSize: 16, color: Colors.blueGrey[700]),
+                ),
+              ),
             );
           },
         );
@@ -198,51 +309,13 @@ class _ExternalVisitsReportScreenState extends State<ExternalVisitsReportScreen>
     );
   }
 
-  Color _getChartColor(int index) {
-    const colorPalette = [
-      Colors.blue,
-      Colors.green,
-      Colors.orange,
-      Colors.red,
-      Colors.purple,
-      Colors.teal,
-      Colors.amber,
-      Colors.cyan,
-      Colors.pink,
-    ];
-    return colorPalette[index % colorPalette.length];
-  }
-
-  Widget _buildToggleButton() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        ElevatedButton(
-          onPressed: () {
-            setState(() {
-              _showList = true;
-            });
-          },
-          child: const Text('Ver Listado'),
-        ),
-        const SizedBox(width: 10),
-        ElevatedButton(
-          onPressed: () {
-            setState(() {
-              _showList = false;
-            });
-          },
-          child: const Text('Ver Gráficos'),
-        ),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.indigo[700],
+        backgroundColor: Colors.indigo.withOpacity(0.9),
+        elevation: 8,
         title: Text(
           'Reporte de Visitas Externas',
           style: GoogleFonts.lato(
@@ -253,16 +326,125 @@ class _ExternalVisitsReportScreenState extends State<ExternalVisitsReportScreen>
           ),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            _buildToggleButton(),
-            const SizedBox(height: 20),
-            Expanded(
-              child: _showList ? _buildExternalVisitorsList() : _buildChart(),
-            ),
-          ],
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF536976),
+              Color(0xFF292E49),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+                child: Material(
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(18),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        DropdownButton<String>(
+                          value: _selectedTimeRange,
+                          dropdownColor: Colors.white,
+                          style: GoogleFonts.lato(color: Colors.indigo[900]),
+                          items: const [
+                            DropdownMenuItem(value: 'day', child: Text('Hoy')),
+                            DropdownMenuItem(value: 'week', child: Text('Esta semana')),
+                            DropdownMenuItem(value: 'month', child: Text('Este mes')),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedTimeRange = value!;
+                            });
+                            _loadVisitData();
+                          },
+                        ),
+                        DropdownButton<String>(
+                          value: _selectedChartType,
+                          dropdownColor: Colors.white,
+                          style: GoogleFonts.lato(color: Colors.indigo[900]),
+                          items: const [
+                            DropdownMenuItem(value: 'pie', child: Text('Torta')),
+                            DropdownMenuItem(value: 'bar', child: Text('Barras')),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedChartType = value!;
+                            });
+                          },
+                        ),
+                        DropdownButton<String>(
+                          value: _selectedView,
+                          dropdownColor: Colors.white,
+                          style: GoogleFonts.lato(color: Colors.indigo[900]),
+                          items: const [
+                            DropdownMenuItem(value: 'chart', child: Text('Gráfico')),
+                            DropdownMenuItem(value: 'list', child: Text('Lista')),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedView = value!;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 400),
+                  child: _selectedView == 'chart'
+                      ? Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+                          child: Material(
+                            elevation: 4,
+                            borderRadius: BorderRadius.circular(18),
+                            child: Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              child: _buildChart(),
+                            ),
+                          ),
+                        )
+                      : Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+                          child: Material(
+                            elevation: 4,
+                            borderRadius: BorderRadius.circular(18),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              child: _buildExternalVisitorsList(),
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
