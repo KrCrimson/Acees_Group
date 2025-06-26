@@ -32,10 +32,27 @@ class _UserScannerScreenState extends State<UserScannerScreen> with SingleTicker
   bool _isPrincipalEntrance = true; // true = Principal, false = Cochera
   final FlutterTts _flutterTts = FlutterTts();
 
+  String _guardName = '';
+  String _assignedDoor = '';
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadGuardInfo();
+  }
+
+  Future<void> _loadGuardInfo() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+    final userDoc = await FirebaseFirestore.instance
+        .collection('usuarios')
+        .doc(currentUser.uid)
+        .get();
+    setState(() {
+      _guardName = '${userDoc.data()?['nombre'] ?? 'Desconocido'} ${userDoc.data()?['apellido'] ?? ''}';
+      _assignedDoor = userDoc.data()?['puerta_acargo'] ?? 'Sin asignar';
+    });
   }
 
   @override
@@ -388,10 +405,12 @@ class _UserScannerScreenState extends State<UserScannerScreen> with SingleTicker
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: Colors.indigo[700],
+        backgroundColor: Colors.indigo.withOpacity(0.9),
+        elevation: 8,
         title: Text(
-          'Registro de Asistencia',
+          'Escáner de Accesos',
           style: GoogleFonts.lato(
             textStyle: const TextStyle(
               color: Colors.white,
@@ -401,127 +420,188 @@ class _UserScannerScreenState extends State<UserScannerScreen> with SingleTicker
         ),
         actions: [
           IconButton(
-            icon: ValueListenableBuilder<TorchState>(
-              valueListenable: _cameraController.torchState,
-              builder: (context, state, _) {
-                switch (state) {
-                  case TorchState.off:
-                    return const Icon(Icons.flash_off, color: Colors.grey);
-                  case TorchState.on:
-                    return const Icon(Icons.flash_on, color: Colors.yellow);
-                }
-              },
-            ),
-            onPressed: () => _cameraController.toggleTorch(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
-            tooltip: 'Cerrar sesión',
-            onPressed: _signOut,
+            icon: const Icon(Icons.history, color: Colors.amber),
+            tooltip: 'Historial',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const UserHistoryScreen()),
+              );
+            },
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(icon: Icon(Icons.qr_code_scanner), text: 'Asistencias'),
-            Tab(icon: Icon(Icons.people), text: 'Externos'),
-          ],
-        ),
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text('Entrada por: '),
-                Switch(
-                  value: _isPrincipalEntrance,
-                  onChanged: (val) {
-                    setState(() {
-                      _isPrincipalEntrance = val;
-                    });
-                  },
-                  activeColor: Colors.indigo,
-                  inactiveThumbColor: Colors.blueGrey,
-                ),
-                Text(_isPrincipalEntrance ? 'Principal' : 'Cochera'),
-              ],
-            ),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF536976),
+              Color(0xFF292E49),
+            ],
           ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                Column(
-                  children: [
-                    Expanded(
-                      flex: 4,
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+                child: Material(
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(18),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.person, color: Colors.indigo, size: 28),
+                            const SizedBox(width: 8),
+                            Text(
+                              _guardName,
+                              style: GoogleFonts.lato(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.indigo[900]),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          children: [
+                            const Icon(Icons.door_front_door, color: Colors.teal, size: 26),
+                            const SizedBox(width: 6),
+                            Text(
+                              _assignedDoor,
+                              style: GoogleFonts.lato(fontSize: 16, color: Colors.teal[800], fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.sync, color: Colors.blueGrey),
+                          tooltip: 'Actualizar puerta',
+                          onPressed: _loadGuardInfo,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: Center(
+                  child: Material(
+                    elevation: 8,
+                    borderRadius: BorderRadius.circular(28),
+                    child: Container(
+                      width: 340,
+                      height: 420,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(28),
+                      ),
                       child: Stack(
                         children: [
-                          MobileScanner(
-                            controller: _cameraController,
-                            onDetect: (capture) {
-                              final barcodes = capture.barcodes;
-                              for (final barcode in barcodes) {
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(28),
+                            child: MobileScanner(
+                              controller: _cameraController,
+                              onDetect: (BarcodeCapture capture) {
+                                final barcode = capture.barcodes.first;
                                 if (barcode.rawValue != null) {
                                   _handleBarcodeScan(barcode.rawValue!);
-                                  break;
                                 }
-                              }
-                            },
+                              },
+                            ),
                           ),
                           if (_isProcessing)
-                            const Center(
-                              child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.4),
+                                borderRadius: BorderRadius.circular(28),
+                              ),
+                              child: const Center(
+                                child: CircularProgressIndicator(color: Colors.amber),
                               ),
                             ),
                         ],
                       ),
                     ),
-                    Expanded(
-                      flex: 2,
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                        ),
-                        child: _buildStudentInfoSection(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              if (_currentStudent != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8),
+                  child: Material(
+                    elevation: 4,
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.badge, color: Colors.indigo, size: 28),
+                              const SizedBox(width: 8),
+                              Text(
+                                _currentStudent!['nombre'] ?? '-',
+                                style: GoogleFonts.lato(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.indigo[900]),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              const Icon(Icons.credit_card, color: Colors.blueGrey, size: 22),
+                              const SizedBox(width: 6),
+                              Text(
+                                'DNI: ${_currentStudent!['dni'] ?? '-'}',
+                                style: GoogleFonts.lato(fontSize: 16, color: Colors.blueGrey[700]),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              const Icon(Icons.school, color: Colors.green, size: 22),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Código: ${_currentStudent!['codigo_universitario'] ?? '-'}',
+                                style: GoogleFonts.lato(fontSize: 16, color: Colors.green[700]),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
-                _buildExternalVisitorsSection(),
-              ],
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: Colors.indigo[700],
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const UserHistoryScreen(),
-            ),
-          );
-        },
-        icon: const Icon(Icons.history, color: Colors.white),
-        label: Text(
-          'Ver Historial',
-          style: GoogleFonts.roboto(
-            textStyle: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w500,
-            ),
+              const SizedBox(height: 18),
+            ],
           ),
         ),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: Colors.redAccent,
+        tooltip: 'Cerrar sesión',
+        child: const Icon(Icons.logout, color: Colors.white),
+        onPressed: _signOut,
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }

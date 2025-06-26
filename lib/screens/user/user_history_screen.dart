@@ -7,6 +7,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'pending_all_exit_screen.dart'; // Importa la pantalla de pendientes de salida
 import 'user_alarm_details_screen.dart'; // Importa la pantalla de alarma
+import 'package:google_fonts/google_fonts.dart';
 
 class UserHistoryScreen extends StatefulWidget {
   const UserHistoryScreen({super.key});
@@ -149,194 +150,311 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Mis Registros de Asistencia'),
+        backgroundColor: Colors.indigo.withOpacity(0.9),
+        elevation: 8,
+        title: Text(
+          'Mis Registros de Asistencia',
+          style: GoogleFonts.lato(
+            textStyle: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.warning_amber_rounded),
-            tooltip: 'Ver alumnos dentro después de las 9',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const PendingAllExitScreen(),
-                ),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.groups),
-            tooltip: 'Ver visitas de externos',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const UserAlarmDetailsScreen(),
-                ),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadInitialData,
-          ),
-          PopupMenuButton<String>(
-            itemBuilder: (BuildContext context) => [
-              const PopupMenuItem(
-                value: 'todos',
-                child: Text('Todos los registros'),
-              ),
-              const PopupMenuItem(
-                value: 'entrada',
-                child: Text('Solo entradas'),
-              ),
-              const PopupMenuItem(
-                value: 'salida',
-                child: Text('Solo salidas'),
-              ),
-            ],
-            onSelected: (value) async {
-              setState(() => _selectedFilter = value);
-              await _loadInitialData();
-            },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
           Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        decoration: const InputDecoration(labelText: 'DNI'),
-                        onChanged: (v) {
-                          _dniFilter = v;
-                        },
+            padding: const EdgeInsets.symmetric(horizontal: 2.0),
+            child: Tooltip(
+              message: 'Alumnos dentro después de las 9',
+              child: CircleAvatar(
+                backgroundColor: Colors.white.withOpacity(0.85),
+                radius: 22,
+                child: IconButton(
+                  icon: const Icon(Icons.warning_amber_rounded, size: 28),
+                  color: Colors.orangeAccent,
+                  splashRadius: 24,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const PendingAllExitScreen(),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        decoration: const InputDecoration(labelText: 'Nombre'),
-                        onChanged: (v) {
-                          _nombreFilter = v;
-                        },
-                      ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        decoration: const InputDecoration(labelText: 'Facultad'),
-                        value: _facultadFilter,
-                        items: _facultadesDisponibles.map((f) => DropdownMenuItem<String>(
-                          value: f,
-                          child: Text(f),
-                        )).toList(),
-                        onChanged: (v) async {
-                          setState(() {
-                            _facultadFilter = v;
-                            _escuelaFilter = null;
-                            _escuelasDisponibles = [];
-                          });
-                          if (v != null && v.isNotEmpty) {
-                            // Buscar la sigla de la facultad seleccionada
-                            final facSnap = await _firestore.collection('facultades').where('nombre', isEqualTo: v).limit(1).get();
-                            String? siglaFacultad;
-                            if (facSnap.docs.isNotEmpty) {
-                              siglaFacultad = facSnap.docs.first.data()['siglas'] as String?;
-                            }
-                            if (siglaFacultad != null) {
-                              final escSnap = await _firestore.collection('escuelas')
-                                .where('siglas_facultad', isEqualTo: siglaFacultad)
-                                .get();
-                              setState(() {
-                                _escuelasDisponibles = escSnap.docs.map((d) => d.data()['nombre'] as String).toList();
-                              });
-                            }
-                          }
-                        },
-                        isExpanded: true,
-                        hint: const Text('Seleccione facultad'),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2.0),
+            child: Tooltip(
+              message: 'Visitas de externos',
+              child: CircleAvatar(
+                backgroundColor: Colors.white.withOpacity(0.85),
+                radius: 22,
+                child: IconButton(
+                  icon: const Icon(Icons.groups_2_rounded, size: 28),
+                  color: Colors.teal,
+                  splashRadius: 24,
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const UserAlarmDetailsScreen(),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    if (_facultadFilter != null && _facultadFilter!.isNotEmpty)
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          decoration: const InputDecoration(labelText: 'Escuela'),
-                          value: _escuelaFilter != null && _escuelasDisponibles.contains(_escuelaFilter)
-                              ? _escuelaFilter
-                              : null,
-                          items: _escuelasDisponibles.map((e) => DropdownMenuItem<String>(
-                            value: e,
-                            child: Text(e),
-                          )).toList(),
-                          onChanged: (v) {
-                            setState(() {
-                              _escuelaFilter = v;
-                            });
-                          },
-                          isExpanded: true,
-                          hint: const Text('Seleccione escuela'),
-                          disabledHint: const Text('No hay escuelas'),
-                        ),
-                      ),
-                  ],
+                    );
+                  },
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.filter_alt),
-                      label: const Text('Aplicar filtros'),
-                      onPressed: _loadInitialData,
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      icon: const Icon(Icons.clear),
-                      label: const Text('Limpiar filtros'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.grey[300],
-                        foregroundColor: Colors.black,
-                      ),
-                      onPressed: () async {
-                        setState(() {
-                          _dniFilter = null;
-                          _nombreFilter = null;
-                          _facultadFilter = null;
-                          _escuelaFilter = null;
-                          _dateRange = null;
-                          _escuelasDisponibles = [];
-                        });
-                        await _loadInitialData();
-                      },
-                    ),
-                  ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2.0),
+            child: Tooltip(
+              message: 'Refrescar registros',
+              child: CircleAvatar(
+                backgroundColor: Colors.white.withOpacity(0.85),
+                radius: 22,
+                child: IconButton(
+                  icon: const Icon(Icons.refresh_rounded, size: 28),
+                  color: Colors.indigo,
+                  splashRadius: 24,
+                  onPressed: _loadInitialData,
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2.0),
+            child: PopupMenuButton<String>(
+              tooltip: 'Filtrar por tipo',
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              icon: CircleAvatar(
+                backgroundColor: Colors.white.withOpacity(0.85),
+                radius: 20,
+                child: const Icon(Icons.filter_list_rounded, color: Colors.deepPurple, size: 26),
+              ),
+              itemBuilder: (BuildContext context) => [
+                const PopupMenuItem(
+                  value: 'todos',
+                  child: Row(
+                    children: [
+                      Icon(Icons.list_alt, color: Colors.blueGrey),
+                      SizedBox(width: 8),
+                      Text('Todos los registros'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'entrada',
+                  child: Row(
+                    children: [
+                      Icon(Icons.login, color: Colors.green),
+                      SizedBox(width: 8),
+                      Text('Solo entradas'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'salida',
+                  child: Row(
+                    children: [
+                      Icon(Icons.logout, color: Colors.redAccent),
+                      SizedBox(width: 8),
+                      Text('Solo salidas'),
+                    ],
+                  ),
                 ),
               ],
-            ),
-          ),
-          const Divider(),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: _loadInitialData,
-              child: _buildContent(),
+              onSelected: (value) async {
+                setState(() => _selectedFilter = value);
+                await _loadInitialData();
+              },
             ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _exportToCsv,
-        tooltip: 'Exportar a CSV',
-        child: const Icon(Icons.download),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF536976),
+              Color(0xFF292E49),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+                child: Material(
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(18),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                decoration: const InputDecoration(labelText: 'DNI'),
+                                onChanged: (v) {
+                                  _dniFilter = v;
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: TextField(
+                                decoration: const InputDecoration(labelText: 'Nombre'),
+                                onChanged: (v) {
+                                  _nombreFilter = v;
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                value: _facultadFilter,
+                                decoration: const InputDecoration(labelText: 'Facultad'),
+                                items: _facultadesDisponibles.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
+                                onChanged: (v) {
+                                  setState(() => _facultadFilter = v);
+                                },
+                                isExpanded: true,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                value: _escuelaFilter,
+                                decoration: const InputDecoration(labelText: 'Escuela'),
+                                items: _escuelasDisponibles.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                                onChanged: (v) {
+                                  setState(() => _escuelaFilter = v);
+                                },
+                                isExpanded: true,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                icon: const Icon(Icons.filter_alt),
+                                label: const Text('Aplicar filtros'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.indigo[700],
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                                onPressed: _loadInitialData,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                icon: const Icon(Icons.clear),
+                                label: const Text('Limpiar filtros'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.grey[300],
+                                  foregroundColor: Colors.black,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                                onPressed: () async {
+                                  setState(() {
+                                    _dniFilter = null;
+                                    _nombreFilter = null;
+                                    _facultadFilter = null;
+                                    _escuelaFilter = null;
+                                    _dateRange = null;
+                                    _escuelasDisponibles = [];
+                                  });
+                                  await _loadInitialData();
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                icon: const Icon(Icons.date_range),
+                                label: Text(_dateRange == null
+                                    ? 'Rango de fechas'
+                                    : '${DateFormat('dd/MM/yyyy').format(_dateRange!.start)} - ${DateFormat('dd/MM/yyyy').format(_dateRange!.end)}'),
+                                onPressed: () => _selectDateRange(context),
+                                style: OutlinedButton.styleFrom(
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const Divider(),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: _loadInitialData,
+                  child: _buildContent(),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: 'export',
+            backgroundColor: Colors.amber[700],
+            tooltip: 'Exportar a CSV',
+            child: const Icon(Icons.download, color: Colors.white),
+            onPressed: _exportToCsv,
+          ),
+          const SizedBox(height: 14),
+          FloatingActionButton(
+            heroTag: 'logout',
+            backgroundColor: Colors.redAccent,
+            tooltip: 'Cerrar sesión',
+            child: const Icon(Icons.logout, color: Colors.white),
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+              if (mounted) {
+                Navigator.of(context).pushReplacementNamed('/login');
+              }
+            },
+          ),
+        ],
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 
@@ -392,44 +510,75 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
     final entradaTipo = record['entrada_tipo'] ?? 'Desconocido';
     final puerta = record['puerta'] ?? '-';
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    final isEntrada = record['tipo'] == 'entrada';
+    final cardColor = isEntrada ? const Color(0xFFE8F5E9) : const Color(0xFFFFEBEE); // Verde claro o rojo claro
+    final borderColor = isEntrada ? Colors.green : Colors.redAccent;
+    final iconColor = isEntrada ? Colors.green[700] : Colors.redAccent;
+    final iconData = isEntrada ? Icons.login_rounded : Icons.logout_rounded;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border(
+          left: BorderSide(color: borderColor, width: 7),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: borderColor.withOpacity(0.13),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: ListTile(
-        leading: Icon(
-          record['tipo'] == 'entrada' ? Icons.login : Icons.logout,
-          color: record['tipo'] == 'entrada' ? Colors.green : Colors.red,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        leading: CircleAvatar(
+          backgroundColor: iconColor?.withOpacity(0.15),
+          radius: 28,
+          child: Icon(iconData, color: iconColor, size: 32),
         ),
         title: Text(
           '${record['nombre'] ?? ''} ${record['apellido'] ?? ''}'.trim(),
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: GoogleFonts.lato(fontWeight: FontWeight.bold, fontSize: 19, color: Colors.black87),
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text('DNI: ${record['dni'] ?? 'No disponible'}'),
-            Text('${record['siglas_facultad'] ?? ''} - ${record['siglas_escuela'] ?? ''}'),
-            Text(fechaHora, style: const TextStyle(fontSize: 12)),
-            Text('Entrada por: $entradaTipo | Puerta: $puerta', style: const TextStyle(fontSize: 12, color: Colors.deepPurple)),
-            if (registradoPorNombre != null && registradoPorNombre.isNotEmpty)
-              Text(
-                'Registrado por: $registradoPorNombre',
-                style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
-              ),
+            const SizedBox(height: 2),
+            Text('DNI: ${record['dni'] ?? 'No disponible'}', style: GoogleFonts.lato(fontSize: 15, color: Colors.blueGrey[800])),
+            Text('${record['siglas_facultad'] ?? ''} - ${record['siglas_escuela'] ?? ''}', style: GoogleFonts.lato(fontSize: 15, color: Colors.indigo[700])),
+            Text(fechaHora, style: GoogleFonts.lato(fontSize: 13, color: Colors.grey[700])),
+            Text('Entrada por: $entradaTipo | Puerta: $puerta', style: GoogleFonts.lato(fontSize: 13, color: Colors.deepPurple)),
           ],
         ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              tipo,
-              style: TextStyle(
-                color: record['tipo'] == 'entrada' ? Colors.green : Colors.red,
-                fontWeight: FontWeight.bold,
+        trailing: SizedBox(
+          height: 40,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isEntrada ? Colors.green[100] : Colors.red[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  tipo,
+                  style: GoogleFonts.lato(
+                    fontWeight: FontWeight.bold,
+                    color: isEntrada ? Colors.green[800] : Colors.red[800],
+                    fontSize: 11,
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(hora, style: const TextStyle(fontSize: 12)),
-          ],
+              const SizedBox(height: 4),
+              Icon(Icons.door_front_door, color: Colors.teal[400], size: 16),
+            ],
+          ),
         ),
       ),
     );

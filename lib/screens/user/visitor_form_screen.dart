@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:google_fonts/google_fonts.dart';
 
 class VisitorFormScreen extends StatefulWidget {
   final String dni;
@@ -132,69 +133,132 @@ class _VisitorFormScreenState extends State<VisitorFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Formulario de Visita'),
+        backgroundColor: Colors.indigo.withOpacity(0.92),
+        elevation: 8,
+        title: Text(
+          'Formulario de Visita',
+          style: GoogleFonts.lato(
+            textStyle: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        centerTitle: true,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'DNI: ${widget.dni}',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _nameController,
-                decoration: InputDecoration(
-                  labelText: 'Nombre del visitante',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: _isLoadingName ? const Padding(
-                    padding: EdgeInsets.all(8.0),
-                    child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
-                  ) : null,
-                ),
-                validator: (value) =>
-                    value == null || value.isEmpty ? 'Ingrese el nombre' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _reasonController,
-                decoration: const InputDecoration(
-                  labelText: 'Asunto de la visita',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) =>
-                    value == null || value.isEmpty ? 'Ingrese el asunto' : null,
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                decoration: const InputDecoration(
-                  labelText: 'Facultad a visitar',
-                  border: OutlineInputBorder(),
-                ),
-                value: _selectedFaculty,
-                items: const [
-                  DropdownMenuItem(value: 'FAING', child: Text('FAING')),
-                  DropdownMenuItem(value: 'FACSA', child: Text('FACSA')),
-                  DropdownMenuItem(value: 'FACEM', child: Text('FACEM')),
-                  DropdownMenuItem(value: 'FAEDCOH', child: Text('FAEDCOH')),
-                  DropdownMenuItem(value: 'FADE', child: Text('FADE')),
-                  DropdownMenuItem(value: 'FAU', child: Text('FAU')),
-                ],
-                onChanged: (value) => setState(() => _selectedFaculty = value),
-                validator: (value) =>
-                    value == null ? 'Seleccione una facultad' : null,
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _submitForm,
-                child: const Text('Registrar Visita'),
-              ),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFF536976),
+              Color(0xFF292E49),
             ],
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            child: Card(
+              elevation: 14,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+              margin: const EdgeInsets.symmetric(horizontal: 18, vertical: 30),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 28),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: Colors.indigo,
+                        radius: 38,
+                        child: const Icon(Icons.person_add_alt_1, color: Colors.white, size: 44),
+                      ),
+                      const SizedBox(height: 18),
+                      Text(
+                        'DNI: ${widget.dni}',
+                        style: GoogleFonts.lato(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo[900]),
+                      ),
+                      const SizedBox(height: 18),
+                      TextFormField(
+                        controller: _nameController,
+                        decoration: InputDecoration(
+                          labelText: 'Nombre del visitante',
+                          prefixIcon: const Icon(Icons.person, color: Colors.indigo),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                          filled: true,
+                          fillColor: Colors.indigo.withOpacity(0.06),
+                          suffixIcon: _isLoadingName
+                              ? const Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                                )
+                              : null,
+                        ),
+                        validator: (value) => value == null || value.isEmpty ? 'Ingrese el nombre' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _reasonController,
+                        decoration: InputDecoration(
+                          labelText: 'Asunto de la visita',
+                          prefixIcon: const Icon(Icons.edit_note, color: Colors.deepPurple),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                          filled: true,
+                          fillColor: Colors.deepPurple.withOpacity(0.06),
+                        ),
+                        validator: (value) => value == null || value.isEmpty ? 'Ingrese el asunto' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        decoration: InputDecoration(
+                          labelText: 'Facultad a visitar',
+                          prefixIcon: const Icon(Icons.school, color: Colors.teal),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
+                          filled: true,
+                          fillColor: Colors.teal.withOpacity(0.06),
+                        ),
+                        value: _selectedFaculty,
+                        items: const [
+                          DropdownMenuItem(value: 'FAING', child: Text('FAING')),
+                          DropdownMenuItem(value: 'FACSA', child: Text('FACSA')),
+                          DropdownMenuItem(value: 'FACEM', child: Text('FACEM')),
+                          DropdownMenuItem(value: 'FAEDCOH', child: Text('FAEDCOH')),
+                          DropdownMenuItem(value: 'FADE', child: Text('FADE')),
+                          DropdownMenuItem(value: 'FAU', child: Text('FAU')),
+                        ],
+                        onChanged: (value) => setState(() => _selectedFaculty = value),
+                        validator: (value) => value == null ? 'Seleccione una facultad' : null,
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.indigo,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            elevation: 6,
+                          ),
+                          icon: const Icon(Icons.check_circle, color: Colors.white, size: 26),
+                          label: Text(
+                            'Registrar Visita',
+                            style: GoogleFonts.lato(fontSize: 19, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                          onPressed: _submitForm,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
