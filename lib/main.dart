@@ -11,7 +11,6 @@ import 'screens/admin/admin_report_chart_screen.dart';
 import 'screens/admin/admin_report_screen.dart';
 import 'screens/admin/alarm_details_screen.dart'; // Import the alarm details screen
 import 'screens/user/user_alarm_details_screen.dart'; // Import the user alarm details screen
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'registro_alumno.dart';
 
 void main() async {

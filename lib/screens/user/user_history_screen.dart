@@ -20,7 +20,6 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   String _selectedFilter = 'todos';
-  DateTime? _selectedDate;
   DateTimeRange? _dateRange;
   bool _isLoading = true;
   String? _errorMessage;
@@ -34,6 +33,10 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
   List<String> _facultadesDisponibles = [];
   List<String> _escuelasDisponibles = [];
 
+  // Controladores para los campos de texto
+  final TextEditingController _dniController = TextEditingController();
+  final TextEditingController _nombreController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -41,12 +44,31 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
     _loadInitialData();
   }
 
+  @override
+  void dispose() {
+    _dniController.dispose();
+    _nombreController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadFacultadesEscuelas() async {
     final facSnap = await _firestore.collection('facultades').get();
-    final escSnap = await _firestore.collection('escuelas').get();
     setState(() {
-      _facultadesDisponibles = facSnap.docs.map((d) => d.data()['nombre'] as String).toList();
-      _escuelasDisponibles = escSnap.docs.map((d) => d.data()['nombre'] as String).toList();
+      _facultadesDisponibles = facSnap.docs.map((d) => d.data()['siglas'] as String).toList();
+    });
+  }
+
+  Future<void> _loadEscuelasPorFacultad(String facultadSiglas) async {
+    if (facultadSiglas.isEmpty) {
+      setState(() => _escuelasDisponibles = []);
+      return;
+    }
+    final escSnap = await _firestore
+        .collection('escuelas')
+        .where('siglas_facultad', isEqualTo: facultadSiglas)
+        .get();
+    setState(() {
+      _escuelasDisponibles = escSnap.docs.map((d) => d.data()['siglas'] as String).toList();
     });
   }
 
@@ -68,7 +90,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
 
       Query query = _firestore.collection('asistencias')
           .orderBy('fecha_hora', descending: true)
-          .limit(100);
+          .limit(200);
 
       final userDoc = await _firestore.collection('usuarios').doc(user.uid).get();
       final isAdmin = userDoc.data()?['rango'] == 'admin';
@@ -85,16 +107,11 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         query = query.where('tipo', isEqualTo: _selectedFilter);
       }
 
-      // Filtros avanzados
-      if (_dniFilter != null && _dniFilter!.isNotEmpty) {
-        query = query.where('dni', isEqualTo: _dniFilter);
-      }
-      if (_nombreFilter != null && _nombreFilter!.isNotEmpty) {
-        query = query.where('nombre', isEqualTo: _nombreFilter);
-      }
+      // Solo aplicar filtros que se pueden indexar en Firestore
       if (_facultadFilter != null && _facultadFilter!.isNotEmpty) {
         query = query.where('siglas_facultad', isEqualTo: _facultadFilter);
       }
+
       if (_escuelaFilter != null && _escuelaFilter!.isNotEmpty) {
         query = query.where('siglas_escuela', isEqualTo: _escuelaFilter);
       }
@@ -110,23 +127,48 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
 
       final snapshot = await query.get();
 
+      // Obtener todos los registros y aplicar filtros en memoria para DNI y nombre
+      List<Map<String, dynamic>> allRecords = snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return {
+          ...data,
+          'id': doc.id,
+          'fecha_hora': (data['fecha_hora'] as Timestamp).toDate(),
+        };
+      }).toList();
+
+      // Filtrar en memoria por DNI (similitud - substring case-insensitive)
+      if (_dniFilter != null && _dniFilter!.trim().isNotEmpty) {
+        final dniFilterLower = _dniFilter!.trim().toLowerCase();
+        allRecords = allRecords.where((record) {
+          final dni = record['dni']?.toString().toLowerCase() ?? '';
+          return dni.contains(dniFilterLower);
+        }).toList();
+      }
+
+      // Filtrar en memoria por nombre y apellido (similitud - substring case-insensitive)
+      if (_nombreFilter != null && _nombreFilter!.trim().isNotEmpty) {
+        final nombreFilterLower = _nombreFilter!.trim().toLowerCase();
+        allRecords = allRecords.where((record) {
+          final nombre = record['nombre']?.toString().toLowerCase() ?? '';
+          final apellido = record['apellido']?.toString().toLowerCase() ?? '';
+          final nombreCompleto = '$nombre $apellido';
+          return nombreCompleto.contains(nombreFilterLower) || 
+                 nombre.contains(nombreFilterLower) || 
+                 apellido.contains(nombreFilterLower);
+        }).toList();
+      }
+
       setState(() {
         _attendanceData.clear();
-        _attendanceData.addAll(snapshot.docs.map((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          return {
-            ...data,
-            'id': doc.id,
-            'fecha_hora': (data['fecha_hora'] as Timestamp).toDate(),
-          };
-        }));
+        _attendanceData.addAll(allRecords);
         _isLoading = false;
       });
 
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Error: \\${e.toString()}';
+        _errorMessage = 'Error: ${e.toString()}';
       });
     }
   }
@@ -310,7 +352,11 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                           children: [
                             Expanded(
                               child: TextField(
-                                decoration: const InputDecoration(labelText: 'DNI'),
+                                controller: _dniController,
+                                decoration: const InputDecoration(
+                                  labelText: 'DNI (búsqueda por similitud)',
+                                  hintText: 'Ej: 12345...',
+                                ),
                                 onChanged: (v) {
                                   _dniFilter = v;
                                 },
@@ -319,7 +365,11 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: TextField(
-                                decoration: const InputDecoration(labelText: 'Nombre'),
+                                controller: _nombreController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Nombre/Apellido (búsqueda por similitud)',
+                                  hintText: 'Ej: Juan, García...',
+                                ),
                                 onChanged: (v) {
                                   _nombreFilter = v;
                                 },
@@ -334,9 +384,20 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                               child: DropdownButtonFormField<String>(
                                 value: _facultadFilter,
                                 decoration: const InputDecoration(labelText: 'Facultad'),
-                                items: _facultadesDisponibles.map((f) => DropdownMenuItem(value: f, child: Text(f))).toList(),
-                                onChanged: (v) {
-                                  setState(() => _facultadFilter = v);
+                                items: [
+                                  const DropdownMenuItem(value: null, child: Text('Todas las facultades')),
+                                  ..._facultadesDisponibles.map((f) => DropdownMenuItem(value: f, child: Text(f))),
+                                ],
+                                onChanged: (v) async {
+                                  setState(() {
+                                    _facultadFilter = v;
+                                    _escuelaFilter = null; // Reset escuela cuando cambie facultad
+                                  });
+                                  if (v != null && v.isNotEmpty) {
+                                    await _loadEscuelasPorFacultad(v);
+                                  } else {
+                                    setState(() => _escuelasDisponibles = []);
+                                  }
                                 },
                                 isExpanded: true,
                               ),
@@ -346,7 +407,10 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                               child: DropdownButtonFormField<String>(
                                 value: _escuelaFilter,
                                 decoration: const InputDecoration(labelText: 'Escuela'),
-                                items: _escuelasDisponibles.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                                items: [
+                                  const DropdownMenuItem(value: null, child: Text('Todas las escuelas')),
+                                  ..._escuelasDisponibles.map((e) => DropdownMenuItem(value: e, child: Text(e))),
+                                ],
                                 onChanged: (v) {
                                   setState(() => _escuelaFilter = v);
                                 },
@@ -389,6 +453,10 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                                     _dateRange = null;
                                     _escuelasDisponibles = [];
                                   });
+                                  // Limpiar los controladores de texto
+                                  for (final controller in [_dniController, _nombreController]) {
+                                    controller.clear();
+                                  }
                                   await _loadInitialData();
                                 },
                               ),
@@ -499,14 +567,6 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
   Widget _buildAttendanceItem(Map<String, dynamic> record) {
     final fechaHora = DateFormat('dd/MM/yyyy HH:mm').format(record['fecha_hora']);
     final tipo = record['tipo']?.toString().toUpperCase() ?? '';
-    final hora = record['hora'] ?? DateFormat('HH:mm').format(record['fecha_hora']);
-    final registradoPor = record['registrado_por'];
-    String? registradoPorNombre;
-    if (registradoPor != null && registradoPor is Map<String, dynamic>) {
-      final nombre = registradoPor['nombre'] ?? '';
-      final apellido = registradoPor['apellido'] ?? '';
-      registradoPorNombre = (nombre + ' ' + apellido).trim();
-    }
     final entradaTipo = record['entrada_tipo'] ?? 'Desconocido';
     final puerta = record['puerta'] ?? '-';
 

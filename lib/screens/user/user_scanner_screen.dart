@@ -10,6 +10,8 @@ import 'package:google_fonts/google_fonts.dart'; // Import Google Fonts
 import 'visitor_form_screen.dart'; // Import the visitor form screen
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'dart:async'; // Para Timer
+import 'dart:math'; // Para funciones matemáticas
 
 class UserScannerScreen extends StatefulWidget {
   const UserScannerScreen({super.key});
@@ -18,7 +20,7 @@ class UserScannerScreen extends StatefulWidget {
   State<UserScannerScreen> createState() => _UserScannerScreenState();
 }
 
-class _UserScannerScreenState extends State<UserScannerScreen> with SingleTickerProviderStateMixin {
+class _UserScannerScreenState extends State<UserScannerScreen> with TickerProviderStateMixin {
   final MobileScannerController _cameraController = MobileScannerController(
     detectionSpeed: DetectionSpeed.normal,
     detectionTimeoutMs: 1000,
@@ -35,11 +37,85 @@ class _UserScannerScreenState extends State<UserScannerScreen> with SingleTicker
   String _guardName = '';
   String _assignedDoor = '';
 
+  // Variables para el screensaver
+  bool _isScreensaverActive = false;
+  DateTime _lastActivityTime = DateTime.now();
+  Timer? _inactivityTimer;
+  Timer? _doorUpdateTimer;
+  late AnimationController _screensaverAnimationController;
+  late Animation<double> _fadeAnimation;
+  static const Duration _inactivityTimeout = Duration(minutes: 5); // 5 minutos de inactividad
+  static const Duration _doorUpdateInterval = Duration(minutes: 10); // Actualizar cada 10 minutos
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _loadGuardInfo();
+    _initializeScreensaver();
+  }
+
+  void _initializeScreensaver() {
+    // Inicializar la animación del screensaver
+    _screensaverAnimationController = AnimationController(
+      duration: const Duration(seconds: 2),
+      vsync: this,
+    );
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _screensaverAnimationController,
+      curve: Curves.easeInOut,
+    ));
+
+    // Inicializar timer de inactividad
+    _resetInactivityTimer();
+    
+    // Inicializar timer de actualización automática de puerta
+    _startDoorUpdateTimer();
+  }
+
+  void _resetInactivityTimer() {
+    if (!mounted) return;
+    _inactivityTimer?.cancel();
+    _inactivityTimer = Timer(_inactivityTimeout, _activateScreensaver);
+    _lastActivityTime = DateTime.now();
+  }
+
+  void _startDoorUpdateTimer() {
+    _doorUpdateTimer = Timer.periodic(_doorUpdateInterval, (timer) {
+      if (!_isScreensaverActive) {
+        _loadGuardInfo(); // Actualizar información de puerta cada cierto tiempo
+      }
+    });
+  }
+
+  void _activateScreensaver() {
+    if (!mounted) return;
+    setState(() {
+      _isScreensaverActive = true;
+    });
+    _screensaverAnimationController.forward();
+  }
+
+  void _deactivateScreensaver() {
+    if (!mounted) return;
+    setState(() {
+      _isScreensaverActive = false;
+    });
+    _screensaverAnimationController.reverse();
+    _resetInactivityTimer();
+  }
+
+  void _registerUserActivity() {
+    _lastActivityTime = DateTime.now(); // Actualizar el tiempo de última actividad
+    debugPrint('Actividad registrada: $_lastActivityTime');
+    if (_isScreensaverActive) {
+      _deactivateScreensaver();
+    } else {
+      _resetInactivityTimer();
+    }
   }
 
   Future<void> _loadGuardInfo() async {
@@ -60,10 +136,16 @@ class _UserScannerScreenState extends State<UserScannerScreen> with SingleTicker
     _cameraController.dispose();
     _flutterTts.stop();
     _tabController.dispose();
+    _inactivityTimer?.cancel();
+    _doorUpdateTimer?.cancel();
+    _screensaverAnimationController.dispose();
     super.dispose();
   }
 
   Future<void> _handleBarcodeScan(String barcode) async {
+    // Registrar actividad del usuario
+    _registerUserActivity();
+    
     if (_isProcessing || 
         (_lastScanTime != null && 
          DateTime.now().difference(_lastScanTime!) < _scanCooldown)) {
@@ -308,102 +390,35 @@ class _UserScannerScreenState extends State<UserScannerScreen> with SingleTicker
     await _flutterTts.speak(texto);
   }
 
-  Widget _buildStudentInfoSection() {
-    if (_currentStudent == null) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.qr_code_scanner, size: 40, color: Colors.blue),
-            SizedBox(height: 16),
-            Text(
-              'Escanea un código de barras de estudiante',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          '${_currentStudent!['nombre']} ${_currentStudent!['apellido']}',
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Chip(
-              label: Text(_currentStudent!['siglas_facultad']),
-              backgroundColor: Colors.blue[50],
-            ),
-            const SizedBox(width: 8),
-            Chip(
-              label: Text(_currentStudent!['siglas_escuela']),
-              backgroundColor: Colors.green[50],
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Entrada: ${_isPrincipalEntrance ? 'Cochera' : 'Principal'}',
-          style: TextStyle(
-            fontSize: 16,
-            color: _isPrincipalEntrance ? Colors.blue : Colors.orange,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 10),
-        if (_lastScanTime != null)
-          Text(
-            'Último registro: ${DateFormat('HH:mm:ss').format(_lastScanTime!)}',
-            style: const TextStyle(color: Colors.grey),
-          ),
-        if (_isProcessing)
-          const Padding(
-            padding: EdgeInsets.only(top: 8),
-            child: LinearProgressIndicator(),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildExternalVisitorsSection() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: _firestore.collection('externos').snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(child: Text('No hay registros de externos.'));
-        }
-
-        final externalVisitors = snapshot.data!.docs;
-
-        return ListView.builder(
-          itemCount: externalVisitors.length,
-          itemBuilder: (context, index) {
-            final visitor = externalVisitors[index].data() as Map<String, dynamic>;
-            return ListTile(
-              leading: const Icon(Icons.person, color: Colors.blue),
-              title: Text(visitor['nombre'] ?? 'Desconocido'),
-              subtitle: Text('DNI: ${visitor['dni'] ?? 'Sin DNI'}'),
-            );
-          },
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _registerUserActivity, // Registrar actividad en cualquier toque
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF5F7FA),
+        body: Stack(
+          children: [
+            // Contenido principal
+            _buildMainContent(),
+            // Screensaver superpuesto
+            if (_isScreensaverActive) _buildScreensaver(),
+          ],
+        ),
+        floatingActionButton: _isScreensaverActive ? null : FloatingActionButton(
+          backgroundColor: Colors.redAccent,
+          tooltip: 'Cerrar sesión',
+          child: const Icon(Icons.logout, color: Colors.white),
+          onPressed: () {
+            _registerUserActivity();
+            _signOut();
+          },
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      ),
+    );
+  }
+
+  Widget _buildMainContent() {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -423,6 +438,7 @@ class _UserScannerScreenState extends State<UserScannerScreen> with SingleTicker
             icon: const Icon(Icons.history, color: Colors.amber),
             tooltip: 'Historial',
             onPressed: () {
+              _registerUserActivity(); // Registrar actividad
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const UserHistoryScreen()),
@@ -486,7 +502,10 @@ class _UserScannerScreenState extends State<UserScannerScreen> with SingleTicker
                         IconButton(
                           icon: const Icon(Icons.sync, color: Colors.blueGrey),
                           tooltip: 'Actualizar puerta',
-                          onPressed: _loadGuardInfo,
+                          onPressed: () {
+                            _registerUserActivity(); // Registrar actividad al presionar
+                            _loadGuardInfo();
+                          },
                         ),
                       ],
                     ),
@@ -602,6 +621,189 @@ class _UserScannerScreenState extends State<UserScannerScreen> with SingleTicker
         onPressed: _signOut,
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+
+  Widget _buildScreensaver() {
+    return AnimatedBuilder(
+      animation: _fadeAnimation,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _fadeAnimation.value,
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.indigo.shade900,
+                  Colors.purple.shade800,
+                  Colors.deepPurple.shade900,
+                ],
+              ),
+            ),
+            child: GestureDetector(
+              onTap: _deactivateScreensaver,
+              child: Stack(
+                children: [
+                  // Animated background elements
+                  Positioned.fill(
+                    child: _buildAnimatedBackground(),
+                  ),
+                  // Main content
+                  Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        // App logo or icon
+                        Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withOpacity(0.1),
+                            border: Border.all(color: Colors.white.withOpacity(0.2), width: 2),
+                          ),
+                          child: Icon(
+                            Icons.security,
+                            size: 80,
+                            color: Colors.white.withOpacity(0.8),
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        
+                        // Title
+                        Text(
+                          'Sistema de Control de Accesos',
+                          style: GoogleFonts.lato(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w300,
+                            color: Colors.white.withOpacity(0.9),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        
+                        // Guard info
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(15),
+                            border: Border.all(color: Colors.white.withOpacity(0.2)),
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                'Guardia de Servicio',
+                                style: GoogleFonts.lato(
+                                  fontSize: 16,
+                                  color: Colors.white.withOpacity(0.7),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _guardName,
+                                style: GoogleFonts.lato(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.white,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Puerta: $_assignedDoor',
+                                style: GoogleFonts.lato(
+                                  fontSize: 16,
+                                  color: Colors.white.withOpacity(0.8),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        
+                        // Current time
+                        StreamBuilder<DateTime>(
+                          stream: Stream.periodic(const Duration(seconds: 1), (_) => DateTime.now()),
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData) return Container();
+                            final now = snapshot.data!;
+                            return Column(
+                              children: [
+                                Text(
+                                  DateFormat('HH:mm:ss').format(now),
+                                  style: GoogleFonts.lato(
+                                    fontSize: 48,
+                                    fontWeight: FontWeight.w300,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                Text(
+                                  DateFormat('EEEE, d MMMM yyyy', 'es').format(now),
+                                  style: GoogleFonts.lato(
+                                    fontSize: 18,
+                                    color: Colors.white.withOpacity(0.7),
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 48),
+                        
+                        // Instructions
+                        Text(
+                          'Toca la pantalla o escanea un código para continuar',
+                          style: GoogleFonts.lato(
+                            fontSize: 16,
+                            color: Colors.white.withOpacity(0.6),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAnimatedBackground() {
+    return TweenAnimationBuilder<double>(
+      duration: const Duration(seconds: 10),
+      tween: Tween(begin: 0.0, end: 1.0),
+      builder: (context, value, child) {
+        return Stack(
+          children: [
+            // Floating circles animation
+            ...List.generate(6, (index) {
+              final angle = (value * 2 * 3.14159) + (index * 3.14159 / 3);
+              final size = 80.0 + (index * 20);
+              final opacity = 0.1 - (index * 0.015);
+              
+              return Positioned(
+                left: MediaQuery.of(context).size.width * 0.5 + (100 + index * 30) * cos(angle) - size / 2,
+                top: MediaQuery.of(context).size.height * 0.5 + (100 + index * 30) * sin(angle) - size / 2,
+                child: Container(
+                  width: size,
+                  height: size,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(opacity),
+                  ),
+                ),
+              );
+            }),
+          ],
+        );
+      },
     );
   }
 }
