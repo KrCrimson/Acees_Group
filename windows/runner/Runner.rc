@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "asistencias" "\0"
+            VALUE "FileDescription", "moviles2" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "asistencias" "\0"
+            VALUE "InternalName", "moviles2" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2025 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "asistencias.exe" "\0"
-            VALUE "ProductName", "asistencias" "\0"
+            VALUE "OriginalFilename", "moviles2.exe" "\0"
+            VALUE "ProductName", "moviles2" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

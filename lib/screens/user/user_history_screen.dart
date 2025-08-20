@@ -1,13 +1,14 @@
 import 'dart:convert'; // Para utf8
 import 'dart:typed_data'; // Para Uint8List
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+// TODO: Reemplazar Firestore y FirebaseAuth por API MongoDB
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+// import 'package:firebase_auth/firebase_auth.dart';
 import 'pending_all_exit_screen.dart'; // Importa la pantalla de pendientes de salida
 import 'user_alarm_details_screen.dart'; // Importa la pantalla de alarma
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
 
 class UserHistoryScreen extends StatefulWidget {
   const UserHistoryScreen({super.key});
@@ -17,8 +18,8 @@ class UserHistoryScreen extends StatefulWidget {
 }
 
 class _UserHistoryScreenState extends State<UserHistoryScreen> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  // final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  // final FirebaseAuth _auth = FirebaseAuth.instance;
   String _selectedFilter = 'todos';
   DateTimeRange? _dateRange;
   bool _isLoading = true;
@@ -52,10 +53,25 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
   }
 
   Future<void> _loadFacultadesEscuelas() async {
-    final facSnap = await _firestore.collection('facultades').get();
-    setState(() {
-      _facultadesDisponibles = facSnap.docs.map((d) => d.data()['siglas'] as String).toList();
-    });
+    try {
+      final response = await http.get(
+        Uri.parse('http://192.168.1.51:3000/facultades'),
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          _facultadesDisponibles = List<String>.from(data.map((f) => f['siglas']));
+        });
+      } else {
+        setState(() {
+          _facultadesDisponibles = [];
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _facultadesDisponibles = [];
+      });
+    }
   }
 
   Future<void> _loadEscuelasPorFacultad(String facultadSiglas) async {
@@ -63,13 +79,25 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
       setState(() => _escuelasDisponibles = []);
       return;
     }
-    final escSnap = await _firestore
-        .collection('escuelas')
-        .where('siglas_facultad', isEqualTo: facultadSiglas)
-        .get();
-    setState(() {
-      _escuelasDisponibles = escSnap.docs.map((d) => d.data()['siglas'] as String).toList();
-    });
+    try {
+      final response = await http.get(
+        Uri.parse('http://192.168.1.51:3000/escuelas?siglas_facultad=$facultadSiglas'),
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          _escuelasDisponibles = List<String>.from(data.map((e) => e['siglas']));
+        });
+      } else {
+        setState(() {
+          _escuelasDisponibles = [];
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _escuelasDisponibles = [];
+      });
+    }
   }
 
   Future<void> _loadInitialData() async {
@@ -79,65 +107,59 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         _errorMessage = null;
       });
 
-      final user = _auth.currentUser;
-      if (user == null) {
+      // Obtener todos los registros de asistencias desde la API REST
+      final response = await http.get(
+        Uri.parse('http://192.168.1.51:3000/asistencias'),
+      );
+      if (response.statusCode != 200) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Usuario no autenticado';
+          _errorMessage = 'Error al cargar asistencias';
         });
         return;
       }
-
-      Query query = _firestore.collection('asistencias')
-          .orderBy('fecha_hora', descending: true)
-          .limit(200);
-
-      final userDoc = await _firestore.collection('usuarios').doc(user.uid).get();
-      final isAdmin = userDoc.data()?['rango'] == 'admin';
-
-      if (!isAdmin) {
-        query = query.where('registrado_por.uid', isEqualTo: user.uid);
-      } else {
-        if (_selectedFilter == 'mis_registros') {
-          query = query.where('registrado_por.uid', isEqualTo: user.uid);
+      List<dynamic> allRecordsRaw = json.decode(response.body);
+      List<Map<String, dynamic>> allRecords = allRecordsRaw.map((r) {
+        final map = Map<String, dynamic>.from(r as Map);
+        final fechaHoraStr = map['fecha_hora'] ?? map['fecha'] ?? '';
+        DateTime fechaHora;
+        try {
+          fechaHora = DateTime.parse(fechaHoraStr);
+        } catch (_) {
+          fechaHora = DateTime.now();
         }
-      }
-
-      if (_selectedFilter == 'entrada' || _selectedFilter == 'salida') {
-        query = query.where('tipo', isEqualTo: _selectedFilter);
-      }
-
-      // Solo aplicar filtros que se pueden indexar en Firestore
-      if (_facultadFilter != null && _facultadFilter!.isNotEmpty) {
-        query = query.where('siglas_facultad', isEqualTo: _facultadFilter);
-      }
-
-      if (_escuelaFilter != null && _escuelaFilter!.isNotEmpty) {
-        query = query.where('siglas_escuela', isEqualTo: _escuelaFilter);
-      }
-
-      // Filtro por rango de fechas (incluye caso de un solo día)
-      if (_dateRange != null) {
-        final start = DateTime(_dateRange!.start.year, _dateRange!.start.month, _dateRange!.start.day, 0, 0, 0);
-        final end = DateTime(_dateRange!.end.year, _dateRange!.end.month, _dateRange!.end.day, 23, 59, 59, 999);
-        query = query
-            .where('fecha_hora', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-            .where('fecha_hora', isLessThanOrEqualTo: Timestamp.fromDate(end));
-      }
-
-      final snapshot = await query.get();
-
-      // Obtener todos los registros y aplicar filtros en memoria para DNI y nombre
-      List<Map<String, dynamic>> allRecords = snapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
         return {
-          ...data,
-          'id': doc.id,
-          'fecha_hora': (data['fecha_hora'] as Timestamp).toDate(),
+          ...map,
+          'fecha_hora': fechaHora,
         };
       }).toList();
 
-      // Filtrar en memoria por DNI (similitud - substring case-insensitive)
+      // Filtrar por tipo (entrada/salida)
+      if (_selectedFilter == 'entrada' || _selectedFilter == 'salida') {
+        allRecords = allRecords.where((record) => record['tipo'] == _selectedFilter).toList();
+      }
+
+      // Filtrar por facultad
+      if (_facultadFilter != null && _facultadFilter!.isNotEmpty) {
+        allRecords = allRecords.where((record) => record['siglas_facultad'] == _facultadFilter).toList();
+      }
+
+      // Filtrar por escuela
+      if (_escuelaFilter != null && _escuelaFilter!.isNotEmpty) {
+        allRecords = allRecords.where((record) => record['siglas_escuela'] == _escuelaFilter).toList();
+      }
+
+      // Filtrar por rango de fechas
+      if (_dateRange != null) {
+        final start = DateTime(_dateRange!.start.year, _dateRange!.start.month, _dateRange!.start.day, 0, 0, 0);
+        final end = DateTime(_dateRange!.end.year, _dateRange!.end.month, _dateRange!.end.day, 23, 59, 59, 999);
+        allRecords = allRecords.where((record) {
+          final fecha = record['fecha_hora'] as DateTime;
+          return fecha.isAfter(start.subtract(const Duration(seconds: 1))) && fecha.isBefore(end.add(const Duration(seconds: 1)));
+        }).toList();
+      }
+
+      // Filtrar en memoria por DNI
       if (_dniFilter != null && _dniFilter!.trim().isNotEmpty) {
         final dniFilterLower = _dniFilter!.trim().toLowerCase();
         allRecords = allRecords.where((record) {
@@ -146,16 +168,14 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         }).toList();
       }
 
-      // Filtrar en memoria por nombre y apellido (similitud - substring case-insensitive)
+      // Filtrar en memoria por nombre y apellido
       if (_nombreFilter != null && _nombreFilter!.trim().isNotEmpty) {
         final nombreFilterLower = _nombreFilter!.trim().toLowerCase();
         allRecords = allRecords.where((record) {
           final nombre = record['nombre']?.toString().toLowerCase() ?? '';
           final apellido = record['apellido']?.toString().toLowerCase() ?? '';
           final nombreCompleto = '$nombre $apellido';
-          return nombreCompleto.contains(nombreFilterLower) || 
-                 nombre.contains(nombreFilterLower) || 
-                 apellido.contains(nombreFilterLower);
+          return nombreCompleto.contains(nombreFilterLower) || nombre.contains(nombreFilterLower) || apellido.contains(nombreFilterLower);
         }).toList();
       }
 
@@ -218,12 +238,13 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                   color: Colors.orangeAccent,
                   splashRadius: 24,
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const PendingAllExitScreen(),
-                      ),
-                    );
+                    // TODO: Implementar PendingAllExitScreen
+                     Navigator.push(
+                       context,
+                       MaterialPageRoute(
+                         builder: (context) => PendingAllExitScreen(registros: _attendanceData),
+                       ),
+                     );
                   },
                 ),
               ),
@@ -244,7 +265,7 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const UserAlarmDetailsScreen(),
+                        builder: (context) => UserAlarmDetailsScreen(registros: _attendanceData),
                       ),
                     );
                   },
@@ -514,10 +535,10 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
             tooltip: 'Cerrar sesión',
             child: const Icon(Icons.logout, color: Colors.white),
             onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-              if (mounted) {
-                Navigator.of(context).pushReplacementNamed('/login');
-              }
+              // await FirebaseAuth.instance.signOut();
+              // if (mounted) {
+              //   Navigator.of(context).pushReplacementNamed('/login');
+              // }
             },
           ),
         ],
@@ -676,5 +697,71 @@ class _UserHistoryScreenState extends State<UserHistoryScreen> {
         SnackBar(content: Text('Error al exportar: ${e.toString()}')),
       );
     }
+  }
+}
+// Pantalla para alumnos dentro después de las 9
+class PendingAllExitScreen extends StatelessWidget {
+  final List<Map<String, dynamic>> registros;
+  const PendingAllExitScreen({super.key, required this.registros});
+
+  @override
+  Widget build(BuildContext context) {
+    final pendientes = registros.where((r) {
+      final fecha = r['fecha_hora'] is DateTime ? r['fecha_hora'] : DateTime.tryParse(r['fecha_hora'].toString()) ?? DateTime.now();
+      return r['tipo'] == 'entrada' && fecha.hour >= 9;
+    }).toList();
+    return Scaffold(
+      appBar: AppBar(title: const Text('Alumnos dentro después de las 9')),
+      body: pendientes.isEmpty
+          ? const Center(child: Text('No hay alumnos pendientes.'))
+          : ListView.builder(
+              itemCount: pendientes.length,
+              itemBuilder: (context, i) {
+                final r = pendientes[i];
+                return ListTile(
+                  title: Text('${r['nombre'] ?? ''} ${r['apellido'] ?? ''}'),
+                  subtitle: Text('DNI: ${r['dni'] ?? ''} - ${fechaToString(r['fecha_hora'])}'),
+                );
+              },
+            ),
+    );
+  }
+}
+
+// Pantalla para visitas de externos
+class UserAlarmDetailsScreen extends StatelessWidget {
+  final List<Map<String, dynamic>> registros;
+  const UserAlarmDetailsScreen({super.key, required this.registros});
+
+  @override
+  Widget build(BuildContext context) {
+    final externos = registros.where((r) => r['tipo'] == 'externo').toList();
+    return Scaffold(
+      appBar: AppBar(title: const Text('Visitas de externos')),
+      body: externos.isEmpty
+          ? const Center(child: Text('No hay visitas de externos.'))
+          : ListView.builder(
+              itemCount: externos.length,
+              itemBuilder: (context, i) {
+                final r = externos[i];
+                return ListTile(
+                  title: Text('${r['nombre'] ?? ''} ${r['apellido'] ?? ''}'),
+                  subtitle: Text('DNI: ${r['dni'] ?? ''} - ${fechaToString(r['fecha_hora'])}'),
+                );
+              },
+            ),
+    );
+  }
+}
+
+String fechaToString(dynamic fecha) {
+  if (fecha is DateTime) {
+    return '${fecha.day.toString().padLeft(2, '0')}/${fecha.month.toString().padLeft(2, '0')}/${fecha.year} ${fecha.hour.toString().padLeft(2, '0')}:${fecha.minute.toString().padLeft(2, '0')}';
+  }
+  try {
+    final f = DateTime.parse(fecha.toString());
+    return '${f.day.toString().padLeft(2, '0')}/${f.month.toString().padLeft(2, '0')}/${f.year} ${f.hour.toString().padLeft(2, '0')}:${f.minute.toString().padLeft(2, '0')}';
+  } catch (_) {
+    return fecha.toString();
   }
 }

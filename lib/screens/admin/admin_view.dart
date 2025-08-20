@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+// TODO: Reemplazar Firestore y FirebaseAuth por API MongoDB
+
 import 'add_edit_user_dialog.dart';
 import 'user_card.dart';
 import 'admin_report_chart_screen.dart';
@@ -29,17 +31,12 @@ class _AdminViewState extends State<AdminView> {
   }
 
   Future<void> _signOut() async {
-    try {
-      await FirebaseAuth.instance.signOut();
-      if (mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-          (route) => false, // Remove all previous routes
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al cerrar sesión: ${e.toString()}')),
+    // Si tienes lógica de cierre de sesión con tu backend, agrégala aquí
+    // Por ahora solo navega al login
+    await Future.delayed(const Duration(milliseconds: 100));
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
       );
     }
   }
@@ -142,11 +139,8 @@ class _AdminViewState extends State<AdminView> {
             ),
           ),
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('usuarios')
-                  .where('rango', isEqualTo: 'guardia')
-                  .snapshots(),
+            child: FutureBuilder<http.Response>(
+              future: http.get(Uri.parse('http://localhost:3000/usuarios?role=guardia')),
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
                   return Center(
@@ -156,23 +150,22 @@ class _AdminViewState extends State<AdminView> {
                     ),
                   );
                 }
-
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                if (!snapshot.hasData || snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-
-                final users = snapshot.data!.docs.where((user) {
-                  final nombre = user['nombre'].toString().toLowerCase();
-                  final dni = user['dni'].toString().toLowerCase();
-                  final facultad = user['puerta_acargo'].toString().toLowerCase();
+                final List<dynamic> usersRaw = json.decode(snapshot.data!.body);
+                final users = usersRaw.where((user) {
+                  final nombre = user['nombre']?.toString().toLowerCase() ?? '';
+                  final dni = user['dni']?.toString().toLowerCase() ?? '';
+                  final facultad = user['puerta_acargo']?.toString().toLowerCase() ?? '';
                   return nombre.contains(_searchQuery.toLowerCase()) ||
                       dni.contains(_searchQuery.toLowerCase()) ||
                       facultad.contains(_searchQuery.toLowerCase());
                 }).toList();
 
                 // Group users by faculty
-                Map<String, List<DocumentSnapshot>> groupedUsers = {};
-                List<DocumentSnapshot> unassignedUsers = [];
+                Map<String, List<dynamic>> groupedUsers = {};
+                List<dynamic> unassignedUsers = [];
                 for (var user in users) {
                   final facultadRaw = user['puerta_acargo'];
                   final facultad = (facultadRaw == null || 
@@ -530,24 +523,20 @@ class _AdminViewState extends State<AdminView> {
     return Container(
       height: 120,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('usuarios')
-            .where('rango', isEqualTo: 'guardia')
-            .snapshots(),
+      child: FutureBuilder<http.Response>(
+        future: http.get(Uri.parse('http://localhost:3000/usuarios?role=guardia')),
         builder: (context, snapshot) {
           int totalGuardias = 0;
           int guardiasAsignados = 0;
-          
-          if (snapshot.hasData) {
-            totalGuardias = snapshot.data!.docs.length;
-            guardiasAsignados = snapshot.data!.docs
-                .where((doc) => doc['puerta_acargo'] != null && 
-                              doc['puerta_acargo'].toString().trim().isNotEmpty &&
-                              doc['puerta_acargo'].toString().toLowerCase() != 'sin asignar')
+          if (snapshot.hasData && snapshot.data!.statusCode == 200) {
+            final List<dynamic> users = json.decode(snapshot.data!.body);
+            totalGuardias = users.length;
+            guardiasAsignados = users
+                .where((user) => user['puerta_acargo'] != null &&
+                    user['puerta_acargo'].toString().trim().isNotEmpty &&
+                    user['puerta_acargo'].toString().toLowerCase() != 'sin asignar')
                 .length;
           }
-
           return Row(
             children: [
               Expanded(
@@ -655,6 +644,6 @@ class _AdminViewState extends State<AdminView> {
 
 class _SectionData {
   final String facultad;
-  final List<DocumentSnapshot> users;
+  final List<dynamic> users;
   _SectionData(this.facultad, this.users);
 }

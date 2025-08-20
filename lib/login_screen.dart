@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'auth_service.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart'; // Import Google Fonts
 
 class LoginScreen extends StatefulWidget {
@@ -29,10 +29,27 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = true);
     try {
-      await Provider.of<AuthService>(context, listen: false).signIn(
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
+      final response = await http.post(
+        Uri.parse('http://192.168.1.51:3000/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'email': _emailController.text.trim(),
+          'password': _passwordController.text.trim(),
+        }),
       );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        // Ejemplo: navegar según el tipo de usuario
+        if (data['rango'] == 'admin') {
+          Navigator.pushReplacementNamed(context, '/admin');
+        } else {
+          Navigator.pushReplacementNamed(context, '/user');
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Credenciales incorrectas o usuario no encontrado.')),
+        );
+      }
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

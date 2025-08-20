@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+// TODO: Reemplazar Firestore por API MongoDB
 import 'package:google_fonts/google_fonts.dart';
 
 class PendingExitScreen extends StatelessWidget {
@@ -7,11 +7,12 @@ class PendingExitScreen extends StatelessWidget {
 
   Future<List<Map<String, dynamic>>> _getPendingVisitors() async {
     // Suponiendo que en la colección 'visitas' hay un campo 'salida_registrada' (bool)
-    final snapshot = await FirebaseFirestore.instance
-        .collection('visitas')
-        .where('salida_registrada', isEqualTo: false)
-        .get();
-    return snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+    // final snapshot = await FirebaseFirestore.instance
+    //     .collection('visitas')
+    //     .where('salida_registrada', isEqualTo: false)
+    //     .get();
+    // TODO: Reemplazar por llamada a API REST de MongoDB
+    return [];
   }
 
   @override

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+// TODO: Reemplazar Firestore por API MongoDB
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -31,21 +32,22 @@ class _ExternalVisitsReportScreenState extends State<ExternalVisitsReportScreen>
     });
 
     try {
-      Query query = FirebaseFirestore.instance.collection('visitas');
+      // Query query = FirebaseFirestore.instance.collection('visitas');
+      // TODO: Reemplazar por llamada a API REST de MongoDB
 
       final now = DateTime.now();
       if (_selectedTimeRange == 'day') {
-        query = query.where('fecha_hora', isGreaterThanOrEqualTo: Timestamp.fromDate(DateTime(now.year, now.month, now.day)));
+        // query = query.where('fecha_hora', isGreaterThanOrEqualTo: Timestamp.fromDate(DateTime(now.year, now.month, now.day)));
       } else if (_selectedTimeRange == 'week') {
-        query = query.where('fecha_hora', isGreaterThanOrEqualTo: Timestamp.fromDate(now.subtract(const Duration(days: 7))));
+        // query = query.where('fecha_hora', isGreaterThanOrEqualTo: Timestamp.fromDate(now.subtract(const Duration(days: 7))));
       } else if (_selectedTimeRange == 'month') {
-        query = query.where('fecha_hora', isGreaterThanOrEqualTo: Timestamp.fromDate(DateTime(now.year, now.month, 1)));
+        // query = query.where('fecha_hora', isGreaterThanOrEqualTo: Timestamp.fromDate(DateTime(now.year, now.month, 1)));
       }
 
-      final snapshot = await query.get();
+      // final snapshot = await query.get();
 
       setState(() {
-        _visitData = snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+        // _visitData = snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
         _isLoading = false;
       });
     } catch (e) {
@@ -250,62 +252,19 @@ class _ExternalVisitsReportScreenState extends State<ExternalVisitsReportScreen>
   }
 
   Widget _buildExternalVisitorsList() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('externos').snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.celebration, color: Colors.green[300], size: 60),
-                const SizedBox(height: 12),
-                Text(
-                  '¡No hay registros de externos!',
-                  style: GoogleFonts.lato(fontSize: 20, color: Colors.white, fontWeight: FontWeight.w600),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          );
-        }
-
-        final externalVisitors = snapshot.data!.docs;
-
-        return ListView.separated(
-          itemCount: externalVisitors.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 14),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-          itemBuilder: (context, index) {
-            final v = externalVisitors[index].data() as Map<String, dynamic>;
-            return Card(
-              elevation: 4,
-              color: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                leading: CircleAvatar(
-                  backgroundColor: Colors.indigo[100],
-                  radius: 28,
-                  child: const Icon(Icons.person, color: Colors.indigo, size: 32),
-                ),
-                title: Text(
-                  v['nombre'] ?? 'Desconocido',
-                  style: GoogleFonts.lato(fontWeight: FontWeight.bold, fontSize: 19, color: Colors.indigo[900]),
-                ),
-                subtitle: Text(
-                  'DNI: ${v['dni'] ?? '-'}',
-                  style: GoogleFonts.lato(fontSize: 16, color: Colors.blueGrey[700]),
-                ),
-              ),
-            );
-          },
-        );
-      },
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.celebration, color: Colors.green[300], size: 60),
+          const SizedBox(height: 12),
+          Text(
+            '¡No hay registros de externos!',
+            style: GoogleFonts.lato(fontSize: 20, color: Colors.white, fontWeight: FontWeight.w600),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 

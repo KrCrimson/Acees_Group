@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:http/http.dart' as http;
 
 enum FiltroVisitas { dia, semana, mes, anio }
 
@@ -49,12 +49,29 @@ class _UserAlarmDetailsScreenState extends State<UserAlarmDetailsScreen> {
     }
   }
 
-  Stream<QuerySnapshot> _getVisitasStream() {
-    return FirebaseFirestore.instance
-        .collection('visitas')
-        .where('fecha_hora', isGreaterThanOrEqualTo: Timestamp.fromDate(_startDate))
-        .where('fecha_hora', isLessThanOrEqualTo: Timestamp.fromDate(_endDate))
-        .snapshots();
+  Future<List<Map<String, dynamic>>> _getVisitas() async {
+    final startIso = _startDate.toIso8601String();
+    final endIso = _endDate.toIso8601String();
+    final response = await http.get(
+      Uri.parse('http://192.168.1.51:3000/visitas?start=$startIso&end=$endIso'),
+    );
+    if (response.statusCode != 200) return [];
+    final data = json.decode(response.body);
+    return List<Map<String, dynamic>>.from(data.map((v) {
+      final map = Map<String, dynamic>.from(v as Map);
+      // Parsear fecha_hora
+      final fechaHoraStr = map['fecha_hora'] ?? '';
+      DateTime fechaHora;
+      try {
+        fechaHora = DateTime.parse(fechaHoraStr);
+      } catch (_) {
+        fechaHora = DateTime.now();
+      }
+      return {
+        ...map,
+        'fecha_hora': fechaHora,
+      };
+    }));
   }
 
   Color _getColorByCount(int count) {
@@ -67,9 +84,12 @@ class _UserAlarmDetailsScreenState extends State<UserAlarmDetailsScreen> {
     try {
       String csvContent = "DNI,Nombre,Asunto,Facultad,Guardia,Puerta,Fecha,Cantidad\n";
       for (var v in visitas) {
-        final fecha = v['fecha_hora'] is Timestamp
-            ? (v['fecha_hora'] as Timestamp).toDate()
-            : DateTime.tryParse(v['fecha_hora'].toString());
+        DateTime? fecha;
+        if (v['fecha_hora'] is DateTime) {
+          fecha = v['fecha_hora'] as DateTime;
+        } else {
+          fecha = DateTime.tryParse(v['fecha_hora'].toString());
+        }
         csvContent += '"${v['dni'] ?? ''}",'
                       '"${v['nombre'] ?? ''}",'
                       '"${v['asunto'] ?? ''}",'
@@ -89,7 +109,7 @@ class _UserAlarmDetailsScreenState extends State<UserAlarmDetailsScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al exportar: \\${e.toString()}')),
+        SnackBar(content: Text('Error al exportar: ${e.toString()}')),
       );
     }
   }
@@ -166,13 +186,14 @@ class _UserAlarmDetailsScreenState extends State<UserAlarmDetailsScreen> {
           ),
         ),
         child: SafeArea(
-          child: StreamBuilder<QuerySnapshot>(
-            stream: _getVisitasStream(),
+          child: FutureBuilder<List<Map<String, dynamic>>>(
+            future: _getVisitas(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              final visitas = snapshot.data ?? [];
+              if (visitas.isEmpty) {
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -189,7 +210,6 @@ class _UserAlarmDetailsScreenState extends State<UserAlarmDetailsScreen> {
                 );
               }
               // Agrupa por DNI y cuenta visitas
-              final visitas = snapshot.data!.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
               final Map<String, List<Map<String, dynamic>>> visitasPorDni = {};
               for (var visita in visitas) {
                 final dni = visita['dni'] ?? '';
@@ -219,8 +239,8 @@ class _UserAlarmDetailsScreenState extends State<UserAlarmDetailsScreen> {
                 itemBuilder: (context, index) {
                   final visita = resumenVisitas[index];
                   final color = _getColorByCount(visita['cantidad']);
-                  final fecha = visita['fecha_hora'] is Timestamp
-                      ? (visita['fecha_hora'] as Timestamp).toDate()
+                  final fecha = visita['fecha_hora'] is DateTime
+                      ? visita['fecha_hora'] as DateTime
                       : DateTime.tryParse(visita['fecha_hora'].toString());
                   return Container(
                     margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -279,11 +299,10 @@ class _UserAlarmDetailsScreenState extends State<UserAlarmDetailsScreen> {
           ),
         ),
       ),
-      floatingActionButton: StreamBuilder<QuerySnapshot>(
-        stream: _getVisitasStream(),
+      floatingActionButton: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _getVisitas(),
         builder: (context, snapshot) {
-          final docs = snapshot.data?.docs ?? [];
-          final visitas = docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
+          final visitas = snapshot.data ?? [];
           final Map<String, List<Map<String, dynamic>>> visitasPorDni = {};
           for (var visita in visitas) {
             final dni = visita['dni'] ?? '';
