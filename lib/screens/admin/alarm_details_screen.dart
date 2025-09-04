@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 
 class AlarmDetailsScreen extends StatelessWidget {
   const AlarmDetailsScreen({super.key});
 
-  Stream<QuerySnapshot> _getUnrecordedExitsStream() {
-    return FirebaseFirestore.instance
-        .collection('asistencias')
-        .where('tipo', isEqualTo: 'entrada')
-        .where('estado', isEqualTo: 'activo')
-        .snapshots();
+  Future<List<dynamic>> _fetchUnrecordedExits() async {
+    final response = await http.get(Uri.parse('http://localhost:3000/asistencias?tipo=entrada&estado=activo'));
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Error al cargar datos');
+    }
   }
 
   @override
@@ -19,29 +21,34 @@ class AlarmDetailsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Personas sin salida'),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: _getUnrecordedExitsStream(),
+      body: FutureBuilder<List<dynamic>>(
+        future: _fetchUnrecordedExits(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(child: Text('No hay personas sin salida.'));
           }
 
-          final individuals = snapshot.data!.docs;
+          final individuals = snapshot.data!;
 
           return ListView.builder(
             itemCount: individuals.length,
             itemBuilder: (context, index) {
-              final data = individuals[index].data() as Map<String, dynamic>;
+              final data = individuals[index];
               final nombre = data['nombre'] ?? 'Desconocido';
               final apellido = data['apellido'] ?? 'Desconocido';
               final dni = data['dni'] ?? 'Sin DNI';
-              final fechaHora = data['fecha_hora'] != null
-                  ? (data['fecha_hora'] as Timestamp).toDate()
-                  : null;
+              DateTime? fechaHora;
+              if (data['fecha_hora'] != null) {
+                try {
+                  fechaHora = DateTime.parse(data['fecha_hora']);
+                } catch (_) {
+                  fechaHora = null;
+                }
+              }
 
               return Card(
                 margin: const EdgeInsets.all(8.0),

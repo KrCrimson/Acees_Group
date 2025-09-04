@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+// TODO: Reemplazar Firestore por API MongoDB
 import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../../config.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 
 class VisitorFormScreen extends StatefulWidget {
   final String dni;
@@ -43,22 +45,24 @@ class _VisitorFormScreenState extends State<VisitorFormScreen> {
       setState(() {});
       return;
     }
-    // Verifica si el externo ya está en la BD
-    final extSnap = await FirebaseFirestore.instance
-        .collection('externos')
-        .where('dni', isEqualTo: widget.dni)
-        .limit(1)
-        .get();
-    if (extSnap.docs.isNotEmpty) {
-      final nombre = extSnap.docs.first.data()['nombre'] as String?;
-      if (nombre != null && nombre.isNotEmpty) {
-        _nameController.text = nombre;
-        setState(() {});
-        return;
-      }
-    }
-    // Si no está, consulta la API externa
+    // Consultar externo en la API REST de tu backend
     setState(() => _isLoadingName = true);
+    try {
+      final response = await http.get(
+        Uri.parse('${Config.apiBaseUrl}/externos/${widget.dni}'),
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final nombre = data['nombre'] ?? '';
+        if (nombre.isNotEmpty) {
+          _nameController.text = nombre;
+          setState(() {});
+          setState(() => _isLoadingName = false);
+          return;
+        }
+      }
+    } catch (_) {}
+    // Si no está, consulta la API externa
     try {
       final response = await http.get(
         Uri.parse('https://api.apis.net.pe/v1/dni?numero=${widget.dni}'),
@@ -85,36 +89,53 @@ class _VisitorFormScreenState extends State<VisitorFormScreen> {
         'nombre': _nameController.text.trim(),
         'asunto': _reasonController.text.trim(),
         'facultad': _selectedFaculty,
-        'fecha_hora': Timestamp.fromDate(now),
+        'fecha_hora': now.toIso8601String(),
         'guardia_nombre': widget.guardName,
         'puerta': widget.assignedDoor,
       };
 
       try {
-        // Guardar los datos del visitante en la colección 'visitas'
-        await FirebaseFirestore.instance.collection('visitas').add(visitorData);
+        // Guardar los datos del visitante en la colección 'visitas' (API REST)
+        final response = await http.post(
+          Uri.parse('${Config.apiBaseUrl}/visitas'),
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode(visitorData),
+        );
+        if (response.statusCode != 200) {
+          throw Exception('Error al registrar visita');
+        }
 
-        // Guardar los datos del externo en la colección 'externos'
-        await FirebaseFirestore.instance.collection('externos').add({
+        // Guardar los datos del externo en la colección 'externos' (API REST)
+        final externoData = {
           'dni': widget.dni,
           'nombre': _nameController.text.trim(),
-        });
+        };
+        await http.post(
+          Uri.parse('${Config.apiBaseUrl}/externos'),
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode(externoData),
+        );
 
-        // Notificar a los guardias de la facultad seleccionada
+        // Notificar a los guardias de la facultad seleccionada (API REST)
         if (_selectedFaculty != null) {
-          final guardsSnapshot = await FirebaseFirestore.instance
-              .collection('usuarios')
-              .where('rango', isEqualTo: 'guardia')
-              .where('puerta_acargo', isEqualTo: _selectedFaculty)
-              .get();
-
-          for (var guard in guardsSnapshot.docs) {
-            await FirebaseFirestore.instance.collection('notificaciones').add({
-              'guardia_uid': guard.id,
-              'mensaje': 'Un externo irá a la facultad $_selectedFaculty.',
-              'info': visitorData,
-              'fecha_hora': Timestamp.fromDate(now),
-            });
+          final guardsResponse = await http.get(
+            Uri.parse('${Config.apiBaseUrl}/usuarios?puerta_acargo=$_selectedFaculty&rango=guardia'),
+          );
+          if (guardsResponse.statusCode == 200) {
+            final guardsList = json.decode(guardsResponse.body);
+            for (var guard in guardsList) {
+              final notificationData = {
+                'guardia_uid': guard['_id'],
+                'mensaje': 'Un externo irá a la facultad $_selectedFaculty.',
+                'info': visitorData,
+                'fecha_hora': now.toIso8601String(),
+              };
+              await http.post(
+                Uri.parse('${Config.apiBaseUrl}/notificaciones'),
+                headers: {'Content-Type': 'application/json'},
+                body: json.encode(notificationData),
+              );
+            }
           }
         }
 

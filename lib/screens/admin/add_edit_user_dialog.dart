@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../../config.dart';
 
 class AddEditUserDialog extends StatefulWidget {
-  final DocumentSnapshot? user;
+  final Map<String, dynamic>? user;
   final String userRole;
 
   const AddEditUserDialog({Key? key, this.user, required this.userRole})
@@ -67,50 +68,54 @@ class _AddEditUserDialogState extends State<AddEditUserDialog> {
         'rango': widget.userRole,
         'puerta_acargo': _selectedPuerta,
         'estado': _isEditing ? widget.user!['estado'] : _status,
-        'fecha_modificacion': Timestamp.now(),
+        'fecha_modificacion': DateTime.now().toIso8601String(),
       };
 
       if (!_isEditing) {
-        userData['fecha_creacion'] = Timestamp.now(); // Add creation date only for new users
+        userData['fecha_creacion'] = DateTime.now().toIso8601String();
+        userData['password'] = password;
       }
 
       try {
         if (_isEditing) {
-          await widget.user!.reference.update(userData);
-          Navigator.of(context).pop();
-        } else {
-          // Crear usuario en Firebase Authentication
-          final authResult = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-            email: email,
-            password: password!,
+          // Actualizar usuario existente
+          final id = widget.user!['_id'];
+          final response = await http.put(
+            Uri.parse('${Config.apiBaseUrl}/usuarios/$id'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode(userData),
           );
-
-          // Guardar datos en Firestore usando el UID de Auth como ID
-          await FirebaseFirestore.instance
-              .collection('usuarios')
-              .doc(authResult.user!.uid)
-              .set({
-                ...userData,
-                'auth_uid': authResult.user!.uid,
-              });
-
-          // Mostrar la contraseña al admin para que la copie
-          if (context.mounted) {
-            await showDialog(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('Usuario creado'),
-                content: SelectableText('La contraseña del usuario es: $password'),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('OK'),
-                  ),
-                ],
-              ),
-            );
-            // Cerrar el AlertDialog principal después de mostrar la contraseña
+          if (response.statusCode == 200) {
             Navigator.of(context).pop();
+          } else {
+            throw Exception('Error al actualizar usuario');
+          }
+        } else {
+          // Crear usuario nuevo
+          final response = await http.post(
+            Uri.parse('${Config.apiBaseUrl}/usuarios'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode(userData),
+          );
+          if (response.statusCode == 200) {
+            if (context.mounted) {
+              await showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Usuario creado'),
+                  content: SelectableText('La contraseña del usuario es: $password'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('OK'),
+                    ),
+                  ],
+                ),
+              );
+              Navigator.of(context).pop();
+            }
+          } else {
+            throw Exception('Error al crear usuario');
           }
         }
       } catch (e) {
@@ -252,10 +257,15 @@ class _AddEditUserDialogState extends State<AddEditUserDialog> {
 }
 
 void showAddEditUserDialog(BuildContext context,
-    {DocumentSnapshot? user, required String userRole}) {
+    {Map<String, dynamic>? user, required String userRole}) {
   showDialog(
     context: context,
     builder: (context) =>
         AddEditUserDialog(user: user, userRole: userRole),
   );
 }
+
+// TODO: Reemplazar Firestore y FirebaseAuth por API MongoDB
+// Ejemplo de función que usaba Firestore:
+// await FirebaseFirestore.instance.collection('usuarios').doc(uid).set(data);
+// TODO: Reemplazar por llamada a API REST de MongoDB

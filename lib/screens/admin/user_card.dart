@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+// TODO: Reemplazar Firestore por API MongoDB
 
 
 class UserCard extends StatelessWidget {
-  final DocumentSnapshot user;
+  final user;
   final VoidCallback onEdit;
 
   const UserCard({
@@ -56,10 +56,11 @@ class UserCard extends StatelessWidget {
     final newStatus = user['estado'] == 'activo' ? 'inactivo' : 'activo';
     
     // 1. Actualizar Firestore
-    await user.reference.update({
-      'estado': newStatus,
-      'fecha_actualizacion': FieldValue.serverTimestamp(),
-    });
+    // await user.reference.update({
+    //   'estado': newStatus,
+    //   'fecha_actualizacion': FieldValue.serverTimestamp(),
+    // });
+    // TODO: Reemplazar por llamada a API REST de MongoDB
 
     // 2. Opcional: Actualizar Auth (requiere backend)
     if (newStatus == 'inactivo') {

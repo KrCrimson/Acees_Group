@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+// TODO: Reemplazar Firestore por API MongoDB
+
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../../config.dart';
 
 class AdminReportScreen extends StatefulWidget {
   const AdminReportScreen({Key? key}) : super(key: key);
@@ -11,7 +15,7 @@ class AdminReportScreen extends StatefulWidget {
 }
 
 class _AdminReportScreenState extends State<AdminReportScreen> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  // final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   DateTimeRange? _dateRange;
   String _selectedTipo = 'todos';
   String _selectedFacultad = 'todas';
@@ -31,10 +35,23 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
   }
 
   Future<void> _fetchFacultades() async {
-    final snapshot = await _firestore.collection('facultades').get();
-    setState(() {
-      _facultades = snapshot.docs.map((e) => e['siglas'].toString()).toList();
-    });
+    try {
+  final response = await http.get(Uri.parse('${Config.apiBaseUrl}/facultades'));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          _facultades = List<String>.from(data.map((f) => f['siglas']));
+        });
+      } else {
+        setState(() {
+          _facultades = [];
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _facultades = [];
+      });
+    }
   }
 
   Future<void> _fetchEscuelas(String facultad) async {
@@ -42,13 +59,23 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
       setState(() => _escuelas = []);
       return;
     }
-    final snapshot = await _firestore
-        .collection('escuelas')
-        .where('siglas_facultad', isEqualTo: facultad)
-        .get();
-    setState(() {
-      _escuelas = snapshot.docs.map((e) => e['siglas'].toString()).toList();
-    });
+    try {
+  final response = await http.get(Uri.parse('${Config.apiBaseUrl}/escuelas?siglas_facultad=$facultad'));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          _escuelas = List<String>.from(data.map((e) => e['siglas']));
+        });
+      } else {
+        setState(() {
+          _escuelas = [];
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _escuelas = [];
+      });
+    }
   }
 
   Future<void> _loadAsistencias() async {
@@ -58,56 +85,58 @@ class _AdminReportScreenState extends State<AdminReportScreen> {
     });
 
     try {
-      Query query = _firestore.collection('asistencias')
-          .orderBy('fecha_hora', descending: true)
-          .limit(200);
-
+  String url = '${Config.apiBaseUrl}/asistencias?';
       if (_dateRange != null) {
-        final start = DateTime(_dateRange!.start.year, _dateRange!.start.month, _dateRange!.start.day, 0, 0, 0);
-        final end = DateTime(_dateRange!.end.year, _dateRange!.end.month, _dateRange!.end.day, 23, 59, 59, 999);
-        query = query
-            .where('fecha_hora', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-            .where('fecha_hora', isLessThanOrEqualTo: Timestamp.fromDate(end));
+        final start = _dateRange!.start.toIso8601String();
+        final end = _dateRange!.end.toIso8601String();
+        url += 'start=$start&end=$end&';
       }
-
-      if (_selectedTipo == 'entrada' || _selectedTipo == 'salida') {
-        query = query.where('tipo', isEqualTo: _selectedTipo);
+      if (_selectedTipo != 'todos') {
+        url += 'tipo=${_selectedTipo}&';
       }
-
       if (_selectedFacultad != 'todas') {
-        query = query.where('siglas_facultad', isEqualTo: _selectedFacultad);
+        url += 'siglas_facultad=${_selectedFacultad}&';
       }
-
       if (_selectedEscuela != 'todas' && _selectedEscuela.isNotEmpty) {
-        query = query.where('siglas_escuela', isEqualTo: _selectedEscuela);
+        url += 'siglas_escuela=${_selectedEscuela}&';
       }
-
-      final snapshot = await query.get();
-
-      // Filtro por turno (mañana/tarde) en memoria
-      List<Map<String, dynamic>> asistencias = snapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        data['id'] = doc.id;
-        data['fecha_hora'] = (data['fecha_hora'] as Timestamp).toDate();
-        return data;
-      }).toList();
-
-      if (_selectedTurno == 'mañana') {
-        asistencias = asistencias.where((a) {
-          final hora = (a['fecha_hora'] as DateTime).hour;
-          return hora >= 8 && hora < 13;
-        }).toList();
-      } else if (_selectedTurno == 'tarde') {
-        asistencias = asistencias.where((a) {
-          final hora = (a['fecha_hora'] as DateTime).hour;
-          return hora >= 13 && hora <= 21;
-        }).toList();
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        List<Map<String, dynamic>> asistencias = List<Map<String, dynamic>>.from(data.map((a) {
+          final map = Map<String, dynamic>.from(a as Map);
+          // Parsear fecha_hora
+          final fechaHoraStr = map['fecha_hora'] ?? map['fecha'] ?? '';
+          DateTime fechaHora;
+          try {
+            fechaHora = DateTime.parse(fechaHoraStr);
+          } catch (_) {
+            fechaHora = DateTime.now();
+          }
+          return {
+            ...map,
+            'fecha_hora': fechaHora,
+          };
+        }));
+        // Filtro por turno (mañana/tarde) en memoria
+        if (_selectedTurno == 'mañana') {
+          asistencias = asistencias.where((a) {
+            final hora = (a['fecha_hora'] as DateTime).hour;
+            return hora >= 8 && hora < 13;
+          }).toList();
+        } else if (_selectedTurno == 'tarde') {
+          asistencias = asistencias.where((a) {
+            final hora = (a['fecha_hora'] as DateTime).hour;
+            return hora >= 13 && hora <= 21;
+          }).toList();
+        }
+        setState(() {
+          _asistencias = asistencias;
+          _isLoading = false;
+        });
+      } else {
+        throw Exception('Error al cargar asistencias');
       }
-
-      setState(() {
-        _asistencias = asistencias;
-        _isLoading = false;
-      });
     } catch (e) {
       setState(() {
         _isLoading = false;

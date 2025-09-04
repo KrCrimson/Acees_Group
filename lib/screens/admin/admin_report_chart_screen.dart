@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+// TODO: Reemplazar Firestore por API MongoDB
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../../config.dart';
+
+
 
 class AdminReportChartScreen extends StatefulWidget {
   const AdminReportChartScreen({super.key}); // Use super parameter for 'key'
@@ -32,24 +37,41 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
     });
 
     try {
-      Query query = FirebaseFirestore.instance.collection('asistencias');
-
+  String url = '${Config.apiBaseUrl}/asistencias';
       if (_selectedDateRange != null) {
-        query = query
-            .where('fecha_hora', isGreaterThanOrEqualTo: Timestamp.fromDate(_selectedDateRange!.start))
-            .where('fecha_hora', isLessThanOrEqualTo: Timestamp.fromDate(_selectedDateRange!.end));
+        final start = _selectedDateRange!.start.toIso8601String();
+        final end = _selectedDateRange!.end.toIso8601String();
+        url += '?start=$start&end=$end';
       }
-
-      final snapshot = await query.get();
-
-      if (mounted) { // Guard against async gaps
-        setState(() {
-          _attendanceData = snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
-          _isLoading = false;
-        });
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List<Map<String, dynamic>> records = List<Map<String, dynamic>>.from(data.map((r) {
+          final map = Map<String, dynamic>.from(r as Map);
+          // Parsear fecha_hora
+          final fechaHoraStr = map['fecha_hora'] ?? map['fecha'] ?? '';
+          DateTime fechaHora;
+          try {
+            fechaHora = DateTime.parse(fechaHoraStr);
+          } catch (_) {
+            fechaHora = DateTime.now();
+          }
+          return {
+            ...map,
+            'fecha_hora': fechaHora,
+          };
+        }));
+        if (mounted) {
+          setState(() {
+            _attendanceData = records;
+            _isLoading = false;
+          });
+        }
+      } else {
+        throw Exception('Error al cargar datos');
       }
     } catch (e) {
-      if (mounted) { // Guard against async gaps
+      if (mounted) {
         setState(() {
           _isLoading = false;
           _attendanceData = [];
@@ -80,8 +102,6 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
         return _buildBarChart();
       case 'pie':
         return _buildPieChart();
-      case 'line':
-        return _buildLineChart();
       default:
         return const Center(child: Text('Invalid chart type.'));
     }
@@ -146,10 +166,16 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
     Map<String, int> ingresos = {};
     Map<String, int> egresos = {};
     for (var record in _attendanceData) {
-      final fecha = record['fecha_hora'] as Timestamp?;
+      final fecha = record['fecha_hora'];
       final tipo = record['tipo'] ?? 'entrada';
-      if (fecha != null) {
-        final day = DateFormat('dd/MM').format(fecha.toDate());
+      DateTime? date;
+      if (fecha is DateTime) {
+        date = fecha;
+      } else {
+        date = DateTime.tryParse(fecha.toString());
+      }
+      if (date != null) {
+        final day = DateFormat('dd/MM').format(date);
         if (tipo == 'entrada') {
           ingresos[day] = (ingresos[day] ?? 0) + 1;
         } else if (tipo == 'salida') {
@@ -209,6 +235,25 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
     );
   }
 
+  // Leyenda para gráficos
+  Widget _buildLegend(Map<String, int> dataMap, List<Color> colorList) {
+    return Wrap(
+      spacing: 12,
+      children: dataMap.keys.toList().asMap().entries.map((entry) {
+        final index = entry.key;
+        final key = entry.value;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 16, height: 16, color: colorList[index % colorList.length]),
+            const SizedBox(width: 4),
+            Text(key, style: const TextStyle(fontSize: 13)),
+          ],
+        );
+      }).toList(),
+    );
+  }
+
   Widget _buildBarChart() {
     Map<String, int> dataMap = {};
     for (var record in _attendanceData) {
@@ -222,8 +267,14 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
           break;
         case 'timeOfDay':
           final fecha = record['fecha_hora'];
-          if (fecha is Timestamp) {
-            final hour = int.parse(DateFormat('HH').format(fecha.toDate()));
+          DateTime? date;
+          if (fecha is DateTime) {
+            date = fecha;
+          } else {
+            date = DateTime.tryParse(fecha.toString());
+          }
+          if (date != null) {
+            final hour = date.hour;
             key = _getTimeOfDay(hour);
           } else {
             key = 'Unknown';
@@ -277,63 +328,79 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
       colorIndex++;
     });
 
-    return BarChart(
-      BarChartData(
-        barGroups: barGroups,
-        titlesData: FlTitlesData(
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              getTitlesWidget: (double value, TitleMeta meta) {
-                final index = value.toInt();
-                if (index >= 0 && index < dataMap.keys.toList().length) {
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Text(
-                      dataMap.keys.toList()[index],
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-                    ),
-                  );
-                }
-                return const Text('');
-              },
-            ),
-          ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(showTitles: true),
-          ),
-          topTitles: AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          rightTitles: AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-        ),
-        gridData: FlGridData(show: true, drawVerticalLine: false),
-        borderData: FlBorderData(show: false),
-        barTouchData: BarTouchData(
-          enabled: true,
-          touchTooltipData: BarTouchTooltipData(
-            getTooltipColor: (group) => Colors.indigo[100] ?? Colors.indigo,
-            getTooltipItem: (group, groupIndex, rod, rodIndex) {
-              return BarTooltipItem(
-                '${dataMap.keys.toList()[group.x]}\n',
-                const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
-                children: [
-                  TextSpan(
-                    text: rod.toY.toStringAsFixed(0),
-                    style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+    // Leyenda y totales
+    int total = dataMap.values.fold(0, (a, b) => a + b);
+    return Column(
+      children: [
+        Expanded(
+          child: BarChart(
+            BarChartData(
+              barGroups: barGroups,
+              titlesData: FlTitlesData(
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    getTitlesWidget: (double value, TitleMeta meta) {
+                      final index = value.toInt();
+                      if (index >= 0 && index < dataMap.keys.toList().length) {
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Text(
+                            dataMap.keys.toList()[index],
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                          ),
+                        );
+                      }
+                      return const Text('');
+                    },
                   ),
-                ],
-              );
-            },
+                ),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: true),
+                ),
+                topTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                rightTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+              ),
+              gridData: FlGridData(show: true, drawVerticalLine: false),
+              borderData: FlBorderData(show: false),
+              barTouchData: BarTouchData(
+                enabled: true,
+                touchTooltipData: BarTouchTooltipData(
+                  getTooltipColor: (group) => Colors.indigo[100] ?? Colors.indigo,
+                  getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                    final key = dataMap.keys.toList()[group.x];
+                    final value = rod.toY;
+                    final percent = total > 0 ? (value / total * 100).toStringAsFixed(1) : '0';
+                    return BarTooltipItem(
+                      '$key\n',
+                      const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
+                      children: [
+                        TextSpan(
+                          text: '${value.toStringAsFixed(0)} (${percent}%)',
+                          style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+              alignment: BarChartAlignment.spaceAround,
+              maxY: dataMap.values.isNotEmpty ? (dataMap.values.reduce((a, b) => a > b ? a : b) * 1.2) : 10,
+            ),
+            duration: const Duration(milliseconds: 700),
+            curve: Curves.easeInOut,
           ),
         ),
-        alignment: BarChartAlignment.spaceAround,
-        maxY: dataMap.values.isNotEmpty ? (dataMap.values.reduce((a, b) => a > b ? a : b) * 1.2) : 10,
-      ),
-      duration: const Duration(milliseconds: 700),
-      curve: Curves.easeInOut,
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
+          child: _buildLegend(dataMap, colorList),
+        ),
+        Text('Total: $total', style: const TextStyle(fontWeight: FontWeight.bold)),
+      ],
     );
   }
 
@@ -349,9 +416,15 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
           key = record['siglas_escuela'] ?? 'Unknown';
           break;
         case 'timeOfDay':
-          final fecha = record['fecha'];
-          if (fecha is Timestamp) {
-            final hour = int.parse(DateFormat('HH').format(fecha.toDate()));
+          final fecha = record['fecha_hora'];
+          DateTime? date;
+          if (fecha is DateTime) {
+            date = fecha;
+          } else {
+            date = DateTime.tryParse(fecha.toString());
+          }
+          if (date != null) {
+            final hour = date.hour;
             key = _getTimeOfDay(hour);
           } else {
             key = 'Unknown';
@@ -369,7 +442,6 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
       dataMap[key] = (dataMap[key] ?? 0) + 1;
     }
 
-    List<PieChartSectionData> sections = [];
     final colorList = [
       Colors.indigo,
       Colors.blue,
@@ -379,12 +451,15 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
       Colors.teal,
       Colors.amber,
     ];
+    int total = dataMap.values.fold(0, (a, b) => a + b);
+    List<PieChartSectionData> sections = [];
     int colorIndex = 0;
     dataMap.forEach((key, value) {
+      final percent = total > 0 ? (value / total * 100).toStringAsFixed(1) : '0';
       sections.add(
         PieChartSectionData(
           value: value.toDouble(),
-          title: '${((value / dataMap.values.reduce((a, b) => a + b)) * 100).toStringAsFixed(1)}%',
+          title: '$percent%',
           color: colorList[colorIndex % colorList.length],
           radius: 60,
           titleStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
@@ -400,30 +475,49 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
       );
       colorIndex++;
     });
-
-    return PieChart(
-      PieChartData(
-        sections: sections,
-        centerSpaceRadius: 40,
-        borderData: FlBorderData(show: false),
-        sectionsSpace: 2,
-        pieTouchData: PieTouchData(
-          enabled: true,
-          touchCallback: (event, response) {},
+    return Column(
+      children: [
+        Expanded(
+          child: PieChart(
+            PieChartData(
+              sections: sections,
+              centerSpaceRadius: 40,
+              borderData: FlBorderData(show: false),
+              sectionsSpace: 2,
+              pieTouchData: PieTouchData(
+                enabled: true,
+                touchCallback: (event, response) {},
+              ),
+            ),
+            duration: const Duration(milliseconds: 700),
+            curve: Curves.easeInOut,
+          ),
         ),
-      ),
-      duration: const Duration(milliseconds: 700),
-      curve: Curves.easeInOut,
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
+          child: _buildLegend(dataMap, colorList),
+        ),
+        Text('Total: $total', style: const TextStyle(fontWeight: FontWeight.bold)),
+      ],
     );
   }
 
   Widget _buildLineChart() {
     Map<DateTime, int> dataMap = {};
     for (var record in _attendanceData) {
-      final fechaHora = record['fecha_hora'] as Timestamp;
-      final date = DateTime(fechaHora.toDate().year, fechaHora.toDate().month, fechaHora.toDate().day);
-
-      dataMap[date] = (dataMap[date] ?? 0) + 1;
+      final fechaHora = record['fecha_hora'];
+      DateTime? date;
+      if (fechaHora is DateTime) {
+        date = DateTime(fechaHora.year, fechaHora.month, fechaHora.day);
+      } else {
+        final parsed = DateTime.tryParse(fechaHora.toString());
+        if (parsed != null) {
+          date = DateTime(parsed.year, parsed.month, parsed.day);
+        }
+      }
+      if (date != null) {
+        dataMap[date] = (dataMap[date] ?? 0) + 1;
+      }
     }
 
     List<FlSpot> spots = [];
@@ -431,80 +525,99 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
     for (var i = 0; i < sortedDates.length; i++) {
       spots.add(FlSpot(i.toDouble(), dataMap[sortedDates[i]]!.toDouble()));
     }
+    int total = dataMap.values.fold(0, (a, b) => a + b);
 
-    return LineChart(
-      LineChartData(
-        lineBarsData: [
-          LineChartBarData(
-            spots: spots,
-            isCurved: true,
-            gradient: LinearGradient(colors: [Colors.indigo, Colors.blue]),
-            barWidth: 4,
-            isStrokeCapRound: true,
-            belowBarData: BarAreaData(show: true, gradient: LinearGradient(colors: [Colors.indigo.withOpacity(0.2), Colors.blue.withOpacity(0.2)])),
-            dotData: FlDotData(show: true, getDotPainter: (spot, percent, barData, index) {
-              return FlDotCirclePainter(
-                radius: 4,
-                color: Colors.indigo,
-                strokeWidth: 2,
-                strokeColor: Colors.white,
-              );
-            }),
-          ),
-        ],
-        titlesData: FlTitlesData(
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              getTitlesWidget: (value, meta) {
-                final index = value.toInt();
-                if (index >= 0 && index < sortedDates.length) {
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Text(DateFormat('dd/MM').format(sortedDates[index]), style: const TextStyle(fontSize: 10)),
-                  );
-                }
-                return const Text('');
-              },
+    return Column(
+      children: [
+        Expanded(
+          child: LineChart(
+            LineChartData(
+              lineBarsData: [
+                LineChartBarData(
+                  spots: spots,
+                  isCurved: true,
+                  gradient: LinearGradient(colors: [Colors.indigo, Colors.blue]),
+                  barWidth: 4,
+                  isStrokeCapRound: true,
+                  belowBarData: BarAreaData(show: true, gradient: LinearGradient(colors: [Colors.indigo.withOpacity(0.2), Colors.blue.withOpacity(0.2)])),
+                  dotData: FlDotData(show: true, getDotPainter: (spot, percent, barData, index) {
+                    return FlDotCirclePainter(
+                      radius: 4,
+                      color: Colors.indigo,
+                      strokeWidth: 2,
+                      strokeColor: Colors.white,
+                    );
+                  }),
+                ),
+              ],
+              titlesData: FlTitlesData(
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    getTitlesWidget: (value, meta) {
+                      final index = value.toInt();
+                      if (index >= 0 && index < sortedDates.length) {
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8.0),
+                          child: Text(DateFormat('dd/MM').format(sortedDates[index]), style: const TextStyle(fontSize: 10)),
+                        );
+                      }
+                      return const Text('');
+                    },
+                  ),
+                ),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: true),
+                ),
+                topTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                rightTitles: AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+              ),
+              gridData: FlGridData(show: true, drawVerticalLine: false),
+              borderData: FlBorderData(show: false),
+              lineTouchData: LineTouchData(
+                enabled: true,
+                touchTooltipData: LineTouchTooltipData(
+                  getTooltipColor: (spot) => Colors.indigo[100] ?? Colors.indigo,
+                  getTooltipItems: (touchedSpots) {
+                    return touchedSpots.map((spot) {
+                      final index = spot.x.toInt();
+                      final dateStr = index >= 0 && index < sortedDates.length
+                          ? DateFormat('dd/MM/yyyy').format(sortedDates[index])
+                          : '';
+                      return LineTooltipItem(
+                        '$dateStr\n',
+                        const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
+                        children: [
+                          TextSpan(
+                            text: spot.y.toStringAsFixed(0),
+                            style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      );
+                    }).toList();
+                  },
+                ),
+              ),
+              minY: 0,
+              maxY: spots.isNotEmpty ? (spots.map((e) => e.y).reduce((a, b) => a > b ? a : b) * 1.2) : 10,
             ),
-          ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(showTitles: true),
-          ),
-          topTitles: AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          rightTitles: AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
+            duration: const Duration(milliseconds: 700),
+            curve: Curves.easeInOut,
           ),
         ),
-        gridData: FlGridData(show: true, drawVerticalLine: false),
-        borderData: FlBorderData(show: false),
-        lineTouchData: LineTouchData(
-          enabled: true,
-          touchTooltipData: LineTouchTooltipData(
-            getTooltipColor: (spot) => Colors.indigo[100] ?? Colors.indigo,
-            getTooltipItems: (touchedSpots) {
-              return touchedSpots.map((spot) {
-                return LineTooltipItem(
-                  '${DateFormat('dd/MM').format(sortedDates[spot.x.toInt()])}\n',
-                  const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
-                  children: [
-                    TextSpan(
-                      text: spot.y.toStringAsFixed(0),
-                      style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
-                    ),
-                  ],
-                );
-              }).toList();
-            },
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
+          child: Wrap(
+            spacing: 12,
+            children: sortedDates.map((date) => Text(DateFormat('dd/MM').format(date), style: const TextStyle(fontSize: 13))).toList(),
           ),
         ),
-        minY: 0,
-        maxY: spots.isNotEmpty ? (spots.map((e) => e.y).reduce((a, b) => a > b ? a : b) * 1.2) : 10,
-      ),
-      duration: const Duration(milliseconds: 700),
-      curve: Curves.easeInOut,
+        Text('Total: $total', style: const TextStyle(fontWeight: FontWeight.bold)),
+      ],
     );
   }
 
@@ -516,19 +629,6 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
     } else {
       return 'Noche';
     }
-  }
-
-  Color _getChartColor(int index) {
-    const colorPalette = [
-      Colors.blue,
-      Colors.green,
-      Colors.orange,
-      Colors.red,
-      Colors.purple,
-      Colors.teal,
-      Colors.amber,
-    ];
-    return colorPalette[index % colorPalette.length];
   }
 
   @override
@@ -638,7 +738,6 @@ class _AdminReportChartScreenState extends State<AdminReportChartScreen> {
                             items: const [
                               DropdownMenuItem(value: 'bar', child: Text('Gráfico de Barras')),
                               DropdownMenuItem(value: 'pie', child: Text('Gráfico Circular')),
-                              DropdownMenuItem(value: 'line', child: Text('Gráfico de Líneas')),
                             ],
                             onChanged: (value) {
                               setState(() {

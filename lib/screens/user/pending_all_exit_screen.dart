@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+// TODO: Reemplazar Firestore por API MongoDB
+
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:http/http.dart' as http;
+import '../../config.dart';
 
 // Asegura que la clase esté exportada correctamente
 class PendingAllExitScreen extends StatefulWidget {
@@ -15,15 +18,31 @@ class PendingAllExitScreen extends StatefulWidget {
 }
 
 class _PendingAllExitScreenState extends State<PendingAllExitScreen> {
-  // Obtiene alumnos cuyo último registro es una entrada sin salida
-  Stream<List<Map<String, dynamic>>> _getAlumnosSinSalida() async* {
-    final snapshot = await FirebaseFirestore.instance
-        .collection('asistencias')
-        .orderBy('fecha_hora', descending: true)
-        .get();
+  Future<List<Map<String, dynamic>>> _getAlumnosSinSalida() async {
+    // Obtener todos los registros de asistencias desde la API REST
+    final response = await http.get(
+  Uri.parse('${Config.apiBaseUrl}/asistencias'),
+    );
+    if (response.statusCode != 200) return [];
+    final allRecordsRaw = json.decode(response.body);
+    final List<Map<String, dynamic>> allRecords = List<Map<String, dynamic>>.from(allRecordsRaw.map((r) {
+      final map = Map<String, dynamic>.from(r as Map);
+      // Parsear fecha_hora
+      final fechaHoraStr = map['fecha_hora'] ?? map['fecha'] ?? '';
+      DateTime fechaHora;
+      try {
+        fechaHora = DateTime.parse(fechaHoraStr);
+      } catch (_) {
+        fechaHora = DateTime.now();
+      }
+      return {
+        ...map,
+        'fecha_hora': fechaHora,
+      };
+    }));
+    // Agrupar por DNI y obtener el último registro
     final Map<String, Map<String, dynamic>> ultimoRegistroPorDni = {};
-    for (var doc in snapshot.docs) {
-      final data = doc.data();
+    for (var data in allRecords..sort((a, b) => (b['fecha_hora'] as DateTime).compareTo(a['fecha_hora'] as DateTime))) {
       final dni = data['dni'] ?? '';
       if (dni.isEmpty) continue;
       if (!ultimoRegistroPorDni.containsKey(dni)) {
@@ -32,14 +51,19 @@ class _PendingAllExitScreenState extends State<PendingAllExitScreen> {
     }
     // Solo los que su último registro es 'entrada'
     final pendientes = ultimoRegistroPorDni.values.where((e) => e['tipo'] == 'entrada').toList();
-    yield pendientes;
+    return pendientes;
   }
 
   Future<void> _exportToCsv(List<Map<String, dynamic>> alumnos) async {
     try {
       String csvContent = "Nombre,DNI,Fecha,Facultad,Puerta\n";
       for (var data in alumnos) {
-        final fecha = (data['fecha_hora'] as Timestamp?)?.toDate();
+        DateTime? fecha;
+        if (data['fecha_hora'] is DateTime) {
+          fecha = data['fecha_hora'] as DateTime;
+        } else {
+          fecha = DateTime.tryParse(data['fecha_hora'].toString());
+        }
         csvContent += '"${data['nombre'] ?? ''}",'
                       '"${data['dni'] ?? ''}",'
                       '"${fecha != null ? DateFormat('dd/MM/yyyy HH:mm').format(fecha) : ''}",'
@@ -92,13 +116,14 @@ class _PendingAllExitScreenState extends State<PendingAllExitScreen> {
           ),
         ),
         child: SafeArea(
-          child: StreamBuilder<List<Map<String, dynamic>>>(
-            stream: _getAlumnosSinSalida(),
+          child: FutureBuilder<List<Map<String, dynamic>>>(
+            future: _getAlumnosSinSalida(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
-              if (!snapshot.hasData || snapshot.data!.isEmpty) {
+              final alumnos = snapshot.data ?? [];
+              if (alumnos.isEmpty) {
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -114,13 +139,17 @@ class _PendingAllExitScreenState extends State<PendingAllExitScreen> {
                   ),
                 );
               }
-              final alumnos = snapshot.data!;
               return ListView.builder(
                 itemCount: alumnos.length,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 itemBuilder: (context, index) {
                   final data = alumnos[index];
-                  final fecha = (data['fecha_hora'] as Timestamp?)?.toDate();
+                  DateTime? fecha;
+                  if (data['fecha_hora'] is DateTime) {
+                    fecha = data['fecha_hora'] as DateTime;
+                  } else {
+                    fecha = DateTime.tryParse(data['fecha_hora'].toString());
+                  }
                   return Container(
                     margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     decoration: BoxDecoration(
@@ -177,8 +206,8 @@ class _PendingAllExitScreenState extends State<PendingAllExitScreen> {
           ),
         ),
       ),
-      floatingActionButton: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: _getAlumnosSinSalida(),
+      floatingActionButton: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _getAlumnosSinSalida(),
         builder: (context, snapshot) {
           final alumnos = snapshot.data ?? [];
           return FloatingActionButton.extended(

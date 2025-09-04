@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'auth_service.dart';
 import 'package:google_fonts/google_fonts.dart'; // Import Google Fonts
+import 'package:provider/provider.dart';
+
+import 'viewmodels/login_viewmodel.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -15,8 +16,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  bool _isLoading = false;
-
   @override
   void dispose() {
     _emailController.dispose();
@@ -24,30 +23,26 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> _submit() async {
+  Future<void> _submit(LoginViewModel vm) async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
-    try {
-      await Provider.of<AuthService>(context, listen: false).signIn(
-        _emailController.text.trim(),
-        _passwordController.text.trim(),
-      );
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al iniciar sesión: ${e.toString()}')),
-        );
+    await vm.login(_emailController.text.trim(), _passwordController.text.trim());
+    if (vm.user != null) {
+      if (vm.user!.rango == 'admin') {
+        if (context.mounted) Navigator.pushReplacementNamed(context, '/admin');
+      } else {
+        if (context.mounted) Navigator.pushReplacementNamed(context, '/user');
       }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
+    } else if (vm.error != null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(vm.error!)));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final vm = Provider.of<LoginViewModel>(context);
     return Scaffold(
       body: Container(
         width: double.infinity,
@@ -175,9 +170,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               elevation: 4,
                             ),
-                            onPressed: _submit,
-                            child: _isLoading
-                                ? const CircularProgressIndicator(color: Colors.white)
+                            onPressed: vm.isLoading ? null : () => _submit(vm),
+                            child: vm.isLoading
+                                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                                 : const Text('Iniciar Sesión'),
                           ),
                         ),

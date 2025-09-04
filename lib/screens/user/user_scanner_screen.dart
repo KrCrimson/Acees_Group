@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:fluttertoast/fluttertoast.dart';
-import 'package:intl/intl.dart';
-import 'user_history_screen.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:google_fonts/google_fonts.dart'; // Import Google Fonts
-import 'visitor_form_screen.dart'; // Import the visitor form screen
+import 'package:google_fonts/google_fonts.dart';
+import 'visitor_form_screen.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'dart:async'; // Para Timer
-import 'dart:math'; // Para funciones matemáticas
+import 'dart:async';
+import 'dart:math';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'user_history_screen.dart';
+import 'package:intl/intl.dart';
+import 'package:flutter_nfc_kit/flutter_nfc_kit.dart';
+import '../../config.dart';
 
 class UserScannerScreen extends StatefulWidget {
   const UserScannerScreen({super.key});
@@ -29,7 +29,6 @@ class _UserScannerScreenState extends State<UserScannerScreen> with TickerProvid
   bool _isProcessing = false;
   DateTime? _lastScanTime;
   Map<String, dynamic>? _currentStudent;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final _scanCooldown = const Duration(seconds: 3);
   bool _isPrincipalEntrance = true; // true = Principal, false = Cochera
   final FlutterTts _flutterTts = FlutterTts();
@@ -53,6 +52,7 @@ class _UserScannerScreenState extends State<UserScannerScreen> with TickerProvid
     _tabController = TabController(length: 2, vsync: this);
     _loadGuardInfo();
     _initializeScreensaver();
+    _checkNfcOnStartup();
   }
 
   void _initializeScreensaver() {
@@ -119,15 +119,9 @@ class _UserScannerScreenState extends State<UserScannerScreen> with TickerProvid
   }
 
   Future<void> _loadGuardInfo() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return;
-    final userDoc = await FirebaseFirestore.instance
-        .collection('usuarios')
-        .doc(currentUser.uid)
-        .get();
     setState(() {
-      _guardName = '${userDoc.data()?['nombre'] ?? 'Desconocido'} ${userDoc.data()?['apellido'] ?? ''}';
-      _assignedDoor = userDoc.data()?['puerta_acargo'] ?? 'Sin asignar';
+      _guardName = 'Guardia Ejemplo';
+      _assignedDoor = 'Puerta 1';
     });
   }
 
@@ -162,33 +156,41 @@ class _UserScannerScreenState extends State<UserScannerScreen> with TickerProvid
         // Buscar nombre externo en BD o API
         String? externalName;
         bool foundExtern = false;
-        final extSnap = await _firestore.collection('externos')
-            .where('dni', isEqualTo: barcode)
-            .limit(1)
-            .get();
-        if (extSnap.docs.isNotEmpty) {
-          externalName = extSnap.docs.first.data()['nombre'] as String?;
-          foundExtern = true;
-        } else {
-          // Consultar API externa
-          try {
+          // Consultar API REST de externos en tu backend
+            try {
             final response = await http.get(
-              Uri.parse('https://api.apis.net.pe/v1/dni?numero=$barcode'),
-              headers: {'Authorization': 'Bearer apis-token-16172.YnjI01QPbvQ2cuf5U3nsb5qOUgiLZ7tW'},
+              Uri.parse('${Config.apiBaseUrl}/externos/$barcode'),
             );
             if (response.statusCode == 200) {
               final data = json.decode(response.body);
-              externalName = data['nombre'] ?? '';
-              if (externalName != null && externalName.isNotEmpty) {
+              if (data != null && data['nombre'] != null) {
+                externalName = data['nombre'];
                 foundExtern = true;
               }
-            } else {
-              _showToast("No se pudo consultar el DNI en la API externa.");
             }
           } catch (e) {
-            _showToast("Error de red al consultar API externa.");
+            _showToast("Error consultando externo en la API.");
           }
-        }
+          // Si no se encontró, consultar API externa
+          if (!foundExtern) {
+            try {
+              final response = await http.get(
+                Uri.parse('https://api.apis.net.pe/v1/dni?numero=$barcode'),
+                headers: {'Authorization': 'Bearer apis-token-16172.YnjI01QPbvQ2cuf5U3nsb5qOUgiLZ7tW'},
+              );
+              if (response.statusCode == 200) {
+                final data = json.decode(response.body);
+                externalName = data['nombre'] ?? '';
+                if (externalName != null && externalName.isNotEmpty) {
+                  foundExtern = true;
+                }
+              } else {
+                _showToast("No se pudo consultar el DNI en la API externa.");
+              }
+            } catch (e) {
+              _showToast("Error de red al consultar API externa.");
+            }
+          }
         if (!foundExtern) {
           _showToast("DNI no encontrado en la base de datos ni en la API externa.");
           setState(() {
@@ -230,124 +232,63 @@ class _UserScannerScreenState extends State<UserScannerScreen> with TickerProvid
   }
 
   Future<String> _getGuardName() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return 'Desconocido';
-
-    final userDoc = await FirebaseFirestore.instance
-        .collection('usuarios')
-        .doc(currentUser.uid)
-        .get();
-
-    final guardName = '${userDoc.data()?['nombre'] ?? 'Desconocido'} ${userDoc.data()?['apellido'] ?? 'Desconocido'}';
-    return guardName;
+    return 'Guardia Ejemplo';
   }
 
   Future<String> _getAssignedDoor() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) return 'Sin asignar';
-
-    final userDoc = await FirebaseFirestore.instance
-        .collection('usuarios')
-        .doc(currentUser.uid)
-        .get();
-
-    return userDoc.data()?['puerta_acargo'] ?? 'Sin asignar';
+    return 'Puerta 1';
   }
 
   Future<Map<String, dynamic>?> _fetchStudentData(String barcode) async {
-    final snapshot = await _firestore.collection('alumnos')
-        .where(Filter.or(
-          Filter('dni', isEqualTo: barcode),
-          Filter('codigo_universitario', isEqualTo: barcode),
-        ))
-        .limit(1)
-        .get();
-
-    if (snapshot.docs.isEmpty) {
-      debugPrint('Student not found with barcode: $barcode');
-      return null;
+    // Ejemplo de consulta a la API REST
+      try {
+      final response = await http.get(
+  Uri.parse('${Config.apiBaseUrl}/alumnos/$barcode'),
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+    } catch (e) {
+      debugPrint('Error consultando alumno: $e');
     }
-    return snapshot.docs.first.data();
+    return null;
   }
 
   Future<void> _registerAttendance(Map<String, dynamic> student) async {
-  try {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) throw Exception('Usuario no autenticado');
-
-    final userDoc = await FirebaseFirestore.instance
-        .collection('usuarios')
-        .doc(currentUser.uid)
-        .get();
-
-    final attendanceType = await _determineAttendanceType(student['dni']);
-    final now = DateTime.now();
-
-    // Fetch the guard's assigned door
-    final guardSnapshot = await FirebaseFirestore.instance
-        .collection('usuarios')
-        .doc(currentUser.uid)
-        .get();
-
-    final guardData = guardSnapshot.data();
-    final assignedDoor = guardData?['puerta_acargo'] ?? 'Sin asignar';
-
-    // Registro en la colección 'asistencias'
-    await _firestore.collection('asistencias').add({
-      'dni': student['dni'],
-      'codigo_universitario': student['codigo_universitario'],
-      'nombre': student['nombre'],
-      'apellido': student['apellido'],
-      'siglas_facultad': student['siglas_facultad'],
-      'siglas_escuela': student['siglas_escuela'],
-      'fecha': Timestamp.fromDate(now),
-      'hora': DateFormat('HH:mm').format(now),
-      'tipo': attendanceType,
-      'entrada_tipo': _isPrincipalEntrance ? 'principal' : 'cochera',
-      'estado': 'activo',
-      'fecha_hora': Timestamp.fromDate(now),
-      'registrado_por': {
-        'uid': currentUser.uid,
-        'nombre': userDoc.data()?['nombre'] ?? 'Desconocido',
-        'apellido': userDoc.data()?['apellido'] ?? 'Desconocido',
-        'email': currentUser.email,
-        'rango': userDoc.data()?['rango'] ?? 'Desconocido',
-      },
-      'puerta': assignedDoor, // Include the assigned door
-    });
-
-    // Registro en la colección 'registros' para historial de usuarios
-    await _firestore.collection('registros').add({
-      'registrador_uid': currentUser.uid,
-      'registrador_nombre': userDoc.data()?['nombre'] ?? 'Desconocido',
-      'registrador_apellido': userDoc.data()?['apellido'] ?? 'Desconocido',
-      'registrador_email': currentUser.email,
-      'alumno_dni': student['dni'],
-      'alumno_nombre': student['nombre'],
-      'alumno_apellido': student['apellido'],
-      'tipo_asistencia': attendanceType,
-      'entrada_tipo': _isPrincipalEntrance ? 'principal' : 'cochera',
-      'fecha_hora': Timestamp.fromDate(now),
-    });
-
-    _showToast('Asistencia registrada: ${attendanceType.toUpperCase()} - ${_isPrincipalEntrance ? 'Principal' : 'Cochera'}');
-  } catch (e) {
-    _showToast('Error al registrar: ${e.toString()}');
-    rethrow;
-  }
-}
-
-
-  Future<String> _determineAttendanceType(String dni) async {
-    final snapshot = await _firestore.collection('asistencias')
-        .where('dni', isEqualTo: dni)
-        .orderBy('fecha_hora', descending: true)
-        .limit(1)
-        .get();
-
-    return snapshot.docs.isEmpty 
-        ? 'entrada' 
-        : (snapshot.docs.first.data()['tipo'] == 'entrada' ? 'salida' : 'entrada');
+    try {
+      final now = DateTime.now();
+      final attendance = {
+        'dni': student['dni'],
+        'codigo_universitario': student['codigo_universitario'],
+        'nombre': student['nombre'],
+        'apellido': student['apellido'],
+        'siglas_facultad': student['siglas_facultad'],
+        'siglas_escuela': student['siglas_escuela'],
+        'fecha': now.toIso8601String(),
+        'hora': '${now.hour}:${now.minute}',
+        'tipo': 'entrada', // O lógica según tu API
+        'entrada_tipo': _isPrincipalEntrance ? 'principal' : 'cochera',
+        'estado': 'activo',
+        'fecha_hora': now.toIso8601String(),
+        'registrado_por': {
+          'nombre': _guardName,
+          'puerta': _assignedDoor,
+        },
+        'puerta': _assignedDoor,
+      };
+      final response = await http.post(
+  Uri.parse('${Config.apiBaseUrl}/asistencias'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(attendance),
+      );
+      if (response.statusCode == 200) {
+        _showToast('Asistencia registrada');
+      } else {
+        _showToast('Error al registrar asistencia');
+      }
+    } catch (e) {
+      _showToast('Error al registrar: ${e.toString()}');
+    }
   }
 
   void _showToast(String message) {
@@ -362,19 +303,11 @@ class _UserScannerScreenState extends State<UserScannerScreen> with TickerProvid
   }
 
   Future<void> _signOut() async {
-    try {
-      await FirebaseAuth.instance.signOut();
-      // Add a small delay before navigating
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/login');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cerrar sesión: ${e.toString()}')),
-        );
-      }
+    // Si tienes lógica de cierre de sesión con tu backend, agrégala aquí
+    // Por ahora solo navega al login
+    await Future.delayed(const Duration(milliseconds: 100));
+    if (mounted) {
+      Navigator.of(context).pushReplacementNamed('/login');
     }
   }
 
@@ -390,29 +323,76 @@ class _UserScannerScreenState extends State<UserScannerScreen> with TickerProvid
     await _flutterTts.speak(texto);
   }
 
+  Future<bool> _isNfcAvailable() async {
+    try {
+      final availability = await FlutterNfcKit.nfcAvailability;
+      return availability == NFCAvailability.available;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<void> _startNfcScan() async {
+    _registerUserActivity();
+    if (_isProcessing) return;
+    setState(() => _isProcessing = true);
+    try {
+      final nfcAvailable = await _isNfcAvailable();
+      if (!nfcAvailable) {
+        _showToast('Este dispositivo no tiene NFC disponible o está desactivado.');
+        return;
+      }
+      final tag = await FlutterNfcKit.poll(timeout: Duration(seconds: 10));
+      if (!mounted) return;
+      if (tag.id.isNotEmpty) {
+        await _handleNfcScan(tag.id);
+      } else {
+        _showToast('No se detectó tarjeta NFC válida');
+      }
+    } catch (e) {
+      _showToast('Error leyendo NFC: ${e.toString()}');
+    } finally {
+      setState(() => _isProcessing = false);
+      await FlutterNfcKit.finish();
+    }
+  }
+
+  bool _nfcButtonEnabled = true;
+
+  Future<void> _checkNfcOnStartup() async {
+    final nfcAvailable = await _isNfcAvailable();
+    setState(() {
+      _nfcButtonEnabled = nfcAvailable;
+    });
+  }
+
+  Future<void> _handleNfcScan(String nfcId) async {
+    // Reutiliza la lógica de _handleBarcodeScan pero usando nfcId
+    await _handleBarcodeScan(nfcId);
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: _registerUserActivity, // Registrar actividad en cualquier toque
+      onTap: _registerUserActivity,
       child: Scaffold(
         backgroundColor: const Color(0xFFF5F7FA),
         body: Stack(
           children: [
-            // Contenido principal
             _buildMainContent(),
-            // Screensaver superpuesto
             if (_isScreensaverActive) _buildScreensaver(),
           ],
         ),
-        floatingActionButton: _isScreensaverActive ? null : FloatingActionButton(
-          backgroundColor: Colors.redAccent,
-          tooltip: 'Cerrar sesión',
-          child: const Icon(Icons.logout, color: Colors.white),
-          onPressed: () {
-            _registerUserActivity();
-            _signOut();
-          },
-        ),
+        floatingActionButton: _isScreensaverActive
+            ? null
+            : FloatingActionButton(
+                backgroundColor: _nfcButtonEnabled ? Colors.teal : Colors.grey,
+                tooltip: _nfcButtonEnabled
+                    ? 'Leer tarjeta NFC'
+                    : 'NFC no disponible',
+                child: const Icon(Icons.nfc, color: Colors.white),
+                onPressed: _nfcButtonEnabled ? _startNfcScan : null,
+              ),
         floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       ),
     );
@@ -438,7 +418,7 @@ class _UserScannerScreenState extends State<UserScannerScreen> with TickerProvid
             icon: const Icon(Icons.history, color: Colors.amber),
             tooltip: 'Historial',
             onPressed: () {
-              _registerUserActivity(); // Registrar actividad
+              _registerUserActivity();
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const UserHistoryScreen()),
@@ -503,7 +483,7 @@ class _UserScannerScreenState extends State<UserScannerScreen> with TickerProvid
                           icon: const Icon(Icons.sync, color: Colors.blueGrey),
                           tooltip: 'Actualizar puerta',
                           onPressed: () {
-                            _registerUserActivity(); // Registrar actividad al presionar
+                            _registerUserActivity();
                             _loadGuardInfo();
                           },
                         ),
@@ -525,31 +505,22 @@ class _UserScannerScreenState extends State<UserScannerScreen> with TickerProvid
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(28),
                       ),
-                      child: Stack(
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(28),
-                            child: MobileScanner(
-                              controller: _cameraController,
-                              onDetect: (BarcodeCapture capture) {
-                                final barcode = capture.barcodes.first;
-                                if (barcode.rawValue != null) {
-                                  _handleBarcodeScan(barcode.rawValue!);
-                                }
-                              },
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.nfc, size: 80, color: Colors.teal),
+                            const SizedBox(height: 24),
+                            Text(
+                              'Acerca una tarjeta NFC para registrar asistencia',
+                              style: GoogleFonts.lato(fontSize: 18, color: Colors.teal[800], fontWeight: FontWeight.w600),
+                              textAlign: TextAlign.center,
                             ),
-                          ),
-                          if (_isProcessing)
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.4),
-                                borderRadius: BorderRadius.circular(28),
-                              ),
-                              child: const Center(
-                                child: CircularProgressIndicator(color: Colors.amber),
-                              ),
-                            ),
-                        ],
+                            const SizedBox(height: 18),
+                            if (_isProcessing)
+                              const CircularProgressIndicator(color: Colors.amber),
+                          ],
+                        ),
                       ),
                     ),
                   ),
