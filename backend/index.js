@@ -1,8 +1,9 @@
-// ...existing code...
+// Backend completo con autenticación segura
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const bcrypt = require('bcrypt');
 
 const app = express();
 app.use(cors());
@@ -17,7 +18,7 @@ mongoose.connect(process.env.MONGODB_URI, {
 const db = mongoose.connection;
 db.on('error', console.error.bind(console, 'Error de conexión a MongoDB:'));
 db.once('open', () => {
-  console.log('Conectado exitosamente a MongoDB Atlas');
+  console.log('Conectado exitosamente a MongoDB> Atlas');
 });
 
 // Modelo de facultad
@@ -50,6 +51,43 @@ const AsistenciaSchema = new mongoose.Schema({
 });
 const Asistencia = mongoose.model('asistencias', AsistenciaSchema);
 
+// Modelo de usuarios mejorado con validaciones
+const UserSchema = new mongoose.Schema({
+  nombre: String,
+  apellido: String,
+  dni: { type: String, unique: true },
+  email: { type: String, unique: true },
+  password: String,
+  rango: { type: String, enum: ['admin', 'guardia'], default: 'guardia' },
+  estado: { type: String, enum: ['activo', 'inactivo'], default: 'activo' },
+  puerta_acargo: String,
+  telefono: String,
+  fecha_creacion: { type: Date, default: Date.now },
+  fecha_actualizacion: { type: Date, default: Date.now }
+});
+
+// Middleware para hashear contraseña antes de guardar
+UserSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) return next();
+  
+  try {
+    const saltRounds = 10;
+    this.password = await bcrypt.hash(this.password, saltRounds);
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Método para comparar contraseñas
+UserSchema.methods.comparePassword = async function(candidatePassword) {
+  return bcrypt.compare(candidatePassword, this.password);
+};
+
+const User = mongoose.model('usuarios', UserSchema);
+
+// ==================== RUTAS ====================
+
 // Ruta para obtener asistencias
 app.get('/asistencias', async (req, res) => {
   try {
@@ -59,15 +97,6 @@ app.get('/asistencias', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener asistencias' });
   }
 });
-
-// Modelo de ejemplo
-const UserSchema = new mongoose.Schema({
-  name: String,
-  email: String,
-  password: String, // Asegúrate de tener este campo
-  rango: String     // Opcional, para roles
-});
-const User = mongoose.model('usuarios', UserSchema);
 
 // Ruta para obtener facultades
 app.get('/facultades', async (req, res) => {
@@ -94,39 +123,144 @@ app.get('/escuelas', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener escuelas' });
   }
 });
+
+// Ruta para obtener usuarios (sin contraseñas)
 app.get('/usuarios', async (req, res) => {
-  const users = await User.find();
-  res.json(users);
+  try {
+    const users = await User.find().select('-password');
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener usuarios' });
+  }
 });
 
+// Ruta para crear usuario con contraseña encriptada
 app.post('/usuarios', async (req, res) => {
-  const user = new User(req.body);
-  await user.save();
-  res.json(user);
+  try {
+    const { nombre, apellido, dni, email, password, rango, puerta_acargo, telefono } = req.body;
+    
+    // Validar campos requeridos
+    if (!nombre || !apellido || !dni || !email || !password) {
+      return res.status(400).json({ error: 'Faltan campos requeridos' });
+    }
+
+    // Crear usuario (la contraseña se hashea automáticamente)
+    const user = new User({
+      nombre,
+      apellido,
+      dni,
+      email,
+      password,
+      rango: rango || 'guardia',
+      puerta_acargo,
+      telefono
+    });
+
+    await user.save();
+    
+    // Responder sin la contraseña
+    const userResponse = user.toObject();
+    delete userResponse.password;
+    
+    res.status(201).json(userResponse);
+  } catch (err) {
+    if (err.code === 11000) {
+      res.status(400).json({ error: 'DNI o email ya existe' });
+    } else {
+      res.status(500).json({ error: 'Error al crear usuario' });
+    }
+  }
 });
 
-// Ruta de login para autenticación con MongoDB
+// Ruta para cambiar contraseña
+app.put('/usuarios/:id/password', async (req, res) => {
+  try {
+    const { password } = req.body;
+    
+    if (!password) {
+      return res.status(400).json({ error: 'Contraseña requerida' });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    user.password = password; // Se hashea automáticamente
+    user.fecha_actualizacion = new Date();
+    await user.save();
+
+    res.json({ message: 'Contraseña actualizada exitosamente' });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al actualizar contraseña' });
+  }
+});
+
+// Ruta de login segura
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
   try {
     // Buscar usuario por email
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email, estado: 'activo' });
     if (!user) {
-      return res.status(401).json({ error: 'Usuario no encontrado' });
+      return res.status(401).json({ error: 'Credenciales incorrectas' });
     }
-    // Validar contraseña (en producción, usar hash)
-    if (user.password !== password) {
-      return res.status(401).json({ error: 'Contraseña incorrecta' });
+
+    // Verificar contraseña con bcrypt
+    const isPasswordValid = await user.comparePassword(password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: 'Credenciales incorrectas' });
     }
-    // Enviar datos relevantes
+
+    // Enviar datos del usuario (sin contraseña)
     res.json({
       id: user._id,
-      name: user.name,
+      nombre: user.nombre,
+      apellido: user.apellido,
       email: user.email,
-      rango: user.rango || 'user', // Ajusta según tu modelo
+      dni: user.dni,
+      rango: user.rango,
+      puerta_acargo: user.puerta_acargo,
+      estado: user.estado
     });
   } catch (err) {
     res.status(500).json({ error: 'Error en el servidor' });
+  }
+});
+
+// Ruta para actualizar usuario
+app.put('/usuarios/:id', async (req, res) => {
+  try {
+    const { password, ...updateData } = req.body;
+    
+    updateData.fecha_actualizacion = new Date();
+    
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true }
+    ).select('-password');
+
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al actualizar usuario' });
+  }
+});
+
+// Ruta para obtener usuario por ID
+app.get('/usuarios/:id', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener usuario' });
   }
 });
 
