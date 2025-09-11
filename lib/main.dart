@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'login_screen.dart';
-import 'screens/user/user_scanner_screen.dart';
-import 'screens/admin/admin_view.dart';
-import 'screens/admin/admin_report_chart_screen.dart';
-import 'screens/admin/admin_report_screen.dart';
-import 'screens/admin/alarm_details_screen.dart';
-import 'screens/user/user_alarm_details_screen.dart';
+import 'package:provider/provider.dart';
+import 'viewmodels/auth_viewmodel.dart';
+import 'viewmodels/nfc_viewmodel.dart';
+import 'viewmodels/admin_viewmodel.dart';
+import 'viewmodels/reports_viewmodel.dart';
+import 'views/login_view.dart';
 
 void main() {
   runApp(const MyApp());
@@ -16,18 +15,28 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Sistema de Autenticación',
-      home: const LoginScreen(),
-      routes: {
-        '/login': (context) => const LoginScreen(),
-        '/admin': (context) => const AdminView(),
-        '/user': (context) => const UserScannerScreen(),
-        '/admin/report_chart': (context) => const AdminReportChartScreen(),
-        '/admin/report_general': (context) => const AdminReportScreen(),
-        '/admin/alarm_details': (context) => const AlarmDetailsScreen(),
-        '/user/alarm_details': (context) => const UserAlarmDetailsScreen(),
-      },
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthViewModel()),
+        ChangeNotifierProvider(create: (_) => NfcViewModel()),
+        ChangeNotifierProvider(create: (_) => AdminViewModel()),
+        ChangeNotifierProvider(create: (_) => ReportsViewModel()),
+      ],
+      child: MaterialApp(
+        title: 'Control de Acceso NFC - MVVM',
+        theme: ThemeData(
+          primarySwatch: Colors.blue,
+          useMaterial3: true,
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+          appBarTheme: AppBarTheme(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            elevation: 2,
+          ),
+        ),
+        home: LoginView(),
+        debugShowCheckedModeBanner: false,
+      ),
     );
   }
 }

@@ -9,10 +9,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Conexión a MongoDB Atlas
+// Conexión a MongoDB Atlas - ESPECIFICAR BASE DE DATOS ASISTENCIA
+mongoose.set('strictQuery', false);
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
+  dbName: 'ASISTENCIA'
 });
 
 const db = mongoose.connection;
@@ -21,23 +23,26 @@ db.once('open', () => {
   console.log('Conectado exitosamente a MongoDB> Atlas');
 });
 
-// Modelo de facultad
+// Modelo de facultad - EXACTO como en MongoDB Atlas (campos como strings)
 const FacultadSchema = new mongoose.Schema({
-  nombre: String,
-  siglas: String
-});
+  _id: String,
+  siglas: String,
+  nombre: String
+}, { collection: 'facultades', strict: false, _id: false });
 const Facultad = mongoose.model('facultades', FacultadSchema);
 
-// Modelo de escuela
+// Modelo de escuela - EXACTO como en MongoDB Atlas
 const EscuelaSchema = new mongoose.Schema({
+  _id: String,
   nombre: String,
   siglas: String,
   siglas_facultad: String
-});
+}, { collection: 'escuelas', strict: false, _id: false });
 const Escuela = mongoose.model('escuelas', EscuelaSchema);
 
-// Modelo de asistencias
+// Modelo de asistencias - EXACTO como en MongoDB Atlas
 const AsistenciaSchema = new mongoose.Schema({
+  _id: String,
   nombre: String,
   apellido: String,
   dni: String,
@@ -48,11 +53,12 @@ const AsistenciaSchema = new mongoose.Schema({
   fecha_hora: Date,
   entrada_tipo: String,
   puerta: String
-});
+}, { collection: 'asistencias', strict: false, _id: false });
 const Asistencia = mongoose.model('asistencias', AsistenciaSchema);
 
-// Modelo de usuarios mejorado con validaciones
+// Modelo de usuarios mejorado con validaciones - EXACTO como MongoDB Atlas
 const UserSchema = new mongoose.Schema({
+  _id: String,
   nombre: String,
   apellido: String,
   dni: { type: String, unique: true },
@@ -64,7 +70,7 @@ const UserSchema = new mongoose.Schema({
   telefono: String,
   fecha_creacion: { type: Date, default: Date.now },
   fecha_actualizacion: { type: Date, default: Date.now }
-});
+}, { collection: 'usuarios', strict: false, _id: false });
 
 // Middleware para hashear contraseña antes de guardar
 UserSchema.pre('save', async function(next) {
@@ -86,7 +92,62 @@ UserSchema.methods.comparePassword = async function(candidatePassword) {
 
 const User = mongoose.model('usuarios', UserSchema);
 
+// Modelo de alumnos - EXACTO como en MongoDB Atlas
+const AlumnoSchema = new mongoose.Schema({
+  _id: String,
+  _identificacion: String,
+  nombre: String,
+  apellido: String,
+  dni: String,
+  codigo_universitario: { type: String, unique: true, index: true },
+  escuela_profesional: String,
+  facultad: String,
+  siglas_escuela: String,
+  siglas_facultad: String,
+  estado: { type: Boolean, default: true }
+}, { collection: 'alumnos', strict: false, _id: false });
+const Alumno = mongoose.model('alumnos', AlumnoSchema);
+
+// Modelo de externos - EXACTO como en MongoDB Atlas
+const ExternoSchema = new mongoose.Schema({
+  _id: String,
+  nombre: String,
+  dni: { type: String, unique: true, index: true }
+}, { collection: 'externos', strict: false, _id: false });
+const Externo = mongoose.model('externos', ExternoSchema);
+
+// Modelo de visitas - EXACTO como en MongoDB Atlas
+const VisitaSchema = new mongoose.Schema({
+  _id: String,
+  puerta: String,
+  guardia_nombre: String,
+  asunto: String,
+  fecha_hora: Date,
+  nombre: String,
+  dni: String,
+  facultad: String
+}, { collection: 'visitas', strict: false, _id: false });
+const Visita = mongoose.model('visitas', VisitaSchema);
+
 // ==================== RUTAS ====================
+
+// Ruta de prueba raíz
+app.get('/', (req, res) => {
+  res.json({
+    message: "API Sistema Control Acceso NFC - FUNCIONANDO ✅",
+    endpoints: {
+      alumnos: "/alumnos",
+      facultades: "/facultades", 
+      usuarios: "/usuarios",
+      asistencias: "/asistencias",
+      externos: "/externos",
+      visitas: "/visitas",
+      login: "/login"
+    },
+    database: "ASISTENCIA - MongoDB Atlas",
+    status: "Sprint 1 Completo 🚀"
+  });
+});
 
 // Ruta para obtener asistencias
 app.get('/asistencias', async (req, res) => {
@@ -98,7 +159,7 @@ app.get('/asistencias', async (req, res) => {
   }
 });
 
-// Ruta para obtener facultades
+// Ruta para obtener facultades - FIXED
 app.get('/facultades', async (req, res) => {
   try {
     const facultades = await Facultad.find();
@@ -261,6 +322,108 @@ app.get('/usuarios/:id', async (req, res) => {
     res.json(user);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener usuario' });
+  }
+});
+
+// ==================== ENDPOINTS ALUMNOS ====================
+
+// Ruta para buscar alumno por código universitario (CRÍTICO para NFC)
+app.get('/alumnos/:codigo', async (req, res) => {
+  try {
+    const alumno = await Alumno.findOne({ 
+      codigo_universitario: req.params.codigo 
+    });
+    
+    if (!alumno) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+
+    // Validar que el alumno esté matriculado (estado = true)
+    if (!alumno.estado) {
+      return res.status(403).json({ 
+        error: 'Alumno no matriculado o inactivo',
+        alumno: {
+          nombre: alumno.nombre,
+          apellido: alumno.apellido,
+          codigo_universitario: alumno.codigo_universitario
+        }
+      });
+    }
+
+    res.json(alumno);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al buscar alumno' });
+  }
+});
+
+// Ruta para obtener todos los alumnos
+app.get('/alumnos', async (req, res) => {
+  try {
+    const alumnos = await Alumno.find();
+    res.json(alumnos);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener alumnos' });
+  }
+});
+
+// ==================== ENDPOINTS EXTERNOS ====================
+
+// Ruta para buscar externo por DNI
+app.get('/externos/:dni', async (req, res) => {
+  try {
+    const externo = await Externo.findOne({ dni: req.params.dni });
+    if (!externo) {
+      return res.status(404).json({ error: 'Externo no encontrado' });
+    }
+    res.json(externo);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al buscar externo' });
+  }
+});
+
+// Ruta para obtener todos los externos
+app.get('/externos', async (req, res) => {
+  try {
+    const externos = await Externo.find();
+    res.json(externos);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener externos' });
+  }
+});
+
+// ==================== ENDPOINTS ASISTENCIAS ====================
+
+// Ruta para crear nueva asistencia (CRÍTICO para registrar accesos)
+app.post('/asistencias', async (req, res) => {
+  try {
+    const asistencia = new Asistencia(req.body);
+    await asistencia.save();
+    res.status(201).json(asistencia);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al registrar asistencia', details: err.message });
+  }
+});
+
+// ==================== ENDPOINTS VISITAS ====================
+
+// Ruta para crear nueva visita
+app.post('/visitas', async (req, res) => {
+  try {
+    const visita = new Visita(req.body);
+    await visita.save();
+    res.status(201).json(visita);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al registrar visita', details: err.message });
+  }
+});
+
+// Ruta para obtener todas las visitas
+app.get('/visitas', async (req, res) => {
+  try {
+    const visitas = await Visita.find();
+    res.json(visitas);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener visitas' });
   }
 });
 
