@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:google_fonts/google_fonts.dart'; // Import Google Fonts
+import 'config/api_config.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -30,7 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
     try {
       final response = await http.post(
-        Uri.parse('http://192.168.1.51:3000/login'),
+        Uri.parse(ApiConfig.loginUrl),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'email': _emailController.text.trim(),
@@ -47,7 +48,9 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Credenciales incorrectas o usuario no encontrado.')),
+          SnackBar(
+            content: Text('Credenciales incorrectas o usuario no encontrado.'),
+          ),
         );
       }
     } catch (e) {
@@ -73,10 +76,7 @@ class _LoginScreenState extends State<LoginScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF536976),
-              Color(0xFF292E49),
-            ],
+            colors: [Color(0xFF536976), Color(0xFF292E49)],
           ),
         ),
         child: Center(
@@ -91,7 +91,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: CircleAvatar(
                     radius: 40,
                     backgroundColor: Colors.white,
-                    child: Icon(Icons.lock_outline, size: 48, color: Colors.indigo[700]),
+                    child: Icon(
+                      Icons.lock_outline,
+                      size: 48,
+                      color: Colors.indigo[700],
+                    ),
                   ),
                 ),
                 Text(
@@ -147,7 +151,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         TextFormField(
                           controller: _emailController,
                           decoration: InputDecoration(
-                            prefixIcon: const Icon(Icons.email_outlined, color: Colors.indigo),
+                            prefixIcon: const Icon(
+                              Icons.email_outlined,
+                              color: Colors.indigo,
+                            ),
                             labelText: 'Correo Electrónico',
                             labelStyle: TextStyle(color: Colors.blueGrey[600]),
                             filled: true,
@@ -157,15 +164,21 @@ class _LoginScreenState extends State<LoginScreen> {
                               borderSide: BorderSide.none,
                             ),
                           ),
-                          validator: (value) =>
-                              value == null || value.isEmpty ? 'Ingrese su correo electrónico' : null,
+                          validator:
+                              (value) =>
+                                  value == null || value.isEmpty
+                                      ? 'Ingrese su correo electrónico'
+                                      : null,
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: _passwordController,
                           obscureText: true,
                           decoration: InputDecoration(
-                            prefixIcon: const Icon(Icons.lock_outline, color: Colors.indigo),
+                            prefixIcon: const Icon(
+                              Icons.lock_outline,
+                              color: Colors.indigo,
+                            ),
                             labelText: 'Contraseña',
                             labelStyle: TextStyle(color: Colors.blueGrey[600]),
                             filled: true,
@@ -175,8 +188,11 @@ class _LoginScreenState extends State<LoginScreen> {
                               borderSide: BorderSide.none,
                             ),
                           ),
-                          validator: (value) =>
-                              value == null || value.isEmpty ? 'Ingrese su contraseña' : null,
+                          validator:
+                              (value) =>
+                                  value == null || value.isEmpty
+                                      ? 'Ingrese su contraseña'
+                                      : null,
                         ),
                         const SizedBox(height: 28),
                         SizedBox(
@@ -185,7 +201,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.indigo[700],
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 16),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 48,
+                                vertical: 16,
+                              ),
                               textStyle: const TextStyle(fontSize: 18),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12.0),
@@ -193,9 +212,12 @@ class _LoginScreenState extends State<LoginScreen> {
                               elevation: 4,
                             ),
                             onPressed: _submit,
-                            child: _isLoading
-                                ? const CircularProgressIndicator(color: Colors.white)
-                                : const Text('Iniciar Sesión'),
+                            child:
+                                _isLoading
+                                    ? const CircularProgressIndicator(
+                                      color: Colors.white,
+                                    )
+                                    : const Text('Iniciar Sesión'),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -205,7 +227,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.green[700],
                               foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 32,
+                                vertical: 14,
+                              ),
                               textStyle: const TextStyle(fontSize: 16),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12.0),

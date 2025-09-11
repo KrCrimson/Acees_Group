@@ -1,4 +1,5 @@
 // ...existing code...
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -7,16 +8,16 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Conexión a MongoDB
-mongoose.connect('mongodb://localhost:27017/Asistencia', {
+// Conexión a MongoDB Atlas
+mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
 
 const db = mongoose.connection;
-db.on('error', console.error.bind(console, 'connection error:'));
+db.on('error', console.error.bind(console, 'Error de conexión a MongoDB:'));
 db.once('open', () => {
-  console.log('Conectado a MongoDB');
+  console.log('Conectado exitosamente a MongoDB Atlas');
 });
 
 // Modelo de facultad
