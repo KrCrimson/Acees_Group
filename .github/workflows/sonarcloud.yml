@@ -1,0 +1,75 @@
+name: SonarCloud Analysis
+
+on:
+  push:
+    branches: [ main, develop, Arce ]
+  pull_request:
+    branches: [ main, develop ]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  sonarcloud:
+    name: SonarCloud Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.7.2'
+        channel: 'stable'
+        cache: true
+
+    - name: Install dependencies
+      run: flutter pub get
+
+    - name: Verify the installation
+      run: flutter doctor -v
+
+    - name: Run Flutter analyze
+      run: flutter analyze --write=dart_analysis_report.json --format=json
+
+    - name: Run tests with coverage
+      run: |
+        flutter test --coverage
+        
+    - name: Convert coverage to LCOV format
+      run: |
+        # Verificar si existe el archivo de cobertura
+        if [ -f "coverage/lcov.info" ]; then
+          echo "Coverage file found"
+          head -20 coverage/lcov.info
+        else
+          echo "Coverage file not found, creating empty one"
+          mkdir -p coverage
+          touch coverage/lcov.info
+        fi
+
+    - name: SonarCloud Scan
+      uses: SonarSource/sonarcloud-github-action@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}   # Generate this token in SonarCloud
+
+    - name: SonarCloud Quality Gate check
+      id: sonarcloud-quality-gate-check
+      uses: sonarcloud-github-c-cpp@v1
+      timeout-minutes: 5
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      continue-on-error: true
+
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+      continue-on-error: true

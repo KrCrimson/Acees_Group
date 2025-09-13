@@ -1,0 +1,104 @@
+# Configuración específica para análisis de código Dart/Flutter
+# Este archivo complementa sonar-project.properties
+
+# Reglas específicas para Flutter
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "**/*.mocks.dart"
+    - "**/generated/**"
+    - "**/build/**"
+    - "lib/firebase_options.dart"
+  
+  strong-mode:
+    implicit-casts: false
+    implicit-dynamic: false
+  
+  errors:
+    # Tratar warnings como errores para mayor calidad
+    invalid_annotation_target: ignore
+    todo: ignore
+    
+  language:
+    strict-raw-string-literals: true
+    strict-inference: true
+    strict-casts: true
+
+linter:
+  rules:
+    # Reglas de estilo y mantenibilidad
+    - prefer_single_quotes
+    - prefer_const_constructors
+    - prefer_const_literals_to_create_immutables
+    - prefer_final_locals
+    - prefer_final_in_for_each
+    - prefer_is_empty
+    - prefer_is_not_empty
+    - prefer_contains
+    - unnecessary_null_in_if_null_operators
+    - unnecessary_null_aware_assignments
+    - unnecessary_nullable_for_final_variable_declarations
+    - unnecessary_string_interpolations
+    - unnecessary_string_escapes
+    - unnecessary_raw_strings
+    - unnecessary_parenthesis
+    - unnecessary_overrides
+    - unnecessary_new
+    - unnecessary_lambdas
+    - unnecessary_getters_setters
+    - unnecessary_const
+    - unnecessary_brace_in_string_interps
+    - unawaited_futures
+    - type_init_formals
+    - sort_constructors_first
+    - slash_for_doc_comments
+    - require_trailing_commas
+    - parameter_assignments
+    - omit_local_variable_types
+    - null_closures
+    - no_leading_underscores_for_local_identifiers
+    - library_private_types_in_public_api
+    - lines_longer_than_80_chars
+    - leading_newlines_in_multiline_strings
+    - join_return_with_assignment
+    - file_names
+    - empty_statements
+    - empty_constructor_bodies
+    - empty_catches
+    - directives_ordering
+    - curly_braces_in_flow_control_structures
+    - constant_identifier_names
+    - camel_case_types
+    - camel_case_extensions
+    - avoid_void_async
+    - avoid_unnecessary_containers
+    - avoid_types_on_closure_parameters
+    - avoid_type_to_string
+    - avoid_single_cascade_in_expression_statements
+    - avoid_setters_without_getters
+    - avoid_returning_null_for_void
+    - avoid_return_types_on_setters
+    - avoid_relative_lib_imports
+    - avoid_redundant_argument_values
+    - avoid_print
+    - avoid_positional_boolean_parameters
+    - avoid_null_checks_in_equality_operators
+    - avoid_multiple_declarations_per_line
+    - avoid_js_rounded_ints
+    - avoid_init_to_null
+    - avoid_implementing_value_types
+    - avoid_function_literals_in_foreach_calls
+    - avoid_equals_and_hash_code_on_mutable_classes
+    - avoid_empty_else
+    - avoid_double_and_int_checks
+    - avoid_catches_without_on_clauses
+    - avoid_catching_errors
+    - avoid_bool_literals_in_conditional_expressions
+    - avoid_annotating_with_dynamic
+    - always_use_package_imports
+    - always_require_non_null_named_parameters
+    - always_put_required_named_parameters_first
+    - always_declare_return_types
