@@ -1,0 +1,113 @@
+name: Flutter CI/CD with SonarCloud
+
+on:
+  push:
+    branches: [ main, develop, Arce ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  analyze-and-test:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Needed for SonarCloud
+
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.16.9'
+        channel: 'stable'
+        cache: true
+
+    - name: Verify Flutter installation
+      run: |
+        flutter --version
+        flutter doctor -v
+
+    - name: Get dependencies
+      run: flutter pub get
+
+    - name: Check for dependency issues
+      run: flutter pub deps
+
+    - name: Run code analysis
+      run: |
+        flutter analyze --no-fatal-infos
+      continue-on-error: true
+
+    - name: Run tests with coverage
+      run: |
+        flutter test --coverage --reporter=json --file-reporter=json:test-results.json
+      continue-on-error: true
+
+    - name: Generate coverage report
+      run: |
+        if [ -f "coverage/lcov.info" ]; then
+          echo "Coverage file found"
+          # Convert LCOV to generic coverage format for SonarCloud
+          genhtml coverage/lcov.info --output-directory coverage-html
+          echo "Coverage HTML report generated"
+        else
+          echo "No coverage file found, creating empty coverage"
+          mkdir -p coverage
+          touch coverage/lcov.info
+        fi
+
+    - name: SonarCloud Scan
+      uses: SonarSource/sonarcloud-github-action@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      continue-on-error: true
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+      continue-on-error: true
+
+    - name: Archive test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results
+        path: |
+          test-results.json
+          coverage/
+        retention-days: 30
+
+  build-apk:
+    name: Build APK
+    runs-on: ubuntu-latest
+    needs: analyze-and-test
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.16.9'
+        channel: 'stable'
+        cache: true
+
+    - name: Get dependencies
+      run: flutter pub get
+
+    - name: Build APK
+      run: flutter build apk --release
+
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: app-release-apk
+        path: build/app/outputs/flutter-apk/app-release.apk
