@@ -2,10 +2,10 @@ import 'package:flutter/foundation.dart';
 import '../models/asistencia_model.dart';
 import '../models/facultad_escuela_model.dart';
 import '../models/alumno_model.dart';
-import '../services/api_service.dart';
+import '../services/hybrid_api_service.dart';
 
 class ReportsViewModel extends ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final HybridApiService _apiService = HybridApiService();
 
   List<AsistenciaModel> _asistencias = [];
   List<FacultadModel> _facultades = [];

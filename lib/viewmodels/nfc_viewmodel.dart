@@ -4,12 +4,12 @@ import 'dart:collection';
 import '../models/alumno_model.dart';
 import '../models/asistencia_model.dart';
 import '../models/decision_manual_model.dart';
-import '../services/api_service.dart';
+import '../services/hybrid_api_service.dart';
 import '../services/nfc_service.dart';
 import '../services/autorizacion_service.dart';
 
 class NfcViewModel extends ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final HybridApiService _apiService = HybridApiService();
   final NfcService _nfcService = NfcService();
   final AutorizacionService _autorizacionService = AutorizacionService();
 

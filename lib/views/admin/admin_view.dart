@@ -10,6 +10,8 @@ import 'reports_view.dart';
 import 'session_config_view.dart';
 import 'historial_view.dart';
 import 'sync_config_view.dart';
+import 'offline_config_view.dart';
+import '../../widgets/connectivity_status_widget.dart';
 
 class AdminView extends StatefulWidget {
   @override
@@ -23,6 +25,7 @@ class _AdminViewState extends State<AdminView> {
     AdminDashboard(),
     UserManagementView(),
     ReportsView(),
+    OfflineConfigView(),
   ];
 
   void _handleLogout() {
@@ -65,6 +68,8 @@ class _AdminViewState extends State<AdminView> {
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
         actions: [
+          ConnectivityStatusWidget(),
+          SizedBox(width: 8),
           Consumer<AuthViewModel>(
             builder: (context, authViewModel, child) {
               return PopupMenuButton<String>(
@@ -119,6 +124,10 @@ class _AdminViewState extends State<AdminView> {
           BottomNavigationBarItem(
             icon: Icon(Icons.analytics),
             label: 'Reportes',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.offline_bolt),
+            label: 'Offline',
           ),
         ],
       ),
