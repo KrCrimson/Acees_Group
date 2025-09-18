@@ -40,7 +40,7 @@ const EscuelaSchema = new mongoose.Schema({
 }, { collection: 'escuelas', strict: false, _id: false });
 const Escuela = mongoose.model('escuelas', EscuelaSchema);
 
-// Modelo de asistencias - EXACTO como en MongoDB Atlas
+// Modelo de asistencias - EXACTO como en MongoDB Atlas con nuevos campos
 const AsistenciaSchema = new mongoose.Schema({
   _id: String,
   nombre: String,
@@ -52,9 +52,53 @@ const AsistenciaSchema = new mongoose.Schema({
   tipo: String,
   fecha_hora: Date,
   entrada_tipo: String,
-  puerta: String
+  puerta: String,
+  // Nuevos campos para US025-US030
+  guardia_id: String,
+  guardia_nombre: String,
+  autorizacion_manual: Boolean,
+  razon_decision: String,
+  timestamp_decision: Date,
+  coordenadas: String,
+  descripcion_ubicacion: String
 }, { collection: 'asistencias', strict: false, _id: false });
 const Asistencia = mongoose.model('asistencias', AsistenciaSchema);
+
+// Modelo para decisiones manuales (US024-US025)
+const DecisionManualSchema = new mongoose.Schema({
+  _id: String,
+  estudiante_id: String,
+  estudiante_dni: String,
+  estudiante_nombre: String,
+  guardia_id: String,
+  guardia_nombre: String,
+  autorizado: Boolean,
+  razon: String,
+  timestamp: { type: Date, default: Date.now },
+  punto_control: String,
+  tipo_acceso: String,
+  datos_estudiante: Object
+}, { collection: 'decisiones_manuales', strict: false, _id: false });
+const DecisionManual = mongoose.model('decisiones_manuales', DecisionManualSchema);
+
+// Modelo para control de presencia (US026-US030)
+const PresenciaSchema = new mongoose.Schema({
+  _id: String,
+  estudiante_id: String,
+  estudiante_dni: String,
+  estudiante_nombre: String,
+  facultad: String,
+  escuela: String,
+  hora_entrada: Date,
+  hora_salida: Date,
+  punto_entrada: String,
+  punto_salida: String,
+  esta_dentro: { type: Boolean, default: true },
+  guardia_entrada: String,
+  guardia_salida: String,
+  tiempo_en_campus: Number
+}, { collection: 'presencia', strict: false, _id: false });
+const Presencia = mongoose.model('presencia', PresenciaSchema);
 
 // Modelo de usuarios mejorado con validaciones - EXACTO como MongoDB Atlas
 const UserSchema = new mongoose.Schema({
@@ -391,7 +435,172 @@ app.get('/externos', async (req, res) => {
   }
 });
 
-// ==================== ENDPOINTS ASISTENCIAS ====================
+// Ruta para registrar asistencia completa (US025-US030)
+app.post('/asistencias/completa', async (req, res) => {
+  try {
+    const asistencia = new Asistencia(req.body);
+    await asistencia.save();
+    res.status(201).json(asistencia);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al registrar asistencia completa', details: err.message });
+  }
+});
+
+// Determinar último tipo de acceso para entrada/salida inteligente (US028)
+app.get('/asistencias/ultimo-acceso/:dni', async (req, res) => {
+  try {
+    const { dni } = req.params;
+    const ultimaAsistencia = await Asistencia.findOne({ dni }).sort({ fecha_hora: -1 });
+    
+    if (ultimaAsistencia) {
+      res.json({ ultimo_tipo: ultimaAsistencia.tipo });
+    } else {
+      res.json({ ultimo_tipo: 'salida' }); // Si no hay registros, próximo debería ser entrada
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'Error al determinar último acceso' });
+  }
+});
+
+// ==================== ENDPOINTS DECISIONES MANUALES (US024-US025) ====================
+
+// Registrar decisión manual del guardia
+app.post('/decisiones-manuales', async (req, res) => {
+  try {
+    const decision = new DecisionManual(req.body);
+    await decision.save();
+    res.status(201).json(decision);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al registrar decisión manual', details: err.message });
+  }
+});
+
+// Obtener decisiones de un guardia específico
+app.get('/decisiones-manuales/guardia/:guardiaId', async (req, res) => {
+  try {
+    const { guardiaId } = req.params;
+    const decisiones = await DecisionManual.find({ guardia_id: guardiaId }).sort({ timestamp: -1 });
+    res.json(decisiones);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener decisiones del guardia' });
+  }
+});
+
+// Obtener todas las decisiones manuales (para reportes)
+app.get('/decisiones-manuales', async (req, res) => {
+  try {
+    const decisiones = await DecisionManual.find().sort({ timestamp: -1 });
+    res.json(decisiones);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener decisiones manuales' });
+  }
+});
+
+// ==================== ENDPOINTS CONTROL DE PRESENCIA (US026-US030) ====================
+
+// Obtener presencia actual en el campus
+app.get('/presencia', async (req, res) => {
+  try {
+    const presencias = await Presencia.find({ esta_dentro: true });
+    res.json(presencias);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener presencia actual' });
+  }
+});
+
+// Actualizar presencia de un estudiante
+app.post('/presencia/actualizar', async (req, res) => {
+  try {
+    const { estudiante_dni, tipo_acceso, punto_control, guardia_id } = req.body;
+    
+    if (tipo_acceso === 'entrada') {
+      // Crear nueva presencia o actualizar existente
+      const presenciaExistente = await Presencia.findOne({ estudiante_dni, esta_dentro: true });
+      
+      if (presenciaExistente) {
+        // Ya está dentro, posible error
+        res.status(400).json({ error: 'El estudiante ya se encuentra en el campus' });
+        return;
+      }
+      
+      // Obtener datos del estudiante para la presencia
+      const estudiante = await Alumno.findOne({ dni: estudiante_dni });
+      if (!estudiante) {
+        res.status(404).json({ error: 'Estudiante no encontrado' });
+        return;
+      }
+      
+      const nuevaPresencia = new Presencia({
+        _id: new mongoose.Types.ObjectId().toString(),
+        estudiante_id: estudiante._id,
+        estudiante_dni,
+        estudiante_nombre: `${estudiante.nombre} ${estudiante.apellido}`,
+        facultad: estudiante.siglas_facultad,
+        escuela: estudiante.siglas_escuela,
+        hora_entrada: new Date(),
+        punto_entrada: punto_control,
+        esta_dentro: true,
+        guardia_entrada: guardia_id
+      });
+      
+      await nuevaPresencia.save();
+      res.json(nuevaPresencia);
+      
+    } else if (tipo_acceso === 'salida') {
+      // Actualizar presencia existente
+      const presencia = await Presencia.findOne({ estudiante_dni, esta_dentro: true });
+      
+      if (!presencia) {
+        res.status(400).json({ error: 'El estudiante no se encuentra registrado como presente' });
+        return;
+      }
+      
+      const horaSalida = new Date();
+      const tiempoEnCampus = horaSalida - presencia.hora_entrada;
+      
+      presencia.hora_salida = horaSalida;
+      presencia.punto_salida = punto_control;
+      presencia.esta_dentro = false;
+      presencia.guardia_salida = guardia_id;
+      presencia.tiempo_en_campus = tiempoEnCampus;
+      
+      await presencia.save();
+      res.json(presencia);
+    }
+    
+  } catch (err) {
+    res.status(500).json({ error: 'Error al actualizar presencia', details: err.message });
+  }
+});
+
+// Obtener historial completo de presencia
+app.get('/presencia/historial', async (req, res) => {
+  try {
+    const historial = await Presencia.find().sort({ hora_entrada: -1 });
+    res.json(historial);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener historial de presencia' });
+  }
+});
+
+// Obtener personas que llevan mucho tiempo en campus
+app.get('/presencia/largo-tiempo', async (req, res) => {
+  try {
+    const ahora = new Date();
+    const hace8Horas = new Date(ahora - 8 * 60 * 60 * 1000);
+    
+    const presenciasLargas = await Presencia.find({
+      esta_dentro: true,
+      hora_entrada: { $lte: hace8Horas }
+    });
+    
+    res.json(presenciasLargas);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener presencias de largo tiempo' });
+  }
+});
+
+// ==================== ENDPOINTS ASISTENCIAS EXISTENTES ====================
 
 // Ruta para crear nueva asistencia (CRÍTICO para registrar accesos)
 app.post('/asistencias', async (req, res) => {

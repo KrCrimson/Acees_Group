@@ -6,7 +6,7 @@ class ApiConfig {
   static const String _baseUrlProd = 'https://movilesii.onrender.com';
 
   // Cambiar a true cuando compiles la APK para producción
-  static const bool _isProduction = false;
+  static const bool _isProduction = true;
 
   static String get baseUrl => _isProduction ? _baseUrlProd : _baseUrlDev;
 

@@ -4,9 +4,91 @@ import '../models/alumno_model.dart';
 import '../models/usuario_model.dart';
 import '../models/asistencia_model.dart';
 import '../models/facultad_escuela_model.dart';
+import '../models/punto_control_model.dart';
 import '../models/visita_externo_model.dart';
-import '../models/decision_manual_model.dart';
-import '../models/presencia_model.dart';
+import '../config/api_config.dart';
+
+class ApiService {rt:convert';
+import 'package:http/http.dart' as http;
+import '../models/alumno_model.dart';
+import '../models/usuario_model.dart';
+import '../models/asistencia_model.dart';
+import '../models/facultad_escuela_model.dart';
+impo  // ==================== PUNTOS DE CONTROL ====================
+
+  Future<List<PuntoControlModel>> getPuntosControl() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/puntos-control'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        List<dynamic> data = json.decode(response.body);
+        return data.map((json) => PuntoControlModel.fromJson(json)).toList();
+      } else {
+        throw Exception('Error al obtener puntos de control: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  Future<PuntoControlModel> createPuntoControl(PuntoControlModel punto) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/puntos-control'),
+        headers: _headers,
+        body: json.encode(punto.toJson()),
+      );
+
+      if (response.statusCode == 201) {
+        return PuntoControlModel.fromJson(json.decode(response.body));
+      } else {
+        final error = json.decode(response.body);
+        throw Exception(error['error'] ?? 'Error al crear punto de control');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  Future<void> asignarGuardiaAPunto(String puntoId, String guardiaId) async {
+    try {
+      final response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}/puntos-control/$puntoId/asignar'),
+        headers: _headers,
+        body: json.encode({'guardia_id': guardiaId}),
+      );
+
+      if (response.statusCode != 200) {
+        final error = json.decode(response.body);
+        throw Exception(error['error'] ?? 'Error al asignar guardia');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  Future<void> desasignarGuardiaDePunto(String puntoId, String guardiaId) async {
+    try {
+      final response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}/puntos-control/$puntoId/desasignar'),
+        headers: _headers,
+        body: json.encode({'guardia_id': guardiaId}),
+      );
+
+      if (response.statusCode != 200) {
+        final error = json.decode(response.body);
+        throw Exception(error['error'] ?? 'Error al desasignar guardia');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  // ==================== VISITAS EXTERNAS ====================t '../models/punto_control_model.dart';
+import '../models/visita_externo_model.dart';
 import '../config/api_config.dart';
 
 class ApiService {
@@ -288,138 +370,6 @@ class ApiService {
       }
     } catch (e) {
       throw Exception('Error de conexión: $e');
-    }
-  }
-
-  // ==================== DECISIONES MANUALES ====================
-
-  Future<void> registrarDecisionManual(DecisionManualModel decision) async {
-    try {
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/decisiones-manuales'),
-        headers: _headers,
-        body: json.encode(decision.toJson()),
-      );
-
-      if (response.statusCode != 201) {
-        final error = json.decode(response.body);
-        throw Exception(error['error'] ?? 'Error al registrar decisión');
-      }
-    } catch (e) {
-      throw Exception('Error de conexión: $e');
-    }
-  }
-
-  Future<List<DecisionManualModel>> getDecisionesGuardia(
-    String guardiaId,
-  ) async {
-    try {
-      final response = await http.get(
-        Uri.parse(
-          '${ApiConfig.baseUrl}/decisiones-manuales/guardia/$guardiaId',
-        ),
-        headers: _headers,
-      );
-
-      if (response.statusCode == 200) {
-        List<dynamic> data = json.decode(response.body);
-        return data.map((json) => DecisionManualModel.fromJson(json)).toList();
-      } else {
-        throw Exception('Error al obtener decisiones: ${response.statusCode}');
-      }
-    } catch (e) {
-      throw Exception('Error de conexión: $e');
-    }
-  }
-
-  // ==================== CONTROL DE PRESENCIA ====================
-
-  Future<List<PresenciaModel>> getPresenciaActual() async {
-    try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/presencia'),
-        headers: _headers,
-      );
-
-      if (response.statusCode == 200) {
-        List<dynamic> data = json.decode(response.body);
-        return data.map((json) => PresenciaModel.fromJson(json)).toList();
-      } else {
-        throw Exception('Error al obtener presencia: ${response.statusCode}');
-      }
-    } catch (e) {
-      throw Exception('Error de conexión: $e');
-    }
-  }
-
-  Future<void> actualizarPresencia(
-    String estudianteDni,
-    String tipoAcceso,
-    String puntoControl,
-    String guardiaId,
-  ) async {
-    try {
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/presencia/actualizar'),
-        headers: _headers,
-        body: json.encode({
-          'estudiante_dni': estudianteDni,
-          'tipo_acceso': tipoAcceso,
-          'punto_control': puntoControl,
-          'guardia_id': guardiaId,
-          'timestamp': DateTime.now().toIso8601String(),
-        }),
-      );
-
-      if (response.statusCode != 200) {
-        final error = json.decode(response.body);
-        throw Exception(error['error'] ?? 'Error al actualizar presencia');
-      }
-    } catch (e) {
-      throw Exception('Error de conexión: $e');
-    }
-  }
-
-  // ==================== ASISTENCIAS MEJORADAS ====================
-
-  Future<void> registrarAsistenciaCompleta(AsistenciaModel asistencia) async {
-    try {
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/asistencias/completa'),
-        headers: _headers,
-        body: json.encode(asistencia.toJson()),
-      );
-
-      if (response.statusCode != 201) {
-        final error = json.decode(response.body);
-        throw Exception(error['error'] ?? 'Error al registrar asistencia');
-      }
-    } catch (e) {
-      throw Exception('Error de conexión: $e');
-    }
-  }
-
-  Future<String> determinarTipoAcceso(String estudianteDni) async {
-    try {
-      final response = await http.get(
-        Uri.parse(
-          '${ApiConfig.baseUrl}/asistencias/ultimo-acceso/$estudianteDni',
-        ),
-        headers: _headers,
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final ultimoTipo = data['ultimo_tipo'] ?? 'salida';
-        // Si último fue entrada, ahora debería ser salida y viceversa
-        return ultimoTipo == 'entrada' ? 'salida' : 'entrada';
-      } else {
-        // Si no hay registros previos, asumir entrada
-        return 'entrada';
-      }
-    } catch (e) {
-      // En caso de error, asumir entrada
-      return 'entrada';
     }
   }
 }

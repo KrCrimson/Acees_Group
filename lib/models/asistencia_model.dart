@@ -10,6 +10,14 @@ class AsistenciaModel {
   final DateTime fechaHora;
   final String entradaTipo;
   final String puerta;
+  // Nuevos campos para US025-US030
+  final String? guardiaId;
+  final String? guardiaNombre;
+  final bool? autorizacionManual;
+  final String? razonDecision;
+  final DateTime? timestampDecision;
+  final String? coordenadas;
+  final String? descripcionUbicacion;
 
   AsistenciaModel({
     required this.id,
@@ -23,6 +31,13 @@ class AsistenciaModel {
     required this.fechaHora,
     required this.entradaTipo,
     required this.puerta,
+    this.guardiaId,
+    this.guardiaNombre,
+    this.autorizacionManual,
+    this.razonDecision,
+    this.timestampDecision,
+    this.coordenadas,
+    this.descripcionUbicacion,
   });
 
   factory AsistenciaModel.fromJson(Map<String, dynamic> json) {
@@ -38,6 +53,16 @@ class AsistenciaModel {
       fechaHora: DateTime.parse(json['fecha_hora']),
       entradaTipo: json['entrada_tipo'] ?? '',
       puerta: json['puerta'] ?? '',
+      guardiaId: json['guardia_id'],
+      guardiaNombre: json['guardia_nombre'],
+      autorizacionManual: json['autorizacion_manual'],
+      razonDecision: json['razon_decision'],
+      timestampDecision:
+          json['timestamp_decision'] != null
+              ? DateTime.parse(json['timestamp_decision'])
+              : null,
+      coordenadas: json['coordenadas'],
+      descripcionUbicacion: json['descripcion_ubicacion'],
     );
   }
 
@@ -54,6 +79,13 @@ class AsistenciaModel {
       'fecha_hora': fechaHora.toIso8601String(),
       'entrada_tipo': entradaTipo,
       'puerta': puerta,
+      'guardia_id': guardiaId,
+      'guardia_nombre': guardiaNombre,
+      'autorizacion_manual': autorizacionManual,
+      'razon_decision': razonDecision,
+      'timestamp_decision': timestampDecision?.toIso8601String(),
+      'coordenadas': coordenadas,
+      'descripcion_ubicacion': descripcionUbicacion,
     };
   }
 

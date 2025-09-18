@@ -5,6 +5,8 @@ import '../../viewmodels/auth_viewmodel.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/status_widgets.dart';
 import '../login_view.dart';
+import '../student_verification_view.dart';
+import '../admin/presencia_dashboard_view.dart';
 
 class UserNfcView extends StatefulWidget {
   @override
@@ -17,6 +19,20 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _checkNfcAvailability();
+    _configurarGuardia();
+  }
+
+  Future<void> _configurarGuardia() async {
+    final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
+    final nfcViewModel = Provider.of<NfcViewModel>(context, listen: false);
+
+    if (authViewModel.currentUser != null) {
+      nfcViewModel.configurarGuardia(
+        authViewModel.currentUser!.id,
+        authViewModel.currentUser!.nombreCompleto,
+        authViewModel.currentUser!.puertaACargo ?? 'Principal',
+      );
+    }
   }
 
   @override
@@ -365,6 +381,34 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
           },
         ),
 
+        // Botón de verificación manual si hay estudiante que requiere autorización
+        if (nfcViewModel.scannedAlumno != null &&
+            nfcViewModel.errorMessage != null &&
+            nfcViewModel.errorMessage!.contains(
+              'Requiere autorización manual',
+            )) ...[
+          SizedBox(height: 12),
+          CustomButton(
+            text: 'Verificación Manual',
+            icon: Icons.person_search,
+            width: double.infinity,
+            backgroundColor: Colors.orange,
+            onPressed: () => _mostrarVerificacionManual(nfcViewModel),
+          ),
+        ],
+
+        // Botón de Dashboard de Presencia
+        if (nfcViewModel.guardiaId != null) ...[
+          SizedBox(height: 12),
+          CustomButton(
+            text: 'Control de Presencia',
+            icon: Icons.dashboard,
+            width: double.infinity,
+            backgroundColor: Colors.indigo,
+            onPressed: () => _mostrarDashboardPresencia(nfcViewModel),
+          ),
+        ],
+
         if (nfcViewModel.scannedAlumno != null ||
             nfcViewModel.errorMessage != null) ...[
           SizedBox(height: 12),
@@ -417,6 +461,54 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // Métodos para las nuevas funcionalidades US022-US030
+  void _mostrarVerificacionManual(NfcViewModel nfcViewModel) async {
+    if (nfcViewModel.scannedAlumno == null || nfcViewModel.guardiaId == null)
+      return;
+
+    // Determinar tipo de acceso primero
+    final tipoAcceso = await nfcViewModel.determinarTipoAccesoInteligente(
+      nfcViewModel.scannedAlumno!.dni,
+    );
+
+    final resultado = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => StudentVerificationView(
+              estudiante: nfcViewModel.scannedAlumno!,
+              guardiaId: nfcViewModel.guardiaId!,
+              guardiaNombre: nfcViewModel.guardiaNombre ?? 'Guardia',
+              puntoControl: nfcViewModel.puntoControl ?? 'Principal',
+              tipoAcceso: tipoAcceso,
+              onDecisionTaken: (decision) {
+                nfcViewModel.onDecisionManualTomada(decision);
+              },
+            ),
+      ),
+    );
+
+    // Si se regresó de la verificación, limpiar el scan
+    if (resultado == true) {
+      nfcViewModel.clearScan();
+    }
+  }
+
+  void _mostrarDashboardPresencia(NfcViewModel nfcViewModel) {
+    if (nfcViewModel.guardiaId == null) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => PresenciaDashboardView(
+              guardiaId: nfcViewModel.guardiaId!,
+              guardiaNombre: nfcViewModel.guardiaNombre ?? 'Guardia',
+            ),
       ),
     );
   }

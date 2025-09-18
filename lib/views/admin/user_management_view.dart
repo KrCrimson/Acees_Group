@@ -205,9 +205,35 @@ class _UserManagementViewState extends State<UserManagementView> {
               Text('Puerta: ${usuario.puertaACargo}'),
           ],
         ),
-        trailing: Row(
+        trailing: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Toggle de estado activo/inactivo
+            Consumer<AdminViewModel>(
+              builder: (context, adminViewModel, child) {
+                return Switch(
+                  value: usuario.isActive,
+                  activeColor: Colors.green,
+                  onChanged:
+                      adminViewModel.isLoading
+                          ? null
+                          : (bool value) async {
+                            final success = await adminViewModel
+                                .toggleUserStatus(usuario.id, value);
+                            if (!success && mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    '❌ Error al cambiar estado del usuario',
+                                  ),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          },
+                );
+              },
+            ),
             // Estado del usuario
             Container(
               padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -224,7 +250,6 @@ class _UserManagementViewState extends State<UserManagementView> {
                 ),
               ),
             ),
-            SizedBox(width: 8),
             // Menú de acciones
             PopupMenuButton<String>(
               onSelected: (value) {

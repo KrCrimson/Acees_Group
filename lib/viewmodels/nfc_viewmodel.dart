@@ -1,18 +1,34 @@
 import 'package:flutter/foundation.dart';
+import 'dart:async';
+import 'dart:collection';
 import '../models/alumno_model.dart';
 import '../models/asistencia_model.dart';
+import '../models/decision_manual_model.dart';
 import '../services/api_service.dart';
 import '../services/nfc_service.dart';
+import '../services/autorizacion_service.dart';
 
 class NfcViewModel extends ChangeNotifier {
   final ApiService _apiService = ApiService();
   final NfcService _nfcService = NfcService();
+  final AutorizacionService _autorizacionService = AutorizacionService();
 
   bool _isScanning = false;
   bool _isLoading = false;
   String? _errorMessage;
   String? _successMessage;
   AlumnoModel? _scannedAlumno;
+
+  // Información del guardia actual
+  String? _guardiaId;
+  String? _guardiaNombre;
+  String? _puntoControl;
+
+  // Cola para manejar múltiples detecciones
+  final Queue<String> _detectionQueue = Queue<String>();
+  bool _processingQueue = false;
+  List<AlumnoModel> _recentDetections = [];
+  Timer? _queueTimer;
 
   // Getters
   bool get isScanning => _isScanning;
@@ -21,6 +37,10 @@ class NfcViewModel extends ChangeNotifier {
   String? get successMessage => _successMessage;
   AlumnoModel? get scannedAlumno => _scannedAlumno;
   bool get isNfcReady => !_isScanning && !_isLoading;
+  List<AlumnoModel> get recentDetections =>
+      List.unmodifiable(_recentDetections);
+  int get queueSize => _detectionQueue.length;
+  bool get isProcessingQueue => _processingQueue;
 
   // Verificar disponibilidad NFC
   Future<bool> checkNfcAvailability() async {
@@ -32,7 +52,7 @@ class NfcViewModel extends ChangeNotifier {
     }
   }
 
-  // Iniciar escaneo NFC
+  // Iniciar escaneo NFC con manejo de múltiples detecciones
   Future<void> startNfcScan() async {
     if (_isScanning || _isLoading) return;
 
@@ -47,26 +67,113 @@ class NfcViewModel extends ChangeNotifier {
         throw Exception('NFC no está disponible en este dispositivo');
       }
 
-      // Leer pulsera NFC
-      String codigoUniversitario = await _nfcService.readNfcCard();
-
-      // Validar alumno en el servidor
-      _setLoading(true);
-      _scannedAlumno = await _apiService.getAlumnoByCodigo(codigoUniversitario);
-
-      if (_scannedAlumno!.isActive) {
-        // Registrar asistencia
-        await _registrarAsistencia(_scannedAlumno!);
-        _setSuccess(
-          '✅ Acceso concedido para ${_scannedAlumno!.nombreCompleto}',
-        );
-      } else {
-        _setError('❌ Estudiante inactivo: ${_scannedAlumno!.nombreCompleto}');
-      }
+      // Iniciar procesamiento continuo de detecciones NFC
+      await _startContinuousNfcDetection();
     } catch (e) {
       _setError(e.toString().replaceAll('Exception: ', ''));
-    } finally {
       _setScanning(false);
+    }
+  }
+
+  // Iniciar detección continua de NFC
+  Future<void> _startContinuousNfcDetection() async {
+    _startQueueProcessor();
+
+    // Simular detecciones múltiples (en implementación real sería el NFC real)
+    _queueTimer = Timer.periodic(Duration(seconds: 2), (timer) async {
+      if (!_isScanning) {
+        timer.cancel();
+        return;
+      }
+
+      // Simular detección de múltiples tags
+      await _simulateMultipleDetections();
+    });
+  }
+
+  // Simular múltiples detecciones NFC para demostración
+  Future<void> _simulateMultipleDetections() async {
+    // En implementación real, esto vendría del NFC hardware
+    List<String> simulatedTags = ['EST001', 'EST002', 'EST003'];
+
+    for (String tagCode in simulatedTags) {
+      if (DateTime.now().millisecond % 3 == 0) {
+        // Simulación aleatoria
+        _addToDetectionQueue(tagCode);
+      }
+    }
+  }
+
+  // Añadir detección a la cola de procesamiento
+  void _addToDetectionQueue(String codigoUniversitario) {
+    if (!_detectionQueue.contains(codigoUniversitario)) {
+      _detectionQueue.addLast(codigoUniversitario);
+      notifyListeners();
+    }
+  }
+
+  // Iniciar procesador de cola
+  void _startQueueProcessor() {
+    if (_processingQueue) return;
+
+    _processingQueue = true;
+    _processDetectionQueue();
+  }
+
+  // Procesar cola de detecciones secuencialmente
+  Future<void> _processDetectionQueue() async {
+    while (_detectionQueue.isNotEmpty && _isScanning) {
+      final codigoUniversitario = _detectionQueue.removeFirst();
+      await _processingleDetection(codigoUniversitario);
+      notifyListeners();
+
+      // Pequeña pausa entre procesamiento de detecciones
+      await Future.delayed(Duration(milliseconds: 500));
+    }
+
+    _processingQueue = false;
+  }
+
+  // Procesar una detección individual con verificación avanzada (US022-US030)
+  Future<void> _processingleDetection(String codigoUniversitario) async {
+    try {
+      _setLoading(true);
+
+      // Validar alumno en el servidor
+      AlumnoModel alumno = await _apiService.getAlumnoByCodigo(
+        codigoUniversitario,
+      );
+
+      // Realizar verificación completa del estudiante (US022)
+      final verificacion = await verificarEstudianteCompleto(alumno);
+
+      if (verificacion['puede_acceder'] == true) {
+        // Determinar tipo de acceso inteligente (US028)
+        final tipoAcceso = await determinarTipoAccesoInteligente(alumno.dni);
+
+        // Registrar asistencia completa automáticamente
+        await registrarAsistenciaCompleta(alumno, tipoAcceso);
+
+        // Añadir a detecciones recientes
+        _recentDetections.insert(0, alumno);
+        if (_recentDetections.length > 10) {
+          _recentDetections = _recentDetections.take(10).toList();
+        }
+
+        _setSuccess(
+          '✅ Acceso $tipoAcceso autorizado: ${alumno.nombreCompleto}',
+        );
+        _scannedAlumno = alumno;
+      } else {
+        // El estudiante requiere autorización manual (US023-US024)
+        _setError('⚠️ Requiere autorización manual: ${verificacion['razon']}');
+        _scannedAlumno = alumno; // Mantener para mostrar en UI de verificación
+
+        // El UI deberá mostrar StudentVerificationView para decisión manual
+      }
+    } catch (e) {
+      _setError('Error procesando ${codigoUniversitario}: $e');
+    } finally {
       _setLoading(false);
     }
   }
@@ -81,32 +188,20 @@ class NfcViewModel extends ChangeNotifier {
       // Ignorar errores al detener
     }
 
+    // Limpiar timers y cola
+    _queueTimer?.cancel();
+    _queueTimer = null;
+    _detectionQueue.clear();
+    _processingQueue = false;
+
     _setScanning(false);
     _clearMessages();
   }
 
-  // Registrar asistencia
-  Future<void> _registrarAsistencia(AlumnoModel alumno) async {
-    try {
-      final asistencia = AsistenciaModel(
-        id: '', // Se genera en el servidor
-        nombre: alumno.nombre,
-        apellido: alumno.apellido,
-        dni: alumno.dni,
-        codigoUniversitario: alumno.codigoUniversitario,
-        siglasFacultad: alumno.siglasFacultad,
-        siglasEscuela: alumno.siglasEscuela,
-        tipo: 'estudiante',
-        fechaHora: DateTime.now(),
-        entradaTipo: 'NFC',
-        puerta: 'Principal', // Esto puede venir de configuración
-      );
-
-      await _apiService.registrarAsistencia(asistencia);
-    } catch (e) {
-      // No lanzar error, ya que el acceso fue validado
-      debugPrint('Error al registrar asistencia: $e');
-    }
+  // Limpiar detecciones recientes
+  void clearRecentDetections() {
+    _recentDetections.clear();
+    notifyListeners();
   }
 
   // Limpiar datos
@@ -143,5 +238,125 @@ class NfcViewModel extends ChangeNotifier {
     _errorMessage = null;
     _successMessage = null;
     notifyListeners();
+  }
+
+  // ==================== NUEVOS MÉTODOS PARA US022-US030 ====================
+
+  // Configurar información del guardia
+  void configurarGuardia(
+    String guardiaId,
+    String guardiaNombre,
+    String puntoControl,
+  ) {
+    _guardiaId = guardiaId;
+    _guardiaNombre = guardiaNombre;
+    _puntoControl = puntoControl;
+  }
+
+  // Verificación avanzada del estudiante (US022)
+  Future<Map<String, dynamic>> verificarEstudianteCompleto(
+    AlumnoModel estudiante,
+  ) async {
+    try {
+      // Usar el servicio de autorización para verificación completa
+      return await _autorizacionService.verificarEstadoEstudiante(estudiante);
+    } catch (e) {
+      return {
+        'puede_acceder': false,
+        'razon': 'Error en verificación: $e',
+        'requiere_autorizacion_manual': true,
+      };
+    }
+  }
+
+  // Determinar tipo de acceso inteligente (US028)
+  Future<String> determinarTipoAccesoInteligente(String estudianteDni) async {
+    try {
+      return await _autorizacionService.determinarTipoAcceso(estudianteDni);
+    } catch (e) {
+      debugPrint('Error determinando tipo acceso: $e');
+      return 'entrada';
+    }
+  }
+
+  // Registrar asistencia mejorada con toda la información (US025-US030)
+  Future<void> registrarAsistenciaCompleta(
+    AlumnoModel estudiante,
+    String tipoAcceso, {
+    DecisionManualModel? decisionManual,
+  }) async {
+    try {
+      final now = DateTime.now();
+
+      final asistencia = AsistenciaModel(
+        id: now.millisecondsSinceEpoch.toString(),
+        nombre: estudiante.nombre,
+        apellido: estudiante.apellido,
+        dni: estudiante.dni,
+        codigoUniversitario: estudiante.codigoUniversitario,
+        siglasFacultad: estudiante.siglasFacultad,
+        siglasEscuela: estudiante.siglasEscuela,
+        tipo: tipoAcceso,
+        fechaHora: now,
+        entradaTipo: 'nfc',
+        puerta: _puntoControl ?? 'Desconocida',
+        // Nuevos campos US025
+        guardiaId: _guardiaId,
+        guardiaNombre: _guardiaNombre,
+        autorizacionManual: decisionManual != null,
+        razonDecision: decisionManual?.razon,
+        timestampDecision: decisionManual?.timestamp,
+        // US029 - Ubicación
+        descripcionUbicacion:
+            'Punto de control: ${_puntoControl ?? "No especificado"}',
+      );
+
+      // Registrar asistencia completa
+      await _apiService.registrarAsistenciaCompleta(asistencia);
+
+      // Actualizar control de presencia (US026-US030)
+      await _apiService.actualizarPresencia(
+        estudiante.dni,
+        tipoAcceso,
+        _puntoControl ?? 'Desconocido',
+        _guardiaId ?? '',
+      );
+
+      _setSuccess('Acceso ${tipoAcceso} registrado correctamente');
+    } catch (e) {
+      _setError('Error al registrar asistencia: $e');
+      rethrow;
+    }
+  }
+
+  // Callback para cuando se toma una decisión manual
+  Future<void> onDecisionManualTomada(DecisionManualModel decision) async {
+    try {
+      if (decision.autorizado && _scannedAlumno != null) {
+        // Si se autorizó, registrar la asistencia
+        await registrarAsistenciaCompleta(
+          _scannedAlumno!,
+          decision.tipoAcceso,
+          decisionManual: decision,
+        );
+      }
+
+      // Limpiar el estudiante escaneado
+      _scannedAlumno = null;
+      notifyListeners();
+    } catch (e) {
+      _setError('Error procesando decisión manual: $e');
+    }
+  }
+
+  // Getters para información del guardia
+  String? get guardiaId => _guardiaId;
+  String? get guardiaNombre => _guardiaNombre;
+  String? get puntoControl => _puntoControl;
+
+  @override
+  void dispose() {
+    _queueTimer?.cancel();
+    super.dispose();
   }
 }

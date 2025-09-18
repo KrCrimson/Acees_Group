@@ -7,6 +7,9 @@ import '../../widgets/custom_button.dart';
 import '../login_view.dart';
 import 'user_management_view.dart';
 import 'reports_view.dart';
+import 'session_config_view.dart';
+import 'historial_view.dart';
+import 'sync_config_view.dart';
 
 class AdminView extends StatefulWidget {
   @override
@@ -422,6 +425,62 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   });
                 },
               ),
+            ),
+          ],
+        ),
+        SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: CustomButton(
+                text: 'Configurar Sesión',
+                icon: Icons.timer,
+                backgroundColor: Colors.orange,
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SessionConfigView(),
+                    ),
+                  );
+                },
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: CustomButton(
+                text: 'Sincronización',
+                icon: Icons.sync_alt,
+                backgroundColor: Colors.teal,
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => SyncConfigView()),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: CustomButton(
+                text: 'Ver Historial',
+                icon: Icons.history,
+                backgroundColor: Colors.indigo,
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => HistorialView()),
+                  );
+                },
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Container(), // Espacio vacío para simetría
             ),
           ],
         ),
