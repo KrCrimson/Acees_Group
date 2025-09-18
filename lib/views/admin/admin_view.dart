@@ -12,6 +12,7 @@ import 'historial_view.dart';
 import 'sync_config_view.dart';
 import 'offline_config_view.dart';
 import '../../widgets/connectivity_status_widget.dart';
+import '../student_status_view.dart';
 
 class AdminView extends StatefulWidget {
   @override
@@ -442,6 +443,22 @@ class _AdminDashboardState extends State<AdminDashboard> {
           children: [
             Expanded(
               child: CustomButton(
+                text: 'Consultar Estudiante',
+                icon: Icons.person_search,
+                backgroundColor: Colors.purple,
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => StudentStatusView(),
+                    ),
+                  );
+                },
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: CustomButton(
                 text: 'Configurar Sesión',
                 icon: Icons.timer,
                 backgroundColor: Colors.orange,
@@ -455,7 +472,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 },
               ),
             ),
-            SizedBox(width: 12),
+          ],
+        ),
+        SizedBox(height: 12),
+        Row(
+          children: [
             Expanded(
               child: CustomButton(
                 text: 'Sincronización',
@@ -468,6 +489,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   );
                 },
               ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: Container(), // Espacio vacío para mantener el layout
             ),
           ],
         ),

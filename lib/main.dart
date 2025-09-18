@@ -6,6 +6,7 @@ import 'viewmodels/nfc_viewmodel.dart';
 import 'viewmodels/admin_viewmodel.dart';
 import 'viewmodels/reports_viewmodel.dart';
 import 'viewmodels/guard_reports_viewmodel.dart';
+import 'viewmodels/student_status_viewmodel.dart';
 import 'services/connectivity_service.dart';
 import 'services/offline_sync_service.dart';
 import 'services/hybrid_api_service.dart';
@@ -52,6 +53,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AdminViewModel()),
         ChangeNotifierProvider(create: (_) => ReportsViewModel()),
         ChangeNotifierProvider(create: (_) => GuardReportsViewModel()),
+        ChangeNotifierProvider(create: (_) => StudentStatusViewModel()),
       ],
       child: MaterialApp(
         title: 'Control de Acceso NFC - MVVM',

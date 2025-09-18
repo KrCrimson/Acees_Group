@@ -7,6 +7,7 @@ import '../../widgets/status_widgets.dart';
 import '../login_view.dart';
 import '../student_verification_view.dart';
 import '../admin/presencia_dashboard_view.dart';
+import '../student_status_view.dart';
 
 class UserNfcView extends StatefulWidget {
   @override
@@ -396,6 +397,23 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
             onPressed: () => _mostrarVerificacionManual(nfcViewModel),
           ),
         ],
+        
+        // Botón de consulta de estado del estudiante
+        SizedBox(height: 12),
+        CustomButton(
+          text: 'Consultar Estado Estudiante',
+          icon: Icons.search,
+          width: double.infinity,
+          backgroundColor: Colors.purple,
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => StudentStatusView(),
+              ),
+            );
+          },
+        ),
 
         // Botón de Dashboard de Presencia
         if (nfcViewModel.guardiaId != null) ...[
