@@ -13,6 +13,7 @@ import 'sync_config_view.dart';
 import 'offline_config_view.dart';
 import '../../widgets/connectivity_status_widget.dart';
 import '../student_status_view.dart';
+import '../matriculation_verification_view.dart';
 
 class AdminView extends StatefulWidget {
   @override
@@ -479,6 +480,22 @@ class _AdminDashboardState extends State<AdminDashboard> {
           children: [
             Expanded(
               child: CustomButton(
+                text: 'Verificar Matrícula',
+                icon: Icons.school,
+                backgroundColor: Colors.indigo,
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => MatriculationVerificationView(),
+                    ),
+                  );
+                },
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: CustomButton(
                 text: 'Sincronización',
                 icon: Icons.sync_alt,
                 backgroundColor: Colors.teal,
@@ -489,10 +506,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   );
                 },
               ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: Container(), // Espacio vacío para mantener el layout
             ),
           ],
         ),

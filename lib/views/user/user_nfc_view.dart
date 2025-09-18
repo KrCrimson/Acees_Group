@@ -8,6 +8,7 @@ import '../login_view.dart';
 import '../student_verification_view.dart';
 import '../admin/presencia_dashboard_view.dart';
 import '../student_status_view.dart';
+import '../matriculation_verification_view.dart';
 
 class UserNfcView extends StatefulWidget {
   @override
@@ -410,6 +411,23 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
               context,
               MaterialPageRoute(
                 builder: (context) => StudentStatusView(),
+              ),
+            );
+          },
+        ),
+        
+        // Botón de verificación de matrícula
+        SizedBox(height: 12),
+        CustomButton(
+          text: 'Verificar Vigencia Matrícula',
+          icon: Icons.school,
+          width: double.infinity,
+          backgroundColor: Colors.indigo,
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => MatriculationVerificationView(),
               ),
             );
           },

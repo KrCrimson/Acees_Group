@@ -7,11 +7,13 @@ import '../models/decision_manual_model.dart';
 import '../services/hybrid_api_service.dart';
 import '../services/nfc_service.dart';
 import '../services/autorizacion_service.dart';
+import '../services/matriculation_service.dart';
 
 class NfcViewModel extends ChangeNotifier {
   final HybridApiService _apiService = HybridApiService();
   final NfcService _nfcService = NfcService();
   final AutorizacionService _autorizacionService = AutorizacionService();
+  final MatriculationService _matriculationService = MatriculationService();
 
   bool _isScanning = false;
   bool _isLoading = false;
@@ -258,8 +260,54 @@ class NfcViewModel extends ChangeNotifier {
     AlumnoModel estudiante,
   ) async {
     try {
-      // Usar el servicio de autorización para verificación completa
-      return await _autorizacionService.verificarEstadoEstudiante(estudiante);
+      // Verificar estado del estudiante
+      final verificacionEstado = await _autorizacionService.verificarEstadoEstudiante(estudiante);
+      
+      // Si el estudiante no puede acceder por estado, retornar inmediatamente
+      if (verificacionEstado['puede_acceder'] == false) {
+        return verificacionEstado;
+      }
+
+      // Verificar vigencia de matrícula
+      try {
+        final matriculation = await _matriculationService.verificarVigenciaMatricula(estudiante.codigoUniversitario);
+        
+        if (!matriculation.puedeAcceder) {
+          return {
+            'puede_acceder': false,
+            'razon': 'Matrícula no vigente: ${matriculation.recomendacionAcceso}',
+            'requiere_autorizacion_manual': true,
+            'detalle_matricula': {
+              'vigente': matriculation.isVigente,
+              'vencida': matriculation.isVencida,
+              'por_vencer': matriculation.isPorVencer,
+              'pendiente_pago': matriculation.isPendientePago,
+              'suspendida': matriculation.isSuspendida,
+              'cancelada': matriculation.isCancelada,
+              'dias_restantes': matriculation.diasRestantes,
+              'estado': matriculation.estadoMatriculaFormateado,
+              'alertas': matriculation.alertas,
+            },
+          };
+        }
+
+        // Si la matrícula está vigente pero tiene alertas, incluir información adicional
+        if (matriculation.tieneAlertas) {
+          verificacionEstado['alertas_matricula'] = matriculation.alertas;
+          verificacionEstado['dias_restantes_matricula'] = matriculation.diasRestantes;
+        }
+
+        return verificacionEstado;
+      } catch (e) {
+        // Si hay error verificando matrícula, permitir acceso pero con advertencia
+        debugPrint('Error verificando matrícula: $e');
+        return {
+          'puede_acceder': true,
+          'razon': 'Acceso permitido (error verificando matrícula)',
+          'requiere_autorizacion_manual': false,
+          'advertencia_matricula': 'No se pudo verificar la vigencia de la matrícula',
+        };
+      }
     } catch (e) {
       return {
         'puede_acceder': false,
