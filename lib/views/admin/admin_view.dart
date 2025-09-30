@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/auth_viewmodel.dart';
-import '../../viewmodels/admin_viewmodel.dart';
 import '../../viewmodels/reports_viewmodel.dart';
 import '../../widgets/custom_button.dart';
 import '../login_view.dart';
 import 'user_management_view.dart';
 import 'reports_view.dart';
 import 'session_config_view.dart';
+import 'session_management_view.dart';
 import 'historial_view.dart';
 import 'sync_config_view.dart';
 
@@ -465,6 +465,32 @@ class _AdminDashboardState extends State<AdminDashboard> {
         SizedBox(height: 12),
         Row(
           children: [
+            Expanded(
+              child: CustomButton(
+                text: 'Gestión Sesiones',
+                icon: Icons.supervisor_account,
+                backgroundColor: Colors.purple,
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder:
+                          (context) => Consumer<AuthViewModel>(
+                            builder: (context, authViewModel, child) {
+                              return SessionManagementView(
+                                adminId: authViewModel.currentUser?.id ?? '',
+                                adminName:
+                                    authViewModel.currentUser?.nombreCompleto ??
+                                    'Admin',
+                              );
+                            },
+                          ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            SizedBox(width: 12),
             Expanded(
               child: CustomButton(
                 text: 'Ver Historial',

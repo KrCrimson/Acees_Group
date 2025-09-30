@@ -7,11 +7,13 @@ import '../models/decision_manual_model.dart';
 import '../services/api_service.dart';
 import '../services/nfc_service.dart';
 import '../services/autorizacion_service.dart';
+import '../services/offline_service.dart';
 
 class NfcViewModel extends ChangeNotifier {
   final ApiService _apiService = ApiService();
   final NfcService _nfcService = NfcService();
   final AutorizacionService _autorizacionService = AutorizacionService();
+  final OfflineService _offlineService = OfflineService();
 
   bool _isScanning = false;
   bool _isLoading = false;
@@ -311,18 +313,34 @@ class NfcViewModel extends ChangeNotifier {
             'Punto de control: ${_puntoControl ?? "No especificado"}',
       );
 
-      // Registrar asistencia completa
-      await _apiService.registrarAsistenciaCompleta(asistencia);
+      if (_offlineService.isOnline) {
+        try {
+          // Registrar asistencia completa
+          await _apiService.registrarAsistenciaCompleta(asistencia);
 
-      // Actualizar control de presencia (US026-US030)
-      await _apiService.actualizarPresencia(
-        estudiante.dni,
-        tipoAcceso,
-        _puntoControl ?? 'Desconocido',
-        _guardiaId ?? '',
-      );
+          // Actualizar control de presencia (US026-US030)
+          await _apiService.actualizarPresencia(
+            estudiante.dni,
+            tipoAcceso,
+            _puntoControl ?? 'Desconocido',
+            _guardiaId ?? '',
+          );
 
-      _setSuccess('Acceso ${tipoAcceso} registrado correctamente');
+          _setSuccess('Acceso ${tipoAcceso} registrado correctamente');
+        } catch (e) {
+          // Si falla online, guardar offline
+          await _guardarAsistenciaOffline(asistencia);
+          _setSuccess(
+            'Acceso ${tipoAcceso} registrado (offline) - Se sincronizará automáticamente',
+          );
+        }
+      } else {
+        // Modo offline - guardar para sincronización posterior
+        await _guardarAsistenciaOffline(asistencia);
+        _setSuccess(
+          'Acceso ${tipoAcceso} registrado (offline) - Se sincronizará cuando haya conexión',
+        );
+      }
     } catch (e) {
       _setError('Error al registrar asistencia: $e');
       rethrow;
@@ -347,6 +365,14 @@ class NfcViewModel extends ChangeNotifier {
     } catch (e) {
       _setError('Error procesando decisión manual: $e');
     }
+  }
+
+  /// Guardar asistencia para sincronización offline
+  Future<void> _guardarAsistenciaOffline(AsistenciaModel asistencia) async {
+    await _offlineService.addOfflineEvent(
+      EventType.asistencia,
+      asistencia.toJson(),
+    );
   }
 
   // Getters para información del guardia

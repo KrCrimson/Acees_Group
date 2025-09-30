@@ -422,4 +422,178 @@ class ApiService {
       return 'entrada';
     }
   }
+
+  // ==================== SESIONES GUARDIAS (US059) ====================
+
+  Future<Map<String, dynamic>> iniciarSesionGuardia({
+    required String guardiaId,
+    required String guardiaNombre,
+    required String puntoControl,
+    Map<String, dynamic>? deviceInfo,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/sesiones/iniciar'),
+        headers: _headers,
+        body: json.encode({
+          'guardia_id': guardiaId,
+          'guardia_nombre': guardiaNombre,
+          'punto_control': puntoControl,
+          'device_info': deviceInfo ?? {},
+        }),
+      );
+
+      final responseData = json.decode(response.body);
+
+      return {
+        'success': response.statusCode == 201,
+        'conflict': response.statusCode == 409,
+        'data': responseData,
+      };
+    } catch (e) {
+      throw Exception('Error de conexión al iniciar sesión: $e');
+    }
+  }
+
+  Future<bool> enviarHeartbeat(String sessionToken) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/sesiones/heartbeat'),
+        headers: _headers,
+        body: json.encode({'session_token': sessionToken}),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      throw Exception('Error en heartbeat: $e');
+    }
+  }
+
+  Future<bool> finalizarSesionGuardia(String sessionToken) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/sesiones/finalizar'),
+        headers: _headers,
+        body: json.encode({'session_token': sessionToken}),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      throw Exception('Error al finalizar sesión: $e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getSesionesActivas() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/sesiones/activas'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      } else {
+        throw Exception(
+          'Error al obtener sesiones activas: ${response.statusCode}',
+        );
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  Future<bool> forzarFinalizacionSesion({
+    required String guardiaId,
+    required String adminId,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/sesiones/forzar-finalizacion'),
+        headers: _headers,
+        body: json.encode({'guardia_id': guardiaId, 'admin_id': adminId}),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      throw Exception('Error al forzar finalización: $e');
+    }
+  }
+
+  // ==================== MÉTODOS PARA SINCRONIZACIÓN AVANZADA ====================
+
+  /// Obtener versiones de las colecciones del servidor
+  Future<Map<String, dynamic>> getVersiones() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/versiones'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        throw Exception('Error al obtener versiones: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error al obtener versiones: $e');
+    }
+  }
+
+  /// Obtener sesiones activas del servidor
+  Future<List<Map<String, dynamic>>> getActiveSessions() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/sesiones/activas'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return List<Map<String, dynamic>>.from(data['sesiones'] ?? []);
+      } else {
+        throw Exception(
+          'Error al obtener sesiones activas: ${response.statusCode}',
+        );
+      }
+    } catch (e) {
+      throw Exception('Error al obtener sesiones activas: $e');
+    }
+  }
+
+  /// Obtener datos de asistencias para sincronización
+  Future<List<AsistenciaModel>> getAsistenciasSync() async {
+    try {
+      final response = await http.get(
+        Uri.parse(ApiConfig.asistenciasUrl),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return (data['asistencias'] as List)
+            .map((asistencia) => AsistenciaModel.fromJson(asistencia))
+            .toList();
+      } else {
+        throw Exception('Error al obtener asistencias: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error al obtener asistencias: $e');
+    }
+  }
+
+  /// Probar conectividad con el servidor
+  Future<void> testConnection() async {
+    try {
+      final response = await http
+          .get(Uri.parse('${ApiConfig.baseUrl}/api/health'), headers: _headers)
+          .timeout(const Duration(seconds: 5));
+
+      if (response.statusCode != 200) {
+        throw Exception('Server not responding');
+      }
+    } catch (e) {
+      throw Exception('Connection test failed: $e');
+    }
+  }
 }

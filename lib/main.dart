@@ -4,14 +4,35 @@ import 'viewmodels/auth_viewmodel.dart';
 import 'viewmodels/nfc_viewmodel.dart';
 import 'viewmodels/admin_viewmodel.dart';
 import 'viewmodels/reports_viewmodel.dart';
+import 'services/offline_service.dart';
+import 'services/sync_service.dart';
+import 'services/session_guard_service.dart';
 import 'views/login_view.dart';
 
 void main() {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeServices();
+    });
+  }
+
+  void _initializeServices() async {
+    final offlineService = Provider.of<OfflineService>(context, listen: false);
+    await offlineService.initialize();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,6 +42,9 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => NfcViewModel()),
         ChangeNotifierProvider(create: (_) => AdminViewModel()),
         ChangeNotifierProvider(create: (_) => ReportsViewModel()),
+        ChangeNotifierProvider(create: (_) => OfflineService()),
+        ChangeNotifierProvider(create: (_) => SyncService()),
+        ChangeNotifierProvider(create: (_) => SessionGuardService()),
       ],
       child: MaterialApp(
         title: 'Control de Acceso NFC - MVVM',

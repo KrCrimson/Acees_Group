@@ -25,6 +25,9 @@ dependencies:
   http: ^1.2.0
   flutter_nfc_kit: ^3.6.0
   shared_preferences: ^2.2.2
+  sqflite: ^2.3.0
+  connectivity_plus: ^5.0.0
+  path: ^1.8.3
 
 dev_dependencies:
   flutter_test:

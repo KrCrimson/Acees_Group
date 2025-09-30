@@ -100,6 +100,25 @@ const PresenciaSchema = new mongoose.Schema({
 }, { collection: 'presencia', strict: false, _id: false });
 const Presencia = mongoose.model('presencia', PresenciaSchema);
 
+// Modelo para sesiones activas de guardias (US059 - Múltiples guardias simultáneos)
+const SessionGuardSchema = new mongoose.Schema({
+  _id: String,
+  guardia_id: String,
+  guardia_nombre: String,
+  punto_control: String,
+  session_token: String,
+  last_activity: { type: Date, default: Date.now },
+  is_active: { type: Boolean, default: true },
+  device_info: {
+    platform: String,
+    device_id: String,
+    app_version: String
+  },
+  fecha_inicio: { type: Date, default: Date.now },
+  fecha_fin: Date
+}, { collection: 'sesiones_guardias', strict: false, _id: false });
+const SessionGuard = mongoose.model('sesiones_guardias', SessionGuardSchema);
+
 // Modelo de usuarios mejorado con validaciones - EXACTO como MongoDB Atlas
 const UserSchema = new mongoose.Schema({
   _id: String,
@@ -597,6 +616,167 @@ app.get('/presencia/largo-tiempo', async (req, res) => {
     res.json(presenciasLargas);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener presencias de largo tiempo' });
+  }
+});
+
+// ==================== ENDPOINTS SESIONES GUARDIAS (US059) ====================
+
+// Middleware de concurrencia para verificar conflictos
+const concurrencyMiddleware = async (req, res, next) => {
+  try {
+    const { guardia_id, punto_control } = req.body;
+    
+    // Verificar si otro guardia está activo en el mismo punto de control
+    const sessionActiva = await SessionGuard.findOne({
+      punto_control,
+      is_active: true,
+      guardia_id: { $ne: guardia_id }
+    });
+    
+    if (sessionActiva) {
+      return res.status(409).json({ 
+        error: 'Otro guardia está activo en este punto de control',
+        conflict: true,
+        active_guard: {
+          guardia_id: sessionActiva.guardia_id,
+          guardia_nombre: sessionActiva.guardia_nombre,
+          session_start: sessionActiva.fecha_inicio,
+          last_activity: sessionActiva.last_activity
+        }
+      });
+    }
+    
+    next();
+  } catch (err) {
+    res.status(500).json({ error: 'Error verificando concurrencia', details: err.message });
+  }
+};
+
+// Iniciar sesión de guardia
+app.post('/sesiones/iniciar', concurrencyMiddleware, async (req, res) => {
+  try {
+    const { guardia_id, guardia_nombre, punto_control, device_info } = req.body;
+    
+    // Finalizar cualquier sesión anterior del mismo guardia
+    await SessionGuard.updateMany(
+      { guardia_id, is_active: true },
+      { 
+        is_active: false, 
+        fecha_fin: new Date() 
+      }
+    );
+    
+    // Crear nueva sesión
+    const sessionToken = require('crypto').randomUUID();
+    const nuevaSesion = new SessionGuard({
+      _id: sessionToken,
+      guardia_id,
+      guardia_nombre,
+      punto_control,
+      session_token: sessionToken,
+      device_info: device_info || {},
+      last_activity: new Date(),
+      is_active: true
+    });
+    
+    await nuevaSesion.save();
+    
+    res.status(201).json({
+      session_token: sessionToken,
+      message: 'Sesión iniciada exitosamente',
+      session: nuevaSesion
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al iniciar sesión', details: err.message });
+  }
+});
+
+// Heartbeat - Mantener sesión activa
+app.post('/sesiones/heartbeat', async (req, res) => {
+  try {
+    const { session_token } = req.body;
+    
+    const sesion = await SessionGuard.findOneAndUpdate(
+      { session_token, is_active: true },
+      { last_activity: new Date() },
+      { new: true }
+    );
+    
+    if (!sesion) {
+      return res.status(404).json({ 
+        error: 'Sesión no encontrada o inactiva',
+        session_expired: true
+      });
+    }
+    
+    res.json({ 
+      message: 'Heartbeat registrado',
+      last_activity: sesion.last_activity
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Error en heartbeat', details: err.message });
+  }
+});
+
+// Finalizar sesión
+app.post('/sesiones/finalizar', async (req, res) => {
+  try {
+    const { session_token } = req.body;
+    
+    const sesion = await SessionGuard.findOneAndUpdate(
+      { session_token, is_active: true },
+      { 
+        is_active: false,
+        fecha_fin: new Date()
+      },
+      { new: true }
+    );
+    
+    if (!sesion) {
+      return res.status(404).json({ error: 'Sesión no encontrada' });
+    }
+    
+    res.json({ message: 'Sesión finalizada exitosamente' });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al finalizar sesión', details: err.message });
+  }
+});
+
+// Obtener sesiones activas
+app.get('/sesiones/activas', async (req, res) => {
+  try {
+    const sesionesActivas = await SessionGuard.find({ is_active: true });
+    res.json(sesionesActivas);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener sesiones activas' });
+  }
+});
+
+// Forzar finalización de sesión (para administradores)
+app.post('/sesiones/forzar-finalizacion', async (req, res) => {
+  try {
+    const { guardia_id, admin_id } = req.body;
+    
+    // Verificar que quien hace la petición es admin
+    const admin = await User.findOne({ _id: admin_id, rango: 'admin' });
+    if (!admin) {
+      return res.status(403).json({ error: 'Solo administradores pueden forzar finalización' });
+    }
+    
+    const resultado = await SessionGuard.updateMany(
+      { guardia_id, is_active: true },
+      { 
+        is_active: false,
+        fecha_fin: new Date()
+      }
+    );
+    
+    res.json({ 
+      message: 'Sesiones finalizadas por administrador',
+      sessions_affected: resultado.modifiedCount
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al forzar finalización', details: err.message });
   }
 });
 

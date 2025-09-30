@@ -4,6 +4,9 @@ import '../../viewmodels/nfc_viewmodel.dart';
 import '../../viewmodels/auth_viewmodel.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/status_widgets.dart';
+import '../../widgets/session_status_widget.dart';
+import '../../widgets/connectivity_status_widget.dart';
+import '../../widgets/conflict_alert_widget.dart';
 import '../login_view.dart';
 import '../student_verification_view.dart';
 import '../admin/presencia_dashboard_view.dart';
@@ -162,37 +165,60 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
           ),
         ],
       ),
-      body: Consumer<NfcViewModel>(
-        builder: (context, nfcViewModel, child) {
-          return SafeArea(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Estado del escaneo
-                  _buildScanStatus(nfcViewModel),
+      body: ConnectivityStatusWidget(
+        child: Consumer<NfcViewModel>(
+          builder: (context, nfcViewModel, child) {
+            return SafeArea(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Estado de sesión del guardia
+                    Consumer<AuthViewModel>(
+                      builder: (context, authViewModel, child) {
+                        return SessionStatusWidget(
+                          guardiaId: authViewModel.currentUser?.id,
+                          guardiaNombre:
+                              authViewModel.currentUser?.nombreCompleto,
+                          puntoControl:
+                              authViewModel.currentUser?.puertaACargo ??
+                              'Principal',
+                        );
+                      },
+                    ),
 
-                  SizedBox(height: 32),
+                    SizedBox(height: 8),
 
-                  // Información del estudiante escaneado
-                  if (nfcViewModel.scannedAlumno != null)
-                    _buildStudentInfo(nfcViewModel),
+                    // Widget de alerta de conflictos
+                    ConflictAlertWidget(),
 
-                  SizedBox(height: 32),
+                    SizedBox(height: 16),
 
-                  // Botones de acción
-                  _buildActionButtons(nfcViewModel),
+                    // Estado del escaneo
+                    _buildScanStatus(nfcViewModel),
 
-                  SizedBox(height: 32),
+                    SizedBox(height: 32),
 
-                  // Instrucciones
-                  _buildInstructions(),
-                ],
+                    // Información del estudiante escaneado
+                    if (nfcViewModel.scannedAlumno != null)
+                      _buildStudentInfo(nfcViewModel),
+
+                    SizedBox(height: 32),
+
+                    // Botones de acción
+                    _buildActionButtons(nfcViewModel),
+
+                    SizedBox(height: 32),
+
+                    // Instrucciones
+                    _buildInstructions(),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
