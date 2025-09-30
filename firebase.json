@@ -1,0 +1,39 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "harinatodoproposito",
+          "appId": "1:1002228149306:android:cee87507fca4c17ecf1903",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "harinatodoproposito",
+          "configurations": {
+            "android": "1:1002228149306:android:cee87507fca4c17ecf1903",
+            "web": "1:1002228149306:web:a9add9c8f8233ff1cf1903",
+            "windows": "1:1002228149306:web:488d721e7c95eb3bcf1903"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "predeploy": [
+        
+      ]
+    }
+  ]
+}
