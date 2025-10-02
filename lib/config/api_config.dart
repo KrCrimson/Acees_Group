@@ -3,7 +3,8 @@ class ApiConfig {
   static const String _baseUrlDev = 'http://192.168.1.51:3000';
 
   // Para producción - URL de Railway
-  static const String _baseUrlProd = 'https://acees-group-backend-production.up.railway.app';
+  static const String _baseUrlProd =
+      'https://aceesgroup-production.up.railway.app';
 
   // Cambiar a true cuando compiles la APK para producción
   static const bool _isProduction = true;
