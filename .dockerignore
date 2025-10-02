@@ -1,0 +1,37 @@
+# Ignorar archivos Flutter/Dart
+lib/
+test/
+integration_test/
+android/
+ios/
+web/
+linux/
+macos/
+windows/
+build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+pubspec.yaml
+pubspec.lock
+analysis_options.yaml
+
+# Archivos de desarrollo
+.git/
+.gitignore
+.env
+.env.local
+.env.example
+README.md
+*.md
+
+# Logs y temporales
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Solo mantener backend
+!backend/
