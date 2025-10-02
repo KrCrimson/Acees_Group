@@ -95,22 +95,28 @@ class ConnectivityBanner extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
             ),
-            if (status == ConnectionStatus.offline && onRetry != null)
+            if (status != ConnectionStatus.online && onRetry != null)
               GestureDetector(
-                onTap: onRetry,
+                onTap: status == ConnectionStatus.connecting ? null : onRetry,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withOpacity(
+                      status == ConnectionStatus.connecting ? 0.1 : 0.2,
+                    ),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Text(
-                    'Reintentar',
+                  child: Text(
+                    status == ConnectionStatus.connecting
+                        ? 'Verificando...'
+                        : 'Reintentar',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: Colors.white.withOpacity(
+                        status == ConnectionStatus.connecting ? 0.7 : 1.0,
+                      ),
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),

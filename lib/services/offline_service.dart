@@ -490,13 +490,40 @@ class OfflineService extends ChangeNotifier {
 
   // ==================== MÉTODOS PÚBLICOS ====================
 
-  /// Forzar sincronización de eventos pendientes
+  /// Forzar verificación de conectividad y sincronización
   Future<void> forceSyncPendingEvents() async {
-    if (isOffline) {
-      throw Exception('No hay conexión disponible');
-    }
+    debugPrint('🔄 Forzando verificación de conectividad...');
 
-    await _processPendingEvents();
+    try {
+      // Forzar verificación de conectividad
+      _connectionStatus = ConnectionStatus.connecting;
+      notifyListeners();
+
+      // Probar conexión real con el servidor
+      final hasConnection = await _testServerConnection();
+
+      if (hasConnection) {
+        _connectionStatus = ConnectionStatus.online;
+        debugPrint('✅ Conexión restablecida');
+
+        // Procesar eventos pendientes si hay conexión
+        if (_pendingEvents.isNotEmpty) {
+          await _processPendingEvents();
+        }
+
+        _startSyncTimer();
+      } else {
+        _connectionStatus = ConnectionStatus.offline;
+        debugPrint('❌ Sin conexión al servidor');
+        throw Exception('No se pudo conectar al servidor');
+      }
+    } catch (e) {
+      _connectionStatus = ConnectionStatus.offline;
+      debugPrint('❌ Error en verificación forzada: $e');
+      rethrow;
+    } finally {
+      notifyListeners();
+    }
   }
 
   /// Limpiar eventos fallidos

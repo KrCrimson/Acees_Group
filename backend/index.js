@@ -6,21 +6,64 @@ const cors = require('cors');
 const bcrypt = require('bcrypt');
 
 const app = express();
-app.use(cors());
-app.use(express.json());
 
-// Conexión a MongoDB Atlas - ESPECIFICAR BASE DE DATOS ASISTENCIA
+// Configuración CORS optimizada para Railway
+const corsOptions = {
+  origin: [
+    'http://localhost:3000',
+    'http://192.168.1.51:3000',
+    'https://acees-group-backend-production.up.railway.app',
+    // Permitir cualquier origen en desarrollo
+    ...(process.env.NODE_ENV !== 'production' ? ['*'] : [])
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Conexión a MongoDB Atlas optimizada para Railway
 mongoose.set('strictQuery', false);
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  dbName: 'ASISTENCIA'
-});
+
+const connectDB = async () => {
+  try {
+    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      dbName: 'ASISTENCIA',
+      // Configuraciones adicionales para Railway
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      family: 4 // Usar IPv4
+    });
+
+    console.log(`✅ MongoDB conectado: ${conn.connection.host}`);
+  } catch (error) {
+    console.error('❌ Error conectando a MongoDB:', error);
+    process.exit(1);
+  }
+};
+
+// Conectar a la base de datos
+connectDB();
 
 const db = mongoose.connection;
-db.on('error', console.error.bind(console, 'Error de conexión a MongoDB:'));
-db.once('open', () => {
-  console.log('Conectado exitosamente a MongoDB> Atlas');
+db.on('error', console.error.bind(console, '❌ Error de conexión MongoDB:'));
+db.on('disconnected', () => console.log('⚠️ MongoDB desconectado'));
+db.on('reconnected', () => console.log('🔄 MongoDB reconectado'));
+
+// Endpoint de health check para verificar conectividad
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    message: 'Server is running',
+    timestamp: new Date().toISOString(),
+    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+  });
 });
 
 // Modelo de facultad - EXACTO como en MongoDB Atlas (campos como strings)
@@ -816,7 +859,12 @@ app.get('/visitas', async (req, res) => {
   }
 });
 
+// Configuración de puerto para Railway
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Servidor escuchando en puerto ${PORT}`);
+const HOST = process.env.HOST || '0.0.0.0';
+
+app.listen(PORT, HOST, () => {
+  console.log(`🚀 Servidor ejecutándose en ${HOST}:${PORT}`);
+  console.log(`📡 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`💾 Base de datos: ${mongoose.connection.readyState === 1 ? 'Conectada' : 'Desconectada'}`);
 });

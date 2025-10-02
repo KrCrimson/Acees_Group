@@ -1,10 +1,13 @@
 {
-  "name": "moviles2-backend",
+  "name": "acees-group-backend",
   "version": "1.0.0",
+  "description": "Backend para sistema de control de acceso NFC - Acees Group",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "node index.js"
+    "dev": "nodemon index.js",
+    "railway:start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
@@ -13,7 +16,20 @@
     "express": "^4.18.2",
     "mongoose": "^6.11.0"
   },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
+  },
   "engines": {
-    "node": ">=12.0.0"
-  }
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "keywords": [
+    "nfc",
+    "control-acceso",
+    "asistencia",
+    "backend",
+    "mongodb"
+  ],
+  "author": "Acees Group",
+  "license": "MIT"
 }

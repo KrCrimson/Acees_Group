@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/alumno_model.dart';
@@ -586,12 +587,20 @@ class ApiService {
   Future<void> testConnection() async {
     try {
       final response = await http
-          .get(Uri.parse('${ApiConfig.baseUrl}/api/health'), headers: _headers)
-          .timeout(const Duration(seconds: 5));
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/api/health'),
+            headers: {'Content-Type': 'application/json'},
+          )
+          .timeout(const Duration(seconds: 3));
 
-      if (response.statusCode != 200) {
-        throw Exception('Server not responding');
+      if (response.statusCode == 200) {
+        // Conexión exitosa
+        return;
+      } else {
+        throw Exception('Server returned ${response.statusCode}');
       }
+    } on TimeoutException {
+      throw Exception('Connection timeout');
     } catch (e) {
       throw Exception('Connection test failed: $e');
     }
