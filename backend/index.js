@@ -859,6 +859,456 @@ app.get('/visitas', async (req, res) => {
   }
 });
 
+// ==================== MACHINE LEARNING & ANÁLISIS DE BUSES NOCTURNOS ====================
+
+// Modelo para almacenar recomendaciones de buses nocturnos
+const RecomendacionBusSchema = new mongoose.Schema({
+  _id: String,
+  fecha_analisis: { type: Date, default: Date.now },
+  horario_recomendado: String, // "20:00", "21:00", "22:00", etc.
+  numero_buses_sugeridos: Number,
+  capacidad_estimada: Number,
+  estudiantes_esperados: Number,
+  porcentaje_ocupacion: Number,
+  facultades_principales: [String],
+  justificacion: String,
+  datos_historicos_utilizados: Object,
+  modelo_version: String,
+  confianza_prediccion: Number
+}, { collection: 'recomendaciones_buses', strict: false, _id: false });
+const RecomendacionBus = mongoose.model('recomendaciones_buses', RecomendacionBusSchema);
+
+// 🔍 ENDPOINT 1: Obtener datos históricos para el modelo ML
+app.get('/ml/datos-historicos', async (req, res) => {
+  try {
+    const { fecha_inicio, fecha_fin, dias_semana } = req.query;
+    
+    // Construir filtro de fechas
+    let filtroFecha = {};
+    if (fecha_inicio && fecha_fin) {
+      filtroFecha = {
+        fecha_hora: {
+          $gte: new Date(fecha_inicio),
+          $lte: new Date(fecha_fin)
+        }
+      };
+    } else {
+      // Por defecto, últimos 30 días
+      const hace30Dias = new Date();
+      hace30Dias.setDate(hace30Dias.getDate() - 30);
+      filtroFecha = {
+        fecha_hora: { $gte: hace30Dias }
+      };
+    }
+
+    // Obtener datos de asistencias (entradas y salidas)
+    const asistencias = await Asistencia.find(filtroFecha).sort({ fecha_hora: 1 });
+    
+    // Obtener datos de presencia para análisis de tiempo en campus
+    const presencias = await Presencia.find({
+      hora_entrada: filtroFecha.fecha_hora || { $gte: new Date(Date.now() - 30*24*60*60*1000) }
+    });
+
+    // 📊 Procesar datos para análisis ML
+    const datosParaML = {
+      total_registros: asistencias.length,
+      rango_fechas: {
+        inicio: fecha_inicio || hace30Dias.toISOString(),
+        fin: fecha_fin || new Date().toISOString()
+      },
+      
+      // Análisis por horas para identificar patrones de salida
+      salidas_por_hora: {},
+      entradas_por_hora: {},
+      
+      // Análisis por días de la semana
+      patrones_semanales: {},
+      
+      // Análisis por facultad para distribución de buses
+      salidas_por_facultad: {},
+      
+      // Tiempos promedio en campus
+      tiempo_promedio_campus: 0,
+      
+      // Datos de presencia actual
+      estudiantes_presentes: 0
+    };
+
+    // Procesar asistencias por hora y tipo
+    asistencias.forEach(asistencia => {
+      const fecha = new Date(asistencia.fecha_hora);
+      const hora = fecha.getHours();
+      const diaSemana = fecha.getDay(); // 0=domingo, 1=lunes, etc.
+      const tipo = asistencia.tipo || asistencia.entrada_tipo;
+      
+      // Contar por horas
+      if (tipo === 'salida') {
+        datosParaML.salidas_por_hora[hora] = (datosParaML.salidas_por_hora[hora] || 0) + 1;
+        
+        // Contar por facultad
+        const facultad = asistencia.siglas_facultad || 'SIN_FACULTAD';
+        datosParaML.salidas_por_facultad[facultad] = (datosParaML.salidas_por_facultad[facultad] || 0) + 1;
+      } else if (tipo === 'entrada') {
+        datosParaML.entradas_por_hora[hora] = (datosParaML.entradas_por_hora[hora] || 0) + 1;
+      }
+      
+      // Patrones semanales
+      const diaKey = `dia_${diaSemana}`;
+      if (!datosParaML.patrones_semanales[diaKey]) {
+        datosParaML.patrones_semanales[diaKey] = { entradas: 0, salidas: 0 };
+      }
+      datosParaML.patrones_semanales[diaKey][tipo === 'entrada' ? 'entradas' : 'salidas']++;
+    });
+
+    // Calcular tiempo promedio en campus
+    const tiemposValidos = presencias.filter(p => p.tiempo_en_campus && p.tiempo_en_campus > 0);
+    if (tiemposValidos.length > 0) {
+      const sumaHoras = tiemposValidos.reduce((suma, p) => suma + (p.tiempo_en_campus / (1000 * 60 * 60)), 0);
+      datosParaML.tiempo_promedio_campus = sumaHoras / tiemposValidos.length;
+    }
+
+    // Contar estudiantes actualmente presentes
+    const estudiantesPresentes = await Presencia.countDocuments({ esta_dentro: true });
+    datosParaML.estudiantes_presentes = estudiantesPresentes;
+
+    res.json({
+      success: true,
+      datos_ml: datosParaML,
+      metadata: {
+        generado_en: new Date().toISOString(),
+        version_api: "1.0",
+        descripcion: "Datos históricos procesados para análisis ML de buses nocturnos"
+      }
+    });
+
+  } catch (err) {
+    res.status(500).json({ 
+      error: 'Error al obtener datos históricos para ML', 
+      details: err.message 
+    });
+  }
+});
+
+// 🤖 ENDPOINT 2: Recibir predicciones del modelo ML y almacenar recomendaciones
+app.post('/ml/recomendaciones-buses', async (req, res) => {
+  try {
+    const {
+      horario_recomendado,
+      numero_buses_sugeridos,
+      capacidad_estimada,
+      estudiantes_esperados,
+      porcentaje_ocupacion,
+      facultades_principales,
+      justificacion,
+      datos_historicos_utilizados,
+      modelo_version,
+      confianza_prediccion
+    } = req.body;
+
+    // Validar datos requeridos
+    if (!horario_recomendado || !numero_buses_sugeridos || !estudiantes_esperados) {
+      return res.status(400).json({
+        error: 'Faltan campos requeridos',
+        campos_requeridos: ['horario_recomendado', 'numero_buses_sugeridos', 'estudiantes_esperados']
+      });
+    }
+
+    // Crear nueva recomendación
+    const nuevaRecomendacion = new RecomendacionBus({
+      _id: new mongoose.Types.ObjectId().toString(),
+      horario_recomendado,
+      numero_buses_sugeridos,
+      capacidad_estimada: capacidad_estimada || numero_buses_sugeridos * 40, // Asumiendo 40 estudiantes por bus
+      estudiantes_esperados,
+      porcentaje_ocupacion: porcentaje_ocupacion || Math.round((estudiantes_esperados / (numero_buses_sugeridos * 40)) * 100),
+      facultades_principales: facultades_principales || [],
+      justificacion: justificacion || 'Recomendación generada por modelo ML',
+      datos_historicos_utilizados: datos_historicos_utilizados || {},
+      modelo_version: modelo_version || '1.0',
+      confianza_prediccion: confianza_prediccion || 0.85
+    });
+
+    await nuevaRecomendacion.save();
+
+    // Respuesta exitosa
+    res.status(201).json({
+      success: true,
+      message: 'Recomendación de buses almacenada exitosamente',
+      recomendacion: nuevaRecomendacion,
+      resumen: {
+        horario: horario_recomendado,
+        buses: numero_buses_sugeridos,
+        estudiantes: estudiantes_esperados,
+        ocupacion: `${nuevaRecomendacion.porcentaje_ocupacion}%`,
+        confianza: `${Math.round(confianza_prediccion * 100)}%`
+      }
+    });
+
+  } catch (err) {
+    res.status(500).json({ 
+      error: 'Error al almacenar recomendación de buses', 
+      details: err.message 
+    });
+  }
+});
+
+// 📈 ENDPOINT 3: Obtener recomendaciones almacenadas (para dashboards y reportes)
+app.get('/ml/recomendaciones-buses', async (req, res) => {
+  try {
+    const { fecha_desde, limite, solo_recientes } = req.query;
+    
+    let filtro = {};
+    let opciones = { sort: { fecha_analisis: -1 } };
+    
+    // Filtrar por fecha si se especifica
+    if (fecha_desde) {
+      filtro.fecha_analisis = { $gte: new Date(fecha_desde) };
+    }
+    
+    // Solo recomendaciones recientes (últimas 24 horas)
+    if (solo_recientes === 'true') {
+      const hace24h = new Date();
+      hace24h.setHours(hace24h.getHours() - 24);
+      filtro.fecha_analisis = { $gte: hace24h };
+    }
+    
+    // Limitar resultados
+    if (limite) {
+      opciones.limit = parseInt(limite);
+    } else {
+      opciones.limit = 50; // Límite por defecto
+    }
+
+    const recomendaciones = await RecomendacionBus.find(filtro, null, opciones);
+    
+    // Estadísticas rápidas
+    const estadisticas = {
+      total_recomendaciones: recomendaciones.length,
+      horarios_mas_recomendados: {},
+      promedio_buses: 0,
+      promedio_estudiantes: 0,
+      confianza_promedio: 0
+    };
+
+    if (recomendaciones.length > 0) {
+      // Calcular estadísticas
+      let sumaBuses = 0, sumaEstudiantes = 0, sumaConfianza = 0;
+      
+      recomendaciones.forEach(rec => {
+        // Horarios más recomendados
+        const horario = rec.horario_recomendado;
+        estadisticas.horarios_mas_recomendados[horario] = 
+          (estadisticas.horarios_mas_recomendados[horario] || 0) + 1;
+        
+        // Promedios
+        sumaBuses += rec.numero_buses_sugeridos;
+        sumaEstudiantes += rec.estudiantes_esperados;
+        sumaConfianza += rec.confianza_prediccion;
+      });
+      
+      estadisticas.promedio_buses = Math.round(sumaBuses / recomendaciones.length);
+      estadisticas.promedio_estudiantes = Math.round(sumaEstudiantes / recomendaciones.length);
+      estadisticas.confianza_promedio = Math.round((sumaConfianza / recomendaciones.length) * 100) / 100;
+    }
+
+    res.json({
+      success: true,
+      recomendaciones,
+      estadisticas,
+      metadata: {
+        total_resultados: recomendaciones.length,
+        consultado_en: new Date().toISOString(),
+        filtros_aplicados: {
+          fecha_desde: fecha_desde || 'todas',
+          limite: opciones.limit,
+          solo_recientes: solo_recientes === 'true'
+        }
+      }
+    });
+
+  } catch (err) {
+    res.status(500).json({ 
+      error: 'Error al obtener recomendaciones de buses', 
+      details: err.message 
+    });
+  }
+});
+
+// 🎯 ENDPOINT 4: Análisis en tiempo real para ML (datos actuales del campus)
+app.get('/ml/estado-actual', async (req, res) => {
+  try {
+    const ahora = new Date();
+    const horaActual = ahora.getHours();
+    const diaActual = ahora.getDay();
+    
+    // Estudiantes actualmente en campus
+    const estudiantesPresentes = await Presencia.find({ esta_dentro: true });
+    
+    // Patrones de salida de la última hora
+    const haceUnaHora = new Date(ahora - 60 * 60 * 1000);
+    const salidasUltimaHora = await Asistencia.find({
+      tipo: 'salida',
+      fecha_hora: { $gte: haceUnaHora }
+    });
+    
+    // Distribución por facultades de estudiantes presentes
+    const distribucionFacultades = {};
+    estudiantesPresentes.forEach(estudiante => {
+      const facultad = estudiante.facultad || 'SIN_FACULTAD';
+      distribucionFacultades[facultad] = (distribucionFacultades[facultad] || 0) + 1;
+    });
+    
+    // Estudiantes que llevan más de 6 horas en campus (candidatos a salir pronto)
+    const hace6Horas = new Date(ahora - 6 * 60 * 60 * 1000);
+    const candidatosSalida = estudiantesPresentes.filter(est => 
+      est.hora_entrada && new Date(est.hora_entrada) <= hace6Horas
+    );
+
+    const estadoActual = {
+      timestamp: ahora.toISOString(),
+      hora_actual: horaActual,
+      dia_semana: diaActual,
+      
+      presencia: {
+        total_estudiantes: estudiantesPresentes.length,
+        distribucion_facultades: distribucionFacultades,
+        candidatos_salida_pronta: candidatosSalida.length
+      },
+      
+      actividad_reciente: {
+        salidas_ultima_hora: salidasUltimaHora.length,
+        tendencia_salida: salidasUltimaHora.length > 0 ? 'activa' : 'baja'
+      },
+      
+      // Información contextual para el modelo
+      contexto: {
+        es_hora_pico_salida: horaActual >= 17 && horaActual <= 22,
+        es_dia_laboral: diaActual >= 1 && diaActual <= 5,
+        categoria_horario: this.categorizarHorario(horaActual)
+      },
+      
+      // Métricas para predicción
+      metricas_prediccion: {
+        densidad_actual: estudiantesPresentes.length,
+        velocidad_salida: salidasUltimaHora.length,
+        tiempo_promedio_permanencia: this.calcularTiempoPromedio(estudiantesPresentes)
+      }
+    };
+
+    res.json({
+      success: true,
+      estado_actual: estadoActual,
+      mensaje: 'Estado actual del campus para análisis ML'
+    });
+
+  } catch (err) {
+    res.status(500).json({ 
+      error: 'Error al obtener estado actual para ML', 
+      details: err.message 
+    });
+  }
+});
+
+// 🔄 ENDPOINT 5: Feedback del sistema (para mejorar el modelo)
+app.post('/ml/feedback', async (req, res) => {
+  try {
+    const {
+      recomendacion_id,
+      horario_real_utilizado,
+      buses_reales_utilizados,
+      estudiantes_reales,
+      efectividad_recomendacion,
+      comentarios
+    } = req.body;
+
+    // Buscar la recomendación original
+    const recomendacionOriginal = await RecomendacionBus.findById(recomendacion_id);
+    if (!recomendacionOriginal) {
+      return res.status(404).json({ error: 'Recomendación no encontrada' });
+    }
+
+    // Crear registro de feedback
+    const feedbackSchema = new mongoose.Schema({
+      _id: String,
+      recomendacion_id: String,
+      fecha_feedback: { type: Date, default: Date.now },
+      recomendacion_original: Object,
+      datos_reales: {
+        horario_utilizado: String,
+        buses_utilizados: Number,
+        estudiantes_reales: Number
+      },
+      efectividad: Number,
+      diferencias: Object,
+      comentarios: String
+    }, { collection: 'feedback_ml', strict: false, _id: false });
+    
+    const Feedback = mongoose.model('feedback_ml', feedbackSchema);
+
+    // Calcular diferencias
+    const diferencias = {
+      diferencia_buses: buses_reales_utilizados - recomendacionOriginal.numero_buses_sugeridos,
+      diferencia_estudiantes: estudiantes_reales - recomendacionOriginal.estudiantes_esperados,
+      precision_horario: horario_real_utilizado === recomendacionOriginal.horario_recomendado
+    };
+
+    const nuevoFeedback = new Feedback({
+      _id: new mongoose.Types.ObjectId().toString(),
+      recomendacion_id,
+      recomendacion_original: recomendacionOriginal.toObject(),
+      datos_reales: {
+        horario_utilizado: horario_real_utilizado,
+        buses_utilizados: buses_reales_utilizados,
+        estudiantes_reales: estudiantes_reales
+      },
+      efectividad: efectividad_recomendacion,
+      diferencias,
+      comentarios: comentarios || ''
+    });
+
+    await nuevoFeedback.save();
+
+    res.json({
+      success: true,
+      message: 'Feedback registrado exitosamente',
+      feedback_id: nuevoFeedback._id,
+      analisis: {
+        precision_prediccion: efectividad_recomendacion,
+        diferencias_detectadas: diferencias,
+        mejora_modelo: 'Datos incorporados para entrenamiento futuro'
+      }
+    });
+
+  } catch (err) {
+    res.status(500).json({ 
+      error: 'Error al registrar feedback ML', 
+      details: err.message 
+    });
+  }
+});
+
+// Funciones auxiliares para análisis ML
+function categorizarHorario(hora) {
+  if (hora >= 6 && hora < 12) return 'mañana';
+  if (hora >= 12 && hora < 17) return 'tarde';
+  if (hora >= 17 && hora < 22) return 'noche';
+  return 'madrugada';
+}
+
+function calcularTiempoPromedio(estudiantesPresentes) {
+  if (estudiantesPresentes.length === 0) return 0;
+  
+  const ahora = new Date();
+  const tiempos = estudiantesPresentes.map(est => {
+    if (est.hora_entrada) {
+      return (ahora - new Date(est.hora_entrada)) / (1000 * 60 * 60); // en horas
+    }
+    return 0;
+  }).filter(t => t > 0);
+  
+  return tiempos.length > 0 ? tiempos.reduce((a, b) => a + b) / tiempos.length : 0;
+}
+
 // Configuración de puerto para Railway
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';

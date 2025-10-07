@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <!-- Tecnologías NFC soportadas -->
+    <tech-list>
+        <!-- Para tarjetas MIFARE Classic como la tuya -->
+        <tech>android.nfc.tech.MifareClassic</tech>
+    </tech-list>
+    
+    <tech-list>
+        <!-- Para tarjetas ISO 14443 Type A -->
+        <tech>android.nfc.tech.NfcA</tech>
+    </tech-list>
+    
+    <tech-list>
+        <!-- Para tarjetas con NDEF -->
+        <tech>android.nfc.tech.Ndef</tech>
+    </tech-list>
+    
+    <tech-list>
+        <!-- Para tarjetas formateables -->
+        <tech>android.nfc.tech.NdefFormatable</tech>
+    </tech-list>
+    
+    <tech-list>
+        <!-- Soporte adicional para diferentes tipos -->
+        <tech>android.nfc.tech.NfcB</tech>
+    </tech-list>
+    
+    <tech-list>
+        <tech>android.nfc.tech.NfcF</tech>
+    </tech-list>
+    
+    <tech-list>
+        <tech>android.nfc.tech.NfcV</tech>
+    </tech-list>
+</resources>

@@ -54,87 +54,99 @@ class NfcViewModel extends ChangeNotifier {
     }
   }
 
-  // Iniciar escaneo NFC con manejo de múltiples detecciones
+  // Iniciar escaneo NFC continuo
   Future<void> startNfcScan() async {
-    if (_isScanning || _isLoading) return;
+    if (_isScanning) return;
 
     _setScanning(true);
     _clearMessages();
     _scannedAlumno = null;
 
     try {
+      print('🚀 Iniciando escaneo NFC continuo...');
+
       // Verificar NFC disponible
       bool available = await _nfcService.isNfcAvailable();
       if (!available) {
         throw Exception('NFC no está disponible en este dispositivo');
       }
 
-      // Iniciar procesamiento continuo de detecciones NFC
-      await _startContinuousNfcDetection();
+      _setSuccess('🔄 ESCÁNER ACTIVO - Acerque las pulseras...');
+
+      // Iniciar bucle de lectura continua
+      await _startContinuousScanning();
     } catch (e) {
-      _setError(e.toString().replaceAll('Exception: ', ''));
+      String errorMsg = e.toString().replaceAll('Exception: ', '');
+      print('❌ Error en escaneo: $errorMsg');
+      _setError('❌ $errorMsg');
       _setScanning(false);
     }
   }
 
-  // Iniciar detección continua de NFC
-  Future<void> _startContinuousNfcDetection() async {
-    _startQueueProcessor();
+  // Bucle de lectura continua
+  Future<void> _startContinuousScanning() async {
+    while (_isScanning) {
+      try {
+        print('📡 Esperando próxima pulsera...');
 
-    // Simular detecciones múltiples (en implementación real sería el NFC real)
-    _queueTimer = Timer.periodic(Duration(seconds: 2), (timer) async {
-      if (!_isScanning) {
-        timer.cancel();
-        return;
-      }
+        // Leer pulsera con timeout corto
+        String codigoUniversitario = await _nfcService.readNfcWithResult();
 
-      // Simular detección de múltiples tags
-      await _simulateMultipleDetections();
-    });
-  }
+        if (_isScanning) {
+          // Verificar que aún estamos escaneando
+          // Mostrar código leído
+          _setSuccess('✅ LEÍDO: $codigoUniversitario\n🔍 Procesando...');
 
-  // Simular múltiples detecciones NFC para demostración
-  Future<void> _simulateMultipleDetections() async {
-    // En implementación real, esto vendría del NFC hardware
-    List<String> simulatedTags = ['EST001', 'EST002', 'EST003'];
+          // Procesar la detección
+          await _processingleDetection(codigoUniversitario);
 
-    for (String tagCode in simulatedTags) {
-      if (DateTime.now().millisecond % 3 == 0) {
-        // Simulación aleatoria
-        _addToDetectionQueue(tagCode);
+          // Pausa corta antes de la próxima lectura
+          await Future.delayed(Duration(seconds: 2));
+
+          if (_isScanning) {
+            _setSuccess('🔄 LISTO - Acerque la siguiente pulsera...');
+          }
+        }
+      } catch (e) {
+        if (_isScanning) {
+          // Si hay error, seguir intentando
+          print('⚠️ Error en lectura continua: $e');
+          await Future.delayed(Duration(milliseconds: 500));
+        }
       }
     }
   }
 
-  // Añadir detección a la cola de procesamiento
-  void _addToDetectionQueue(String codigoUniversitario) {
-    if (!_detectionQueue.contains(codigoUniversitario)) {
-      _detectionQueue.addLast(codigoUniversitario);
-      notifyListeners();
-    }
-  }
+  // Leer NFC inmediatamente (para cuando se selecciona la app desde el diálogo)
+  Future<void> readNfcImmediately() async {
+    if (_isLoading) return;
 
-  // Iniciar procesador de cola
-  void _startQueueProcessor() {
-    if (_processingQueue) return;
+    _setLoading(true);
+    _clearMessages();
 
-    _processingQueue = true;
-    _processDetectionQueue();
-  }
+    try {
+      print('🔄 Iniciando lectura NFC inmediata...');
 
-  // Procesar cola de detecciones secuencialmente
-  Future<void> _processDetectionQueue() async {
-    while (_detectionQueue.isNotEmpty && _isScanning) {
-      final codigoUniversitario = _detectionQueue.removeFirst();
+      // Intentar lectura con resultado visible
+      String codigoUniversitario = await _nfcService.readNfcWithResult();
+
+      print('✅ Código leído: $codigoUniversitario');
+
+      // Procesar la detección
       await _processingleDetection(codigoUniversitario);
-      notifyListeners();
-
-      // Pequeña pausa entre procesamiento de detecciones
-      await Future.delayed(Duration(milliseconds: 500));
+    } catch (e) {
+      print('❌ Error en lectura inmediata: $e');
+      _setError(
+        'Error al leer NFC: ${e.toString().replaceAll('Exception: ', '')}',
+      );
+    } finally {
+      _setLoading(false);
     }
-
-    _processingQueue = false;
   }
+
+  // Método eliminado - ahora usamos lectura simple
+
+  // Métodos de cola eliminados - ahora usamos lectura simple
 
   // Procesar una detección individual con verificación avanzada (US022-US030)
   Future<void> _processingleDetection(String codigoUniversitario) async {
@@ -150,8 +162,8 @@ class NfcViewModel extends ChangeNotifier {
       final verificacion = await verificarEstudianteCompleto(alumno);
 
       if (verificacion['puede_acceder'] == true) {
-        // Determinar tipo de acceso inteligente (US028)
-        final tipoAcceso = await determinarTipoAccesoInteligente(alumno.dni);
+        // Usar tipo de acceso automático detectado
+        final tipoAcceso = verificacion['tipo_acceso'] ?? 'entrada';
 
         // Registrar asistencia completa automáticamente
         await registrarAsistenciaCompleta(alumno, tipoAcceso);
@@ -162,8 +174,10 @@ class NfcViewModel extends ChangeNotifier {
           _recentDetections = _recentDetections.take(10).toList();
         }
 
+        // Mensaje diferenciado según el tipo
+        String emoji = tipoAcceso == 'entrada' ? '🟢' : '🔴';
         _setSuccess(
-          '✅ Acceso $tipoAcceso autorizado: ${alumno.nombreCompleto}',
+          '$emoji ${tipoAcceso.toUpperCase()} registrada: ${alumno.nombreCompleto}',
         );
         _scannedAlumno = alumno;
       } else {

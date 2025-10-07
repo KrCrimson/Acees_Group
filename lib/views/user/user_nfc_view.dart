@@ -49,11 +49,18 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    final nfcViewModel = Provider.of<NfcViewModel>(context, listen: false);
+
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
       // Detener escaneo cuando la app pasa a segundo plano
-      final nfcViewModel = Provider.of<NfcViewModel>(context, listen: false);
       nfcViewModel.stopNfcScan();
+    } else if (state == AppLifecycleState.resumed) {
+      // Cuando la app se reactiva, intentar leer NFC inmediatamente
+      print('📱 App reactivada, intentando leer NFC...');
+      Future.delayed(Duration(milliseconds: 500), () {
+        nfcViewModel.readNfcImmediately();
+      });
     }
   }
 
@@ -226,7 +233,8 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
   Widget _buildScanStatus(NfcViewModel nfcViewModel) {
     if (nfcViewModel.isScanning) {
       return LoadingWidget(
-        message: 'Acerque la pulsera al dispositivo...',
+        message:
+            '� ESCÁNER ACTIVO\n📱 Acerque las pulseras una tras otra...\n� Presione "Detener" para finalizar',
         size: 60,
       );
     }
@@ -400,7 +408,7 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
           backgroundColor: nfcViewModel.isScanning ? Colors.red : null,
           onPressed: () {
             if (nfcViewModel.isScanning) {
-              nfcViewModel.stopNfcScan();
+              _showStopScannerDialog(nfcViewModel);
             } else {
               nfcViewModel.startNfcScan();
             }
@@ -536,6 +544,45 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
               guardiaNombre: nfcViewModel.guardiaNombre ?? 'Guardia',
             ),
       ),
+    );
+  }
+
+  // Diálogo de confirmación para detener el escáner
+  void _showStopScannerDialog(NfcViewModel nfcViewModel) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.warning, color: Colors.orange),
+              SizedBox(width: 8),
+              Text('Detener Escáner'),
+            ],
+          ),
+          content: Text(
+            '¿Está seguro de que desea detener el escáner NFC?\n\n'
+            'Se interrumpirá la lectura continua de pulseras.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                nfcViewModel.stopNfcScan();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: Text('Detener'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

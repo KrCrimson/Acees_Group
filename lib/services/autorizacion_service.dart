@@ -36,22 +36,21 @@ class AutorizacionService extends ChangeNotifier {
         };
       }
 
-      // Verificar si ya está en campus (para entrada)
+      // Verificar presencia actual para determinar entrada/salida automáticamente
       final presencia = await _obtenerPresenciaEstudiante(estudiante.dni);
+      String tipoAcceso = 'entrada';
+
       if (presencia != null && presencia.estaDentro) {
-        return {
-          'puede_acceder': false,
-          'razon': 'El estudiante ya se encuentra en el campus',
-          'requiere_autorizacion_manual': true,
-          'presencia': presencia,
-        };
+        // Si ya está dentro, es una SALIDA
+        tipoAcceso = 'salida';
       }
 
-      // Estudiante puede acceder normalmente
+      // Estudiante puede acceder (entrada o salida automática)
       return {
         'puede_acceder': true,
         'razon': 'Estudiante verificado correctamente',
         'requiere_autorizacion_manual': false,
+        'tipo_acceso': tipoAcceso,
       };
     } catch (e) {
       return {
