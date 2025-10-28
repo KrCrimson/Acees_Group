@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/reports_viewmodel.dart';
 import '../../widgets/status_widgets.dart';
+import 'guard_reports_view.dart';
 
 class ReportsView extends StatefulWidget {
   @override
@@ -15,7 +16,7 @@ class _ReportsViewState extends State<ReportsView>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadReportsData();
     });
@@ -115,10 +116,12 @@ class _ReportsViewState extends State<ReportsView>
             // Tabs
             TabBar(
               controller: _tabController,
+              isScrollable: true,
               tabs: [
                 Tab(text: 'Estadísticas', icon: Icon(Icons.bar_chart)),
                 Tab(text: 'Asistencias', icon: Icon(Icons.list)),
                 Tab(text: 'Estudiantes', icon: Icon(Icons.school)),
+                Tab(text: 'Guardias', icon: Icon(Icons.security)),
               ],
             ),
 
@@ -130,6 +133,7 @@ class _ReportsViewState extends State<ReportsView>
                   _buildStatisticsTab(reportsViewModel),
                   _buildAttendanceTab(reportsViewModel),
                   _buildStudentsTab(reportsViewModel),
+                  GuardReportsView(),
                 ],
               ),
             ),

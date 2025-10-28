@@ -10,6 +10,10 @@ import 'session_config_view.dart';
 import 'session_management_view.dart';
 import 'historial_view.dart';
 import 'sync_config_view.dart';
+import 'offline_config_view.dart';
+import '../../widgets/connectivity_status_widget.dart';
+import '../student_status_view.dart';
+import '../matriculation_verification_view.dart';
 
 class AdminView extends StatefulWidget {
   @override
@@ -23,6 +27,7 @@ class _AdminViewState extends State<AdminView> {
     AdminDashboard(),
     UserManagementView(),
     ReportsView(),
+    OfflineConfigView(),
   ];
 
   void _handleLogout() {
@@ -65,6 +70,8 @@ class _AdminViewState extends State<AdminView> {
         backgroundColor: Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
         actions: [
+          ConnectivityStatusWidget(),
+          SizedBox(width: 8),
           Consumer<AuthViewModel>(
             builder: (context, authViewModel, child) {
               return PopupMenuButton<String>(
@@ -119,6 +126,10 @@ class _AdminViewState extends State<AdminView> {
           BottomNavigationBarItem(
             icon: Icon(Icons.analytics),
             label: 'Reportes',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.offline_bolt),
+            label: 'Offline',
           ),
         ],
       ),
@@ -433,6 +444,22 @@ class _AdminDashboardState extends State<AdminDashboard> {
           children: [
             Expanded(
               child: CustomButton(
+                text: 'Consultar Estudiante',
+                icon: Icons.person_search,
+                backgroundColor: Colors.purple,
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => StudentStatusView(),
+                    ),
+                  );
+                },
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: CustomButton(
                 text: 'Configurar Sesión',
                 icon: Icons.timer,
                 backgroundColor: Colors.orange,
@@ -441,6 +468,26 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     context,
                     MaterialPageRoute(
                       builder: (context) => SessionConfigView(),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: CustomButton(
+                text: 'Verificar Matrícula',
+                icon: Icons.school,
+                backgroundColor: Colors.indigo,
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => MatriculationVerificationView(),
                     ),
                   );
                 },

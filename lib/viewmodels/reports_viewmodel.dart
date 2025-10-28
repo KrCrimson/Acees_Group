@@ -2,10 +2,10 @@ import 'package:flutter/foundation.dart';
 import '../models/asistencia_model.dart';
 import '../models/facultad_escuela_model.dart';
 import '../models/alumno_model.dart';
-import '../services/api_service.dart';
+import '../services/hybrid_api_service.dart';
 
 class ReportsViewModel extends ChangeNotifier {
-  final ApiService _apiService = ApiService();
+  final HybridApiService _apiService = HybridApiService();
 
   List<AsistenciaModel> _asistencias = [];
   List<FacultadModel> _facultades = [];
@@ -140,6 +140,180 @@ class ReportsViewModel extends ChangeNotifier {
           ..sort((a, b) => b.value.compareTo(a.value));
 
     return sorted.take(limit).toList();
+  }
+
+  // ==================== REPORTES DE GUARDIAS ====================
+
+  // Obtener asistencias por guardia específico
+  List<AsistenciaModel> getAsistenciasByGuardia(String guardiaId) {
+    return _asistencias
+        .where((asistencia) => asistencia.guardiaId == guardiaId)
+        .toList();
+  }
+
+  // Obtener asistencias por guardia en un rango de fechas
+  List<AsistenciaModel> getAsistenciasByGuardiaAndDateRange(
+    String guardiaId,
+    DateTime start,
+    DateTime end,
+  ) {
+    return _asistencias.where((asistencia) {
+      return asistencia.guardiaId == guardiaId &&
+          asistencia.fechaHora.isAfter(start) &&
+          asistencia.fechaHora.isBefore(end.add(Duration(days: 1)));
+    }).toList();
+  }
+
+  // Obtener estadísticas de actividad por guardia
+  Map<String, dynamic> getEstadisticasGuardia(String guardiaId) {
+    final asistenciasGuardia = getAsistenciasByGuardia(guardiaId);
+    
+    if (asistenciasGuardia.isEmpty) {
+      return {
+        'totalAsistencias': 0,
+        'entradas': 0,
+        'salidas': 0,
+        'autorizacionesManuales': 0,
+        'puertaMasUsada': 'N/A',
+        'facultadMasAtendida': 'N/A',
+        'promedioDiario': 0.0,
+      };
+    }
+
+    final entradas = asistenciasGuardia.where((a) => a.entradaTipo == 'entrada').length;
+    final salidas = asistenciasGuardia.where((a) => a.entradaTipo == 'salida').length;
+    final autorizacionesManuales = asistenciasGuardia.where((a) => a.autorizacionManual == true).length;
+
+    // Puerta más usada
+    Map<String, int> puertas = {};
+    for (var asistencia in asistenciasGuardia) {
+      puertas[asistencia.puerta] = (puertas[asistencia.puerta] ?? 0) + 1;
+    }
+    final puertaMasUsada = puertas.isNotEmpty 
+        ? puertas.entries.reduce((a, b) => a.value > b.value ? a : b).key
+        : 'N/A';
+
+    // Facultad más atendida
+    Map<String, int> facultades = {};
+    for (var asistencia in asistenciasGuardia) {
+      facultades[asistencia.siglasFacultad] = (facultades[asistencia.siglasFacultad] ?? 0) + 1;
+    }
+    final facultadMasAtendida = facultades.isNotEmpty
+        ? facultades.entries.reduce((a, b) => a.value > b.value ? a : b).key
+        : 'N/A';
+
+    // Calcular promedio diario (últimos 30 días)
+    final ahora = DateTime.now();
+    final hace30Dias = ahora.subtract(Duration(days: 30));
+    final asistencias30Dias = asistenciasGuardia.where((a) => 
+        a.fechaHora.isAfter(hace30Dias)).length;
+    final promedioDiario = asistencias30Dias / 30.0;
+
+    return {
+      'totalAsistencias': asistenciasGuardia.length,
+      'entradas': entradas,
+      'salidas': salidas,
+      'autorizacionesManuales': autorizacionesManuales,
+      'puertaMasUsada': puertaMasUsada,
+      'facultadMasAtendida': facultadMasAtendida,
+      'promedioDiario': promedioDiario,
+    };
+  }
+
+  // Obtener ranking de guardias por actividad
+  List<MapEntry<String, Map<String, dynamic>>> getRankingGuardias({int limit = 10}) {
+    Map<String, List<AsistenciaModel>> asistenciasPorGuardia = {};
+
+    for (var asistencia in _asistencias) {
+      if (asistencia.guardiaId != null) {
+        if (asistenciasPorGuardia[asistencia.guardiaId!] == null) {
+          asistenciasPorGuardia[asistencia.guardiaId!] = [];
+        }
+        asistenciasPorGuardia[asistencia.guardiaId!]!.add(asistencia);
+      }
+    }
+
+    List<MapEntry<String, Map<String, dynamic>>> ranking = [];
+
+    asistenciasPorGuardia.forEach((guardiaId, asistencias) {
+      final estadisticas = getEstadisticasGuardia(guardiaId);
+      ranking.add(MapEntry(guardiaId, estadisticas));
+    });
+
+    ranking.sort((a, b) => b.value['totalAsistencias'].compareTo(a.value['totalAsistencias']));
+
+    return ranking.take(limit).toList();
+  }
+
+  // Obtener actividad de guardias por día de la semana
+  Map<int, int> getActividadGuardiasPorDiaSemana() {
+    Map<int, int> actividadPorDia = {};
+
+    for (var asistencia in _asistencias) {
+      if (asistencia.guardiaId != null) {
+        int diaSemana = asistencia.fechaHora.weekday;
+        actividadPorDia[diaSemana] = (actividadPorDia[diaSemana] ?? 0) + 1;
+      }
+    }
+
+    return actividadPorDia;
+  }
+
+  // Obtener asistencias con autorización manual por guardia
+  List<AsistenciaModel> getAutorizacionesManualesByGuardia(String guardiaId) {
+    return _asistencias.where((asistencia) => 
+        asistencia.guardiaId == guardiaId && 
+        asistencia.autorizacionManual == true).toList();
+  }
+
+  // Obtener resumen de actividad de guardias por rango de fechas
+  Map<String, dynamic> getResumenActividadGuardias(DateTime start, DateTime end) {
+    final asistenciasEnRango = getAsistenciasByDateRange(start, end);
+    final asistenciasConGuardia = asistenciasEnRango.where((a) => a.guardiaId != null).toList();
+
+    if (asistenciasConGuardia.isEmpty) {
+      return {
+        'totalAsistencias': 0,
+        'guardiasActivos': 0,
+        'autorizacionesManuales': 0,
+        'puertaMasUsada': 'N/A',
+        'facultadMasAtendida': 'N/A',
+        'promedioDiario': 0.0,
+      };
+    }
+
+    final guardiasUnicos = asistenciasConGuardia.map((a) => a.guardiaId!).toSet().length;
+    final autorizacionesManuales = asistenciasConGuardia.where((a) => a.autorizacionManual == true).length;
+
+    // Puerta más usada
+    Map<String, int> puertas = {};
+    for (var asistencia in asistenciasConGuardia) {
+      puertas[asistencia.puerta] = (puertas[asistencia.puerta] ?? 0) + 1;
+    }
+    final puertaMasUsada = puertas.isNotEmpty 
+        ? puertas.entries.reduce((a, b) => a.value > b.value ? a : b).key
+        : 'N/A';
+
+    // Facultad más atendida
+    Map<String, int> facultades = {};
+    for (var asistencia in asistenciasConGuardia) {
+      facultades[asistencia.siglasFacultad] = (facultades[asistencia.siglasFacultad] ?? 0) + 1;
+    }
+    final facultadMasAtendida = facultades.isNotEmpty
+        ? facultades.entries.reduce((a, b) => a.value > b.value ? a : b).key
+        : 'N/A';
+
+    final diasDiferencia = end.difference(start).inDays + 1;
+    final promedioDiario = asistenciasConGuardia.length / diasDiferencia;
+
+    return {
+      'totalAsistencias': asistenciasConGuardia.length,
+      'guardiasActivos': guardiasUnicos,
+      'autorizacionesManuales': autorizacionesManuales,
+      'puertaMasUsada': puertaMasUsada,
+      'facultadMasAtendida': facultadMasAtendida,
+      'promedioDiario': promedioDiario,
+    };
   }
 
   // Métodos privados

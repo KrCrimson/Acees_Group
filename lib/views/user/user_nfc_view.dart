@@ -10,6 +10,8 @@ import '../../widgets/conflict_alert_widget.dart';
 import '../login_view.dart';
 import '../student_verification_view.dart';
 import '../admin/presencia_dashboard_view.dart';
+import '../student_status_view.dart';
+import '../matriculation_verification_view.dart';
 
 class UserNfcView extends StatefulWidget {
   @override
@@ -430,6 +432,40 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
             onPressed: () => _mostrarVerificacionManual(nfcViewModel),
           ),
         ],
+        
+        // Botón de consulta de estado del estudiante
+        SizedBox(height: 12),
+        CustomButton(
+          text: 'Consultar Estado Estudiante',
+          icon: Icons.search,
+          width: double.infinity,
+          backgroundColor: Colors.purple,
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => StudentStatusView(),
+              ),
+            );
+          },
+        ),
+        
+        // Botón de verificación de matrícula
+        SizedBox(height: 12),
+        CustomButton(
+          text: 'Verificar Vigencia Matrícula',
+          icon: Icons.school,
+          width: double.infinity,
+          backgroundColor: Colors.indigo,
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => MatriculationVerificationView(),
+              ),
+            );
+          },
+        ),
 
         // Botón de Dashboard de Presencia
         if (nfcViewModel.guardiaId != null) ...[
