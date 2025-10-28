@@ -1,0 +1,13 @@
+NO.,ASSIGNED TO,PRIORITIES,PRIORITY LEVEL,PROGRESS,PROGRESS STATUS,PROBLEMS AND COMMENTS
+1,Cesar C.,Implementar tests unitarios,High,Necesitamos cobertura mínima del 60% para código crítico. Específicamente en NfcService y ApiService,In Progress,Falta configurar framework de testing para Flutter
+2,Angel G.,Testing de integración,High,Validar comunicación Flutter ↔ Backend y sincronización offline/online,In Progress,Pendiente mock de servidor para pruebas
+3,Sebastian A.,Testing de UI/UX,Medium,Validar flujos principales y feedback visual en pantalla NFC,In Progress,Necesitamos definir criterios de aceptación para UX
+4,Juan L.,Optimizar consultas MongoDB,High,Agregar índices faltantes en asistencias y presencia,In Progress,Revisar queries lentas en reportes
+5,Cesar C.,Implementar rate limiting,High,Proteger endpoints críticos contra abuso,Not Started,Falta instalar express-rate-limit
+6,Angel G.,Optimizar tamaño APK,Medium,Reducir dependencias innecesarias y usar split APKs,In Progress,Análisis de dependencias en curso
+7,Sebastian A.,Auditoría de seguridad,High,Revisar JWT bcrypt y validación de inputs,In Progress,Pendiente penetration testing
+8,Juan L.,Documentar API endpoints,Medium,Crear documentación Swagger/OpenAPI completa,In Progress,Falta setup de Swagger
+9,Cesar C.,Implementar logging centralizado,High,Sistema de logs para monitoreo en producción,In Progress,Evaluando Winston vs Morgan
+10,Angel G.,Configurar monitoreo y alertas,High,Dashboard de métricas y health checks,Not Started,Falta definir métricas clave a monitorear
+11,Sebastian A.,Beta testing con usuarios reales,High,Deploy a ambiente de pruebas con 3-5 guardias,Not Started,Seleccionando usuarios beta
+12,Juan L.,Crear manual de usuario,Medium,Manual de administrador y guardia,In Progress,Primera versión en borrador
