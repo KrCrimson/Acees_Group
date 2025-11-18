@@ -12,6 +12,8 @@ const corsOptions = {
   origin: [
     'http://localhost:3000',
     'http://192.168.1.51:3000',
+    'http://localhost:8080',
+    'http://127.0.0.1:8080',
     'https://acees-group-backend-production.up.railway.app',
     // Permitir cualquier origen en desarrollo
     ...(process.env.NODE_ENV !== 'production' ? ['*'] : [])
