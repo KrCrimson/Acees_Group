@@ -215,16 +215,7 @@ class NfcViewModel extends ChangeNotifier {
 
       addLog('   Guardia: $_guardiaNombre ($_guardiaId)');
 
-      // PROBAR CONEXIÓN AL SERVIDOR PRIMERO
-      addLog('🧪 Probando conexión al servidor...');
-      addLog('🌐 URL del servidor: ${_apiService.getBaseUrl()}');
-      bool serverOk = await _apiService.testServerConnection();
-      addLog('🌐 Servidor: ${serverOk ? "DISPONIBLE" : "NO DISPONIBLE"}');
 
-      if (!serverOk) {
-        throw Exception(
-            'Servidor no disponible - Verifique conexión a internet');
-      }
 
       // GENERAR MÚLTIPLES VARIANTES DEL CÓDIGO Y PROBAR CADA UNA
       List<String> variantes = _generarVariantesCodigoHex(codigoUniversitario);

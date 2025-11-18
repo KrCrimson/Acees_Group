@@ -100,12 +100,8 @@ class AutorizacionService extends ChangeNotifier {
   Future<void> cargarHistorialDecisiones(String guardiaId) async {
     _setLoading(true);
     try {
-      debugPrint('🔄 Cargando asistencias para guardia: $guardiaId');
-      
       // TEMPORAL: Usar endpoint de todas las asistencias y filtrar por guardia
       final todasAsistencias = await _apiService.getAllAsistencias();
-      
-      debugPrint('📊 Total asistencias obtenidas: ${todasAsistencias.length}');
       
       // Filtrar por guardia y últimas 24 horas
       final ahora = DateTime.now();
@@ -116,8 +112,6 @@ class AutorizacionService extends ChangeNotifier {
         final esReciente = asistencia.fechaHora.isAfter(hace24Horas);
         return esDelGuardia && esReciente;
       }).toList();
-      
-      debugPrint('✅ Asistencias del guardia filtradas: ${asistenciasGuardia.length}');
 
       // Convertir asistencias a decisiones para mostrar estadísticas
       _historialDecisiones = asistenciasGuardia
@@ -136,10 +130,11 @@ class AutorizacionService extends ChangeNotifier {
               ))
           .toList();
 
-      debugPrint('📈 Estadísticas generadas: ${_historialDecisiones.length} decisiones');
       notifyListeners();
     } catch (e) {
-      debugPrint('❌ Error cargando historial: $e');
+      // Si falla la conexión, usar datos vacíos pero no fallar
+      _historialDecisiones = [];
+      notifyListeners();
     } finally {
       _setLoading(false);
     }
