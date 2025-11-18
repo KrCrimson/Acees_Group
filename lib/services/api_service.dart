@@ -382,18 +382,22 @@ class ApiService {
   }
 
   // ==================== TESTING ====================
-  
-  Future<bool> testConnection() async {
+
+  String getBaseUrl() {
+    return ApiConfig.baseUrl;
+  }
+
+  Future<bool> testServerConnection() async {
     try {
       print('🧪 Probando conexión al servidor...');
       final response = await http.get(
         Uri.parse('${ApiConfig.baseUrl}/test'),
         headers: _headers,
       );
-      
+
       print('📨 Respuesta test: ${response.statusCode}');
       print('📨 Cuerpo test: ${response.body}');
-      
+
       return response.statusCode == 200;
     } catch (e) {
       print('❌ Error en test de conexión: $e');
@@ -405,36 +409,83 @@ class ApiService {
 
   Future<void> registrarAsistenciaCompleta(AsistenciaModel asistencia) async {
     try {
-      print('📤 Enviando asistencia completa:');
+      print('📤 INICIANDO REGISTRO DE ASISTENCIA COMPLETA');
+      print('   URL destino: ${ApiConfig.baseUrl}/asistencias/completa');
       print('   DNI: ${asistencia.dni}');
       print('   Nombre: ${asistencia.nombreCompleto}');
       print('   Tipo: ${asistencia.tipo}');
       print('   Código: ${asistencia.codigoUniversitario}');
+      print('   Guardia ID: ${asistencia.guardiaId}');
       print('   Guardia: ${asistencia.guardiaNombre}');
       print('   Fecha: ${asistencia.fechaHora}');
+      print('   Headers: $_headers');
 
-      final body = json.encode(asistencia.toJson());
-      print('📋 Datos JSON: $body');
+      final jsonData = asistencia.toJson();
+      print('📋 Datos JSON completos:');
+      jsonData.forEach((key, value) {
+        print('   $key: $value');
+      });
 
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/asistencias/completa'),
-        headers: _headers,
-        body: body,
-      );
+      final body = json.encode(jsonData);
+      print('📋 Body final: $body');
 
-      print('📨 Respuesta del servidor: ${response.statusCode}');
-      print('📨 Cuerpo de respuesta: ${response.body}');
+      print('🌐 Enviando petición POST...');
+      final response = await http
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/asistencias/completa'),
+            headers: _headers,
+            body: body,
+          )
+          .timeout(Duration(seconds: 30));
+
+      print('📨 RESPUESTA RECIBIDA:');
+      print('   Status Code: ${response.statusCode}');
+      print('   Headers: ${response.headers}');
+      print('   Body: ${response.body}');
 
       if (response.statusCode == 201) {
-        print('✅ Asistencia registrada exitosamente');
+        print('✅ ASISTENCIA REGISTRADA EXITOSAMENTE EN MONGODB');
+        try {
+          final responseData = json.decode(response.body);
+          print('✅ ID en MongoDB: ${responseData['_id']}');
+        } catch (e) {
+          print('⚠️ No se pudo parsear respuesta JSON, pero status 201 OK');
+        }
+      } else if (response.statusCode >= 400 && response.statusCode < 500) {
+        // Error del cliente (400-499)
+        try {
+          final error = json.decode(response.body);
+          print(
+              '❌ ERROR DEL CLIENTE (${response.statusCode}): ${error['error']}');
+          throw Exception(
+              'Error ${response.statusCode}: ${error['error'] ?? 'Error desconocido'}');
+        } catch (e) {
+          print(
+              '❌ ERROR DEL CLIENTE (${response.statusCode}): ${response.body}');
+          throw Exception('Error ${response.statusCode}: ${response.body}');
+        }
+      } else if (response.statusCode >= 500) {
+        // Error del servidor (500+)
+        print(
+            '❌ ERROR DEL SERVIDOR (${response.statusCode}): ${response.body}');
+        throw Exception(
+            'Error del servidor ${response.statusCode}: ${response.body}');
       } else {
-        final error = json.decode(response.body);
-        print('❌ Error del servidor: ${error['error']}');
-        throw Exception(error['error'] ?? 'Error al registrar asistencia');
+        print(
+            '❌ RESPUESTA INESPERADA (${response.statusCode}): ${response.body}');
+        throw Exception(
+            'Respuesta inesperada ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
-      print('❌ Error de conexión: $e');
-      throw Exception('Error de conexión: $e');
+      print('❌ EXCEPCIÓN CRÍTICA EN REGISTRO: $e');
+      print('❌ Tipo de error: ${e.runtimeType}');
+      if (e is TimeoutException) {
+        throw Exception('TIMEOUT: El servidor no respondió en 30 segundos');
+      } else if (e is FormatException) {
+        throw Exception('ERROR DE FORMATO: ${e.message}');
+      } else {
+        throw Exception('ERROR DE CONEXIÓN: $e');
+      }
     }
   }
 

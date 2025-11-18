@@ -33,6 +33,10 @@ class NfcViewModel extends ChangeNotifier {
   List<AlumnoModel> _recentDetections = [];
   Timer? _queueTimer;
 
+  // SISTEMA DE LOGS EN TIEMPO REAL
+  final List<String> _debugLogs = [];
+  static const int maxLogs = 50;
+
   // Getters
   bool get isScanning => _isScanning;
   bool get isLoading => _isLoading;
@@ -45,6 +49,7 @@ class NfcViewModel extends ChangeNotifier {
       List.unmodifiable(_recentDetections);
   int get queueSize => _detectionQueue.length;
   bool get isProcessingQueue => _processingQueue;
+  List<String> get debugLogs => List.unmodifiable(_debugLogs);
 
   // Verificar disponibilidad NFC
   Future<bool> checkNfcAvailability() async {
@@ -157,44 +162,119 @@ class NfcViewModel extends ChangeNotifier {
 
   // Métodos de cola eliminados - ahora usamos lectura simple
 
+  // Convertir código hex de pulsera al formato de BD
+  List<String> _generarVariantesCodigoHex(String codigoHex) {
+    List<String> variantes = [];
+
+    try {
+      // Remover espacios
+      String hexLimpio = codigoHex.replaceAll(' ', '');
+
+      addLog('🔄 Generando variantes para: $codigoHex');
+
+      // PRIMERO: Original en mayúsculas (formato más probable según la BD)
+      String originalMayus = hexLimpio.toUpperCase();
+      variantes.add(originalMayus);
+      addLog('   V1 - Original mayús: $originalMayus');
+
+      // SEGUNDO: Original en minúsculas
+      String originalMinus = hexLimpio.toLowerCase();
+      variantes.add(originalMinus);
+      addLog('   V2 - Original minus: $originalMinus');
+
+      // TERCERO: Si tiene 8 caracteres, probar formato invertido
+      if (hexLimpio.length == 8) {
+        List<String> bytes = [];
+        for (int i = 0; i < hexLimpio.length; i += 2) {
+          bytes.add(hexLimpio.substring(i, i + 2));
+        }
+
+        String invertidoMayus = bytes.reversed.join('').toUpperCase();
+        String invertidoMinus = bytes.reversed.join('').toLowerCase();
+
+        variantes.add(invertidoMayus);
+        variantes.add(invertidoMinus);
+        addLog('   V3 - Invertido mayús: $invertidoMayus');
+        addLog('   V4 - Invertido minus: $invertidoMinus');
+      }
+    } catch (e) {
+      addLog('❌ Error generando variantes: $e');
+      variantes.add(codigoHex);
+    }
+
+    return variantes;
+  }
+
   // Procesar una detección individual con verificación avanzada (US022-US030)
   Future<void> _processingleDetection(String codigoUniversitario) async {
     try {
       _setLoading(true);
 
-      print('🔍 PROCESANDO DETECCIÓN:');
-      print('   Código: $codigoUniversitario');
-      print('   Guardia: $_guardiaNombre ($_guardiaId)');
+      addLog('🔍 PROCESANDO DETECCIÓN:');
+      addLog('   Código original: $codigoUniversitario');
 
-      // Validar alumno en el servidor
-      print('🌐 Buscando alumno en servidor...');
-      AlumnoModel alumno = await _apiService.getAlumnoByCodigo(
-        codigoUniversitario,
-      );
+      addLog('   Guardia: $_guardiaNombre ($_guardiaId)');
 
-      print('✅ Alumno encontrado: ${alumno.nombreCompleto}');
-      print('   DNI: ${alumno.dni}');
-      print('   Activo: ${alumno.isActive}');
+      // PROBAR CONEXIÓN AL SERVIDOR PRIMERO
+      addLog('🧪 Probando conexión al servidor...');
+      addLog('🌐 URL del servidor: ${_apiService.getBaseUrl()}');
+      bool serverOk = await _apiService.testServerConnection();
+      addLog('🌐 Servidor: ${serverOk ? "DISPONIBLE" : "NO DISPONIBLE"}');
+
+      if (!serverOk) {
+        throw Exception(
+            'Servidor no disponible - Verifique conexión a internet');
+      }
+
+      // GENERAR MÚLTIPLES VARIANTES DEL CÓDIGO Y PROBAR CADA UNA
+      List<String> variantes = _generarVariantesCodigoHex(codigoUniversitario);
+
+      AlumnoModel? alumno;
+
+      for (String variante in variantes) {
+        try {
+          addLog('🔍 Probando variante: "$variante"');
+          alumno = await _apiService.getAlumnoByCodigo(variante);
+          addLog('✅ ¡ENCONTRADO con variante: "$variante"!');
+          addLog('   Alumno: ${alumno.nombreCompleto}');
+          addLog('   DNI: ${alumno.dni}');
+          addLog('   Código BD: ${alumno.codigoUniversitario}');
+          addLog('   Activo: ${alumno.isActive}');
+          break; // Salir del bucle cuando encontremos el alumno
+        } catch (e) {
+          addLog('❌ No encontrado con: "$variante"');
+          continue; // Probar la siguiente variante
+        }
+      }
+
+      // Si no se encontró con ninguna variante
+      if (alumno == null) {
+        addLog('❌ ERROR: Alumno no encontrado con ninguna variante');
+        addLog('   Código original: "$codigoUniversitario"');
+        addLog('   Variantes probadas: ${variantes.join(", ")}');
+        throw Exception(
+            'Alumno con código "$codigoUniversitario" no está registrado en el sistema');
+      }
 
       // Realizar verificación completa del estudiante (US022)
-      print('🔍 Verificando estado del estudiante...');
+      addLog('🔍 Verificando estado del estudiante...');
       final verificacion = await verificarEstudianteCompleto(alumno);
 
-      print('📋 Resultado verificación:');
-      print('   Puede acceder: ${verificacion['puede_acceder']}');
-      print('   Razón: ${verificacion['razon']}');
-      print('   Tipo acceso: ${verificacion['tipo_acceso']}');
+      addLog('📋 Resultado verificación:');
+      addLog('   Puede acceder: ${verificacion['puede_acceder']}');
+      addLog('   Razón: ${verificacion['razon']}');
+      addLog('   Tipo acceso: ${verificacion['tipo_acceso']}');
 
       if (verificacion['puede_acceder'] == true) {
         // Usar tipo de acceso automático detectado
         final tipoAcceso = verificacion['tipo_acceso'] ?? 'entrada';
 
-        print('✅ ACCESO AUTORIZADO - Registrando $tipoAcceso...');
+        addLog('✅ ACCESO AUTORIZADO - Registrando $tipoAcceso...');
 
         // Registrar asistencia completa automáticamente
         await registrarAsistenciaCompleta(alumno, tipoAcceso);
 
-        print('✅ Asistencia registrada exitosamente');
+        addLog('✅ Asistencia registrada exitosamente');
 
         // Añadir a detecciones recientes
         _recentDetections.insert(0, alumno);
@@ -211,17 +291,17 @@ class NfcViewModel extends ChangeNotifier {
         );
         _scannedAlumno = alumno;
 
-        print('🎉 PROCESO COMPLETADO EXITOSAMENTE');
+        addLog('🎉 PROCESO COMPLETADO EXITOSAMENTE');
       } else {
-        print('⚠️ ACCESO DENEGADO - Requiere autorización manual');
+        addLog('⚠️ ACCESO DENEGADO - Requiere autorización manual');
         // El estudiante requiere autorización manual (US023-US024)
         _setError('⚠️ Requiere autorización manual: ${verificacion['razon']}');
         _scannedAlumno = alumno; // Mantener para mostrar en UI de verificación
       }
     } catch (e) {
-      print('❌ ERROR EN PROCESAMIENTO: $e');
-      print('❌ Stack trace: ${StackTrace.current}');
-      _setError('Error procesando ${codigoUniversitario}: $e');
+      addLog('❌ ERROR EN PROCESAMIENTO: $e');
+      addLog('❌ Stack trace: ${StackTrace.current}');
+      _setError('Error procesando $codigoUniversitario: $e');
     } finally {
       _setLoading(false);
     }
@@ -290,6 +370,27 @@ class NfcViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  // MÉTODOS PARA LOGS EN TIEMPO REAL
+  void addLog(String message) {
+    final timestamp = DateTime.now();
+    final formattedTime =
+        '${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}:${timestamp.second.toString().padLeft(2, '0')}';
+    final logMessage = '[$formattedTime] $message';
+
+    _debugLogs.insert(0, logMessage);
+    if (_debugLogs.length > maxLogs) {
+      _debugLogs.removeRange(maxLogs, _debugLogs.length);
+    }
+
+    print(logMessage); // También imprimir en consola
+    notifyListeners();
+  }
+
+  void clearLogs() {
+    _debugLogs.clear();
+    notifyListeners();
+  }
+
   // ==================== NUEVOS MÉTODOS PARA US022-US030 ====================
 
   // Configurar información del guardia
@@ -298,14 +399,14 @@ class NfcViewModel extends ChangeNotifier {
     String guardiaNombre,
     String puntoControl,
   ) {
-    print('👮 Configurando guardia:');
-    print('   ID: $guardiaId');
-    print('   Nombre: $guardiaNombre');
-    print('   Punto Control: $puntoControl');
+    addLog('👮 Configurando guardia:');
+    addLog('   ID: $guardiaId');
+    addLog('   Nombre: $guardiaNombre');
+    addLog('   Punto Control: $puntoControl');
 
     // Validar que los datos no estén vacíos
     if (guardiaId.isEmpty || guardiaNombre.isEmpty) {
-      print('❌ Error: Datos del guardia vacíos');
+      addLog('❌ Error: Datos del guardia vacíos');
       return;
     }
 
@@ -313,7 +414,7 @@ class NfcViewModel extends ChangeNotifier {
     _guardiaNombre = guardiaNombre;
     _puntoControl = puntoControl;
 
-    print('✅ Guardia configurado correctamente');
+    addLog('✅ Guardia configurado correctamente');
     notifyListeners();
   }
 
@@ -384,17 +485,17 @@ class NfcViewModel extends ChangeNotifier {
             'Acceso ${tipoAcceso} - Punto: ${_puntoControl ?? "Principal"} - Guardia: ${_guardiaNombre}',
       );
 
-      print(
+      addLog(
           '🌐 Estado conexión: ${_offlineService.isOnline ? "ONLINE" : "OFFLINE"}');
-      print('🔧 FORZANDO REGISTRO ONLINE para debugging...');
+      addLog('🔧 FORZANDO REGISTRO ONLINE para debugging...');
 
       try {
-        print('📤 Enviando asistencia al servidor...');
-        // Registrar asistencia completa
+        addLog('📤 Enviando asistencia al servidor...');
+        // Registrar asistencia completa"
         await _apiService.registrarAsistenciaCompleta(asistencia);
-        print('✅ Asistencia enviada al servidor');
+        addLog('✅ Asistencia enviada al servidor');
 
-        print('📤 Actualizando control de presencia...');
+        addLog('📤 Actualizando control de presencia...');
         // Actualizar control de presencia (US026-US030)
         await _apiService.actualizarPresencia(
           estudiante.dni,
@@ -402,12 +503,12 @@ class NfcViewModel extends ChangeNotifier {
           _puntoControl ?? 'Desconocido',
           _guardiaId!,
         );
-        print('✅ Control de presencia actualizado');
+        addLog('✅ Control de presencia actualizado');
 
-        print('🎉 REGISTRO COMPLETADO - Debería aparecer en MongoDB');
+        addLog('🎉 REGISTRO COMPLETADO - Debería aparecer en MongoDB');
       } catch (e) {
-        print('❌ ERROR CRÍTICO enviando al servidor: $e');
-        print('❌ Stack trace: ${StackTrace.current}');
+        addLog('❌ ERROR CRÍTICO enviando al servidor: $e');
+        addLog('❌ Stack trace: ${StackTrace.current}');
 
         // Si falla, mostrar el error específico
         _setError('ERROR: No se pudo guardar - $e');
@@ -437,14 +538,6 @@ class NfcViewModel extends ChangeNotifier {
     } catch (e) {
       _setError('Error procesando decisión manual: $e');
     }
-  }
-
-  /// Guardar asistencia para sincronización offline
-  Future<void> _guardarAsistenciaOffline(AsistenciaModel asistencia) async {
-    await _offlineService.addOfflineEvent(
-      EventType.asistencia,
-      asistencia.toJson(),
-    );
   }
 
   // Getters para información del guardia

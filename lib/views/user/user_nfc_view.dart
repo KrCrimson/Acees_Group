@@ -23,6 +23,13 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _checkNfcAvailability();
     _configurarGuardia();
+
+    // Agregar log inicial
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final nfcViewModel = Provider.of<NfcViewModel>(context, listen: false);
+      nfcViewModel.addLog('🚀 Sistema de logs iniciado');
+      nfcViewModel.addLog('📱 App de Control de Acceso NFC cargada');
+    });
   }
 
   Future<void> _configurarGuardia() async {
@@ -173,10 +180,9 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
         child: Consumer<NfcViewModel>(
           builder: (context, nfcViewModel, child) {
             return SafeArea(
-              child: Padding(
+              child: SingleChildScrollView(
                 padding: EdgeInsets.all(24),
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     // Estado de sesión del guardia
                     Consumer<AuthViewModel>(
@@ -204,22 +210,21 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
 
                     SizedBox(height: 32),
 
-                    // Información del estudiante escaneado
-                    if (nfcViewModel.scannedAlumno != null)
-                      _buildStudentInfo(nfcViewModel),
-
-                    SizedBox(height: 32),
-
-                    // Botones de acción
-                    _buildActionButtons(nfcViewModel),
-
-                    SizedBox(height: 16),
-
-                    // Mensaje de estado del alumno (ENTRADA/SALIDA)
+                    // Mensaje de estado del alumno (ENTRADA/SALIDA) - MOVIDO AQUÍ
                     if (nfcViewModel.scannedAlumno != null &&
                         nfcViewModel.successMessage != null &&
                         nfcViewModel.successMessage!.contains('registrada'))
                       _buildStudentStatusMessage(nfcViewModel),
+
+                    SizedBox(height: 16),
+
+                    // Botones de acción
+                    _buildActionButtons(nfcViewModel),
+
+                    SizedBox(height: 24),
+
+                    // Sección de logs en tiempo real
+                    _buildDebugLogsSection(nfcViewModel),
 
                     SizedBox(height: 32),
 
@@ -324,77 +329,6 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
             'Presione el botón para iniciar el escaneo NFC',
             style: TextStyle(color: Colors.blue[600], fontSize: 14),
             textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStudentInfo(NfcViewModel nfcViewModel) {
-    final alumno = nfcViewModel.scannedAlumno!;
-
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[300]!),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Información del Estudiante',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey[700],
-            ),
-          ),
-          SizedBox(height: 12),
-          _buildInfoRow('Nombre', alumno.nombreCompleto),
-          _buildInfoRow('Código', alumno.codigoUniversitario),
-          _buildInfoRow(
-            'Facultad',
-            '${alumno.facultad} (${alumno.siglasFacultad})',
-          ),
-          _buildInfoRow(
-            'Escuela',
-            '${alumno.escuelaProfesional} (${alumno.siglasEscuela})',
-          ),
-          _buildInfoRow('Estado', alumno.isActive ? 'Activo' : 'Inactivo'),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 80,
-            child: Text(
-              '$label:',
-              style: TextStyle(
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[600],
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(value, style: TextStyle(color: Colors.grey[800])),
           ),
         ],
       ),
@@ -685,6 +619,123 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
   String _formatCurrentTime() {
     final now = DateTime.now();
     return '${now.day}/${now.month}/${now.year} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+  }
+
+  // Widget para mostrar logs de debugging en tiempo real
+  Widget _buildDebugLogsSection(NfcViewModel nfcViewModel) {
+    return Container(
+      width: double.infinity,
+      margin: EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[700]!, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Cabecera del panel de logs
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.grey[800],
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(11),
+                topRight: Radius.circular(11),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.bug_report, color: Colors.green[400], size: 20),
+                SizedBox(width: 8),
+                Text(
+                  'LOGS DE DEBUGGING',
+                  style: TextStyle(
+                    color: Colors.green[400],
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+                Spacer(),
+                GestureDetector(
+                  onTap: () => nfcViewModel.clearLogs(),
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.red[700],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'LIMPIAR',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Contenido de los logs
+          Container(
+            height: 200,
+            padding: EdgeInsets.all(12),
+            child: nfcViewModel.debugLogs.isEmpty
+                ? Center(
+                    child: Text(
+                      'No hay logs aún...\nInicia un escaneo para ver los logs aquí.',
+                      style: TextStyle(
+                        color: Colors.grey[500],
+                        fontSize: 12,
+                        fontFamily: 'monospace',
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  )
+                : ListView.builder(
+                    reverse: false, // Los logs más recientes arriba
+                    itemCount: nfcViewModel.debugLogs.length,
+                    itemBuilder: (context, index) {
+                      final log = nfcViewModel.debugLogs[index];
+                      Color logColor = Colors.grey[300]!;
+
+                      // Colorear logs según su tipo
+                      if (log.contains('❌') || log.contains('ERROR')) {
+                        logColor = Colors.red[400]!;
+                      } else if (log.contains('✅') ||
+                          log.contains('COMPLETADO')) {
+                        logColor = Colors.green[400]!;
+                      } else if (log.contains('🔍') || log.contains('📤')) {
+                        logColor = Colors.blue[400]!;
+                      } else if (log.contains('⚠️')) {
+                        logColor = Colors.orange[400]!;
+                      }
+
+                      return Padding(
+                        padding: EdgeInsets.symmetric(vertical: 1),
+                        child: Text(
+                          log,
+                          style: TextStyle(
+                            color: logColor,
+                            fontSize: 11,
+                            fontFamily: 'monospace',
+                            height: 1.2,
+                          ),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
   }
 
   // Diálogo de confirmación para detener el escáner
