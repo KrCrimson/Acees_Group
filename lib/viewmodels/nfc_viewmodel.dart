@@ -162,20 +162,39 @@ class NfcViewModel extends ChangeNotifier {
     try {
       _setLoading(true);
 
+      print('🔍 PROCESANDO DETECCIÓN:');
+      print('   Código: $codigoUniversitario');
+      print('   Guardia: $_guardiaNombre ($_guardiaId)');
+
       // Validar alumno en el servidor
+      print('🌐 Buscando alumno en servidor...');
       AlumnoModel alumno = await _apiService.getAlumnoByCodigo(
         codigoUniversitario,
       );
 
+      print('✅ Alumno encontrado: ${alumno.nombreCompleto}');
+      print('   DNI: ${alumno.dni}');
+      print('   Activo: ${alumno.isActive}');
+
       // Realizar verificación completa del estudiante (US022)
+      print('🔍 Verificando estado del estudiante...');
       final verificacion = await verificarEstudianteCompleto(alumno);
+
+      print('📋 Resultado verificación:');
+      print('   Puede acceder: ${verificacion['puede_acceder']}');
+      print('   Razón: ${verificacion['razon']}');
+      print('   Tipo acceso: ${verificacion['tipo_acceso']}');
 
       if (verificacion['puede_acceder'] == true) {
         // Usar tipo de acceso automático detectado
         final tipoAcceso = verificacion['tipo_acceso'] ?? 'entrada';
 
+        print('✅ ACCESO AUTORIZADO - Registrando $tipoAcceso...');
+
         // Registrar asistencia completa automáticamente
         await registrarAsistenciaCompleta(alumno, tipoAcceso);
+
+        print('✅ Asistencia registrada exitosamente');
 
         // Añadir a detecciones recientes
         _recentDetections.insert(0, alumno);
@@ -191,14 +210,17 @@ class NfcViewModel extends ChangeNotifier {
           '$emoji $tipoTexto registrada: ${alumno.nombreCompleto}',
         );
         _scannedAlumno = alumno;
+
+        print('🎉 PROCESO COMPLETADO EXITOSAMENTE');
       } else {
+        print('⚠️ ACCESO DENEGADO - Requiere autorización manual');
         // El estudiante requiere autorización manual (US023-US024)
         _setError('⚠️ Requiere autorización manual: ${verificacion['razon']}');
         _scannedAlumno = alumno; // Mantener para mostrar en UI de verificación
-
-        // El UI deberá mostrar StudentVerificationView para decisión manual
       }
     } catch (e) {
+      print('❌ ERROR EN PROCESAMIENTO: $e');
+      print('❌ Stack trace: ${StackTrace.current}');
       _setError('Error procesando ${codigoUniversitario}: $e');
     } finally {
       _setLoading(false);
@@ -280,17 +302,17 @@ class NfcViewModel extends ChangeNotifier {
     print('   ID: $guardiaId');
     print('   Nombre: $guardiaNombre');
     print('   Punto Control: $puntoControl');
-    
+
     // Validar que los datos no estén vacíos
     if (guardiaId.isEmpty || guardiaNombre.isEmpty) {
       print('❌ Error: Datos del guardia vacíos');
       return;
     }
-    
+
     _guardiaId = guardiaId;
     _guardiaNombre = guardiaNombre;
     _puntoControl = puntoControl;
-    
+
     print('✅ Guardia configurado correctamente');
     notifyListeners();
   }
@@ -334,9 +356,10 @@ class NfcViewModel extends ChangeNotifier {
       }
 
       final now = DateTime.now();
-      
+
       // Generar ID más legible: YYYYMMDD_HHMMSS_DNI
-      final fechaId = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}_${estudiante.dni}';
+      final fechaId =
+          '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}_${estudiante.dni}';
 
       final asistencia = AsistenciaModel(
         id: fechaId,
@@ -351,8 +374,8 @@ class NfcViewModel extends ChangeNotifier {
         entradaTipo: 'nfc',
         puerta: _puntoControl ?? 'Principal',
         // ASEGURAR que SIEMPRE se guarden los datos del guardia
-        guardiaId: _guardiaId!,  // Usar ! porque ya validamos arriba
-        guardiaNombre: _guardiaNombre!,  // Usar ! porque ya validamos arriba
+        guardiaId: _guardiaId!, // Usar ! porque ya validamos arriba
+        guardiaNombre: _guardiaNombre!, // Usar ! porque ya validamos arriba
         autorizacionManual: decisionManual != null,
         razonDecision: decisionManual?.razon,
         timestampDecision: decisionManual?.timestamp,
@@ -361,33 +384,34 @@ class NfcViewModel extends ChangeNotifier {
             'Acceso ${tipoAcceso} - Punto: ${_puntoControl ?? "Principal"} - Guardia: ${_guardiaNombre}',
       );
 
-      if (_offlineService.isOnline) {
-        try {
-          // Registrar asistencia completa
-          await _apiService.registrarAsistenciaCompleta(asistencia);
+      print(
+          '🌐 Estado conexión: ${_offlineService.isOnline ? "ONLINE" : "OFFLINE"}');
+      print('🔧 FORZANDO REGISTRO ONLINE para debugging...');
 
-          // Actualizar control de presencia (US026-US030)
-          await _apiService.actualizarPresencia(
-            estudiante.dni,
-            tipoAcceso,
-            _puntoControl ?? 'Desconocido',
-            _guardiaId ?? '',
-          );
+      try {
+        print('📤 Enviando asistencia al servidor...');
+        // Registrar asistencia completa
+        await _apiService.registrarAsistenciaCompleta(asistencia);
+        print('✅ Asistencia enviada al servidor');
 
-          _setSuccess('Acceso ${tipoAcceso} registrado correctamente');
-        } catch (e) {
-          // Si falla online, guardar offline
-          await _guardarAsistenciaOffline(asistencia);
-          _setSuccess(
-            'Acceso ${tipoAcceso} registrado (offline) - Se sincronizará automáticamente',
-          );
-        }
-      } else {
-        // Modo offline - guardar para sincronización posterior
-        await _guardarAsistenciaOffline(asistencia);
-        _setSuccess(
-          'Acceso ${tipoAcceso} registrado (offline) - Se sincronizará cuando haya conexión',
+        print('📤 Actualizando control de presencia...');
+        // Actualizar control de presencia (US026-US030)
+        await _apiService.actualizarPresencia(
+          estudiante.dni,
+          tipoAcceso,
+          _puntoControl ?? 'Desconocido',
+          _guardiaId!,
         );
+        print('✅ Control de presencia actualizado');
+
+        print('🎉 REGISTRO COMPLETADO - Debería aparecer en MongoDB');
+      } catch (e) {
+        print('❌ ERROR CRÍTICO enviando al servidor: $e');
+        print('❌ Stack trace: ${StackTrace.current}');
+
+        // Si falla, mostrar el error específico
+        _setError('ERROR: No se pudo guardar - $e');
+        return; // Salir sin mostrar éxito
       }
     } catch (e) {
       _setError('Error al registrar asistencia: $e');

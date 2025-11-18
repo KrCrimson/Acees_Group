@@ -57,10 +57,9 @@ class AsistenciaModel {
       guardiaNombre: json['guardia_nombre'],
       autorizacionManual: json['autorizacion_manual'],
       razonDecision: json['razon_decision'],
-      timestampDecision:
-          json['timestamp_decision'] != null
-              ? DateTime.parse(json['timestamp_decision'])
-              : null,
+      timestampDecision: json['timestamp_decision'] != null
+          ? DateTime.parse(json['timestamp_decision'])
+          : null,
       coordenadas: json['coordenadas'],
       descripcionUbicacion: json['descripcion_ubicacion'],
     );

@@ -381,6 +381,26 @@ class ApiService {
     }
   }
 
+  // ==================== TESTING ====================
+  
+  Future<bool> testConnection() async {
+    try {
+      print('🧪 Probando conexión al servidor...');
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/test'),
+        headers: _headers,
+      );
+      
+      print('📨 Respuesta test: ${response.statusCode}');
+      print('📨 Cuerpo test: ${response.body}');
+      
+      return response.statusCode == 200;
+    } catch (e) {
+      print('❌ Error en test de conexión: $e');
+      return false;
+    }
+  }
+
   // ==================== ASISTENCIAS MEJORADAS ====================
 
   Future<void> registrarAsistenciaCompleta(AsistenciaModel asistencia) async {
@@ -604,12 +624,10 @@ class ApiService {
   /// Probar conectividad con el servidor
   Future<void> testConnection() async {
     try {
-      final response = await http
-          .get(
-            Uri.parse('${ApiConfig.baseUrl}/api/health'),
-            headers: {'Content-Type': 'application/json'},
-          )
-          .timeout(const Duration(seconds: 3));
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/health'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 3));
 
       if (response.statusCode == 200) {
         // Conexión exitosa

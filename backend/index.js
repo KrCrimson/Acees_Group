@@ -58,11 +58,22 @@ db.on('reconnected', () => console.log('🔄 MongoDB reconectado'));
 
 // Endpoint de health check para verificar conectividad
 app.get('/api/health', (req, res) => {
+  console.log('🏥 Health check solicitado');
   res.status(200).json({
     status: 'OK',
     message: 'Server is running',
     timestamp: new Date().toISOString(),
     database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+  });
+});
+
+// Endpoint simple para probar conexión
+app.get('/test', (req, res) => {
+  console.log('🧪 Endpoint de prueba accedido');
+  res.json({
+    message: 'Servidor funcionando correctamente',
+    timestamp: new Date().toISOString(),
+    mongo_status: mongoose.connection.readyState === 1 ? 'conectado' : 'desconectado'
   });
 });
 

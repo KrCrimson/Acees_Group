@@ -76,52 +76,50 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
   void _showNfcNotAvailableDialog() {
     showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Text('NFC No Disponible'),
-            content: Text(
-              'Este dispositivo no tiene NFC disponible o está desactivado. '
-              'Por favor active el NFC en la configuración del dispositivo.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('Entendido'),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: Text('NFC No Disponible'),
+        content: Text(
+          'Este dispositivo no tiene NFC disponible o está desactivado. '
+          'Por favor active el NFC en la configuración del dispositivo.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Entendido'),
           ),
+        ],
+      ),
     );
   }
 
   void _handleLogout() {
     showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Text('Cerrar Sesión'),
-            content: Text('¿Está seguro de que desea cerrar sesión?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('Cancelar'),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  final authViewModel = Provider.of<AuthViewModel>(
-                    context,
-                    listen: false,
-                  );
-                  authViewModel.logout();
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => LoginView()),
-                  );
-                },
-                child: Text('Cerrar Sesión'),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: Text('Cerrar Sesión'),
+        content: Text('¿Está seguro de que desea cerrar sesión?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancelar'),
           ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              final authViewModel = Provider.of<AuthViewModel>(
+                context,
+                listen: false,
+              );
+              authViewModel.logout();
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => LoginView()),
+              );
+            },
+            child: Text('Cerrar Sesión'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -141,32 +139,31 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
                     _handleLogout();
                   }
                 },
-                itemBuilder:
-                    (context) => [
-                      PopupMenuItem(
-                        value: 'profile',
-                        child: ListTile(
-                          leading: Icon(Icons.person),
-                          title: Text('Usuario'),
-                          subtitle: Text(
-                            authViewModel.currentUser?.nombreCompleto ?? '',
-                          ),
-                          contentPadding: EdgeInsets.zero,
-                        ),
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'profile',
+                    child: ListTile(
+                      leading: Icon(Icons.person),
+                      title: Text('Usuario'),
+                      subtitle: Text(
+                        authViewModel.currentUser?.nombreCompleto ?? '',
                       ),
-                      PopupMenuDivider(),
-                      PopupMenuItem(
-                        value: 'logout',
-                        child: ListTile(
-                          leading: Icon(Icons.logout, color: Colors.red),
-                          title: Text(
-                            'Cerrar Sesión',
-                            style: TextStyle(color: Colors.red),
-                          ),
-                          contentPadding: EdgeInsets.zero,
-                        ),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  PopupMenuDivider(),
+                  PopupMenuItem(
+                    value: 'logout',
+                    child: ListTile(
+                      leading: Icon(Icons.logout, color: Colors.red),
+                      title: Text(
+                        'Cerrar Sesión',
+                        style: TextStyle(color: Colors.red),
                       ),
-                    ],
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ],
               );
             },
           ),
@@ -190,7 +187,7 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
                               authViewModel.currentUser?.nombreCompleto,
                           puntoControl:
                               authViewModel.currentUser?.puertaACargo ??
-                              'Principal',
+                                  'Principal',
                         );
                       },
                     ),
@@ -219,7 +216,7 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
                     SizedBox(height: 16),
 
                     // Mensaje de estado del alumno (ENTRADA/SALIDA)
-                    if (nfcViewModel.scannedAlumno != null && 
+                    if (nfcViewModel.scannedAlumno != null &&
                         nfcViewModel.successMessage != null &&
                         nfcViewModel.successMessage!.contains('registrada'))
                       _buildStudentStatusMessage(nfcViewModel),
@@ -520,17 +517,16 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
     final resultado = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder:
-            (context) => StudentVerificationView(
-              estudiante: nfcViewModel.scannedAlumno!,
-              guardiaId: nfcViewModel.guardiaId!,
-              guardiaNombre: nfcViewModel.guardiaNombre ?? 'Guardia',
-              puntoControl: nfcViewModel.puntoControl ?? 'Principal',
-              tipoAcceso: tipoAcceso,
-              onDecisionTaken: (decision) {
-                nfcViewModel.onDecisionManualTomada(decision);
-              },
-            ),
+        builder: (context) => StudentVerificationView(
+          estudiante: nfcViewModel.scannedAlumno!,
+          guardiaId: nfcViewModel.guardiaId!,
+          guardiaNombre: nfcViewModel.guardiaNombre ?? 'Guardia',
+          puntoControl: nfcViewModel.puntoControl ?? 'Principal',
+          tipoAcceso: tipoAcceso,
+          onDecisionTaken: (decision) {
+            nfcViewModel.onDecisionManualTomada(decision);
+          },
+        ),
       ),
     );
 
@@ -546,11 +542,10 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder:
-            (context) => PresenciaDashboardView(
-              guardiaId: nfcViewModel.guardiaId!,
-              guardiaNombre: nfcViewModel.guardiaNombre ?? 'Guardia',
-            ),
+        builder: (context) => PresenciaDashboardView(
+          guardiaId: nfcViewModel.guardiaId!,
+          guardiaNombre: nfcViewModel.guardiaNombre ?? 'Guardia',
+        ),
       ),
     );
   }
@@ -559,16 +554,16 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
   Widget _buildStudentStatusMessage(NfcViewModel nfcViewModel) {
     final alumno = nfcViewModel.scannedAlumno!;
     final lastAccessType = nfcViewModel.lastAccessType ?? 'entrada';
-    
+
     // Determinar el tipo de acceso basándose en el tipo registrado
     bool isEntrada = lastAccessType == 'entrada';
-    
+
     String tipoAcceso = 'ACCESO';
     Color backgroundColor = Colors.blue[50]!;
     Color borderColor = Colors.blue[200]!;
     Color textColor = Colors.blue[700]!;
     IconData iconData = Icons.person;
-    
+
     if (isEntrada) {
       tipoAcceso = 'ENTRADA';
       backgroundColor = Colors.green[50]!;
@@ -618,9 +613,9 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
               ),
             ],
           ),
-          
+
           SizedBox(height: 12),
-          
+
           // Datos principales del alumno
           Container(
             padding: EdgeInsets.all(12),
@@ -632,11 +627,20 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildStatusInfoRow('Nombre:', alumno.nombreCompleto, Icons.person),
-                _buildStatusInfoRow('Código:', alumno.codigoUniversitario, Icons.badge),
-                _buildStatusInfoRow('Facultad:', '${alumno.facultad} (${alumno.siglasFacultad})', Icons.school),
-                _buildStatusInfoRow('Escuela:', '${alumno.escuelaProfesional} (${alumno.siglasEscuela})', Icons.class_),
-                _buildStatusInfoRow('Hora:', _formatCurrentTime(), Icons.access_time),
+                _buildStatusInfoRow(
+                    'Nombre:', alumno.nombreCompleto, Icons.person),
+                _buildStatusInfoRow(
+                    'Código:', alumno.codigoUniversitario, Icons.badge),
+                _buildStatusInfoRow(
+                    'Facultad:',
+                    '${alumno.facultad} (${alumno.siglasFacultad})',
+                    Icons.school),
+                _buildStatusInfoRow(
+                    'Escuela:',
+                    '${alumno.escuelaProfesional} (${alumno.siglasEscuela})',
+                    Icons.class_),
+                _buildStatusInfoRow(
+                    'Hora:', _formatCurrentTime(), Icons.access_time),
               ],
             ),
           ),
