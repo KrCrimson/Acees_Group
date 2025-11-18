@@ -692,4 +692,43 @@ class ApiService {
       throw Exception('Connection test failed: $e');
     }
   }
+
+  // Obtener asistencias de un guardia específico (últimas 24 horas)
+  Future<List<AsistenciaModel>> getAsistenciasGuardia(String guardiaId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/asistencias/guardia/$guardiaId'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        List<dynamic> data = json.decode(response.body);
+        return data.map((json) => AsistenciaModel.fromJson(json)).toList();
+      } else {
+        throw Exception('Error al obtener asistencias: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  // Obtener todas las asistencias con guardia (para estadísticas)
+  Future<List<AsistenciaModel>> getAllAsistencias() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/asistencias/con-guardia'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        List<dynamic> asistencias = data['asistencias'];
+        return asistencias.map((json) => AsistenciaModel.fromJson(json)).toList();
+      } else {
+        throw Exception('Error al obtener asistencias: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
 }

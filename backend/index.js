@@ -682,6 +682,27 @@ app.get('/asistencias/ultimo-acceso/:dni', async (req, res) => {
   }
 });
 
+// Obtener asistencias de un guardia específico (últimas 24 horas)
+app.get('/asistencias/guardia/:guardiaId', async (req, res) => {
+  try {
+    const { guardiaId } = req.params;
+    const hace24Horas = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    
+    console.log(`🔍 Buscando asistencias del guardia ${guardiaId} desde ${hace24Horas}`);
+    
+    const asistencias = await Asistencia.find({
+      guardia_id: guardiaId,
+      fecha_hora: { $gte: hace24Horas }
+    }).sort({ fecha_hora: -1 });
+    
+    console.log(`✅ Encontradas ${asistencias.length} asistencias del guardia ${guardiaId}`);
+    res.json(asistencias);
+  } catch (err) {
+    console.error('❌ Error al obtener asistencias del guardia:', err);
+    res.status(500).json({ error: 'Error al obtener asistencias del guardia' });
+  }
+});
+
 // ==================== ENDPOINTS DECISIONES MANUALES (US024-US025) ====================
 
 // Registrar decisión manual del guardia

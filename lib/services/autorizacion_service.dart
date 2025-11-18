@@ -96,14 +96,50 @@ class AutorizacionService extends ChangeNotifier {
     }
   }
 
-  // Cargar historial de decisiones del guardia
+  // Cargar historial de asistencias del guardia (para estadísticas)
   Future<void> cargarHistorialDecisiones(String guardiaId) async {
     _setLoading(true);
     try {
-      _historialDecisiones = await _apiService.getDecisionesGuardia(guardiaId);
+      debugPrint('🔄 Cargando asistencias para guardia: $guardiaId');
+      
+      // TEMPORAL: Usar endpoint de todas las asistencias y filtrar por guardia
+      final todasAsistencias = await _apiService.getAllAsistencias();
+      
+      debugPrint('📊 Total asistencias obtenidas: ${todasAsistencias.length}');
+      
+      // Filtrar por guardia y últimas 24 horas
+      final ahora = DateTime.now();
+      final hace24Horas = ahora.subtract(const Duration(hours: 24));
+      
+      final asistenciasGuardia = todasAsistencias.where((asistencia) {
+        final esDelGuardia = asistencia.guardiaId == guardiaId;
+        final esReciente = asistencia.fechaHora.isAfter(hace24Horas);
+        return esDelGuardia && esReciente;
+      }).toList();
+      
+      debugPrint('✅ Asistencias del guardia filtradas: ${asistenciasGuardia.length}');
+
+      // Convertir asistencias a decisiones para mostrar estadísticas
+      _historialDecisiones = asistenciasGuardia
+          .map((asistencia) => DecisionManualModel(
+                id: asistencia.id,
+                estudianteId: asistencia.codigoUniversitario,
+                estudianteDni: asistencia.dni,
+                estudianteNombre: '${asistencia.nombre} ${asistencia.apellido}',
+                tipoAcceso: asistencia.tipo,
+                puntoControl: asistencia.puerta,
+                guardiaId: asistencia.guardiaId ?? guardiaId,
+                guardiaNombre: asistencia.guardiaNombre ?? 'Guardia',
+                autorizado: true,
+                razon: 'Acceso NFC autorizado',
+                timestamp: asistencia.fechaHora,
+              ))
+          .toList();
+
+      debugPrint('📈 Estadísticas generadas: ${_historialDecisiones.length} decisiones');
       notifyListeners();
     } catch (e) {
-      debugPrint('Error cargando historial: $e');
+      debugPrint('❌ Error cargando historial: $e');
     } finally {
       _setLoading(false);
     }
@@ -159,10 +195,9 @@ class AutorizacionService extends ChangeNotifier {
       _presenciaActual.where((p) => p.estaDentro).length;
 
   // Obtener personas que llevan mucho tiempo en campus
-  List<PresenciaModel> get personasLargoTiempo =>
-      _presenciaActual
-          .where((p) => p.estaDentro && p.llevaVariasHoras)
-          .toList();
+  List<PresenciaModel> get personasLargoTiempo => _presenciaActual
+      .where((p) => p.estaDentro && p.llevaVariasHoras)
+      .toList();
 
   void _setLoading(bool loading) {
     _isLoading = loading;
