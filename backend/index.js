@@ -86,25 +86,30 @@ const Escuela = mongoose.model('escuelas', EscuelaSchema);
 // Modelo de asistencias - EXACTO como en MongoDB Atlas con nuevos campos
 const AsistenciaSchema = new mongoose.Schema({
   _id: String,
-  nombre: String,
-  apellido: String,
-  dni: String,
-  codigo_universitario: String,
-  siglas_facultad: String,
-  siglas_escuela: String,
-  tipo: String,
-  fecha_hora: Date,
-  entrada_tipo: String,
-  puerta: String,
+  nombre: { type: String, required: true },
+  apellido: { type: String, required: true },
+  dni: { type: String, required: true, index: true },
+  codigo_universitario: { type: String, required: true, index: true },
+  siglas_facultad: { type: String, required: true },
+  siglas_escuela: { type: String, required: true },
+  tipo: { type: String, required: true, enum: ['entrada', 'salida'] },
+  fecha_hora: { type: Date, required: true, default: Date.now },
+  entrada_tipo: { type: String, required: true, default: 'nfc' },
+  puerta: { type: String, required: true, default: 'Principal' },
   // Nuevos campos para US025-US030
-  guardia_id: String,
-  guardia_nombre: String,
-  autorizacion_manual: Boolean,
+  guardia_id: { type: String, required: true },
+  guardia_nombre: { type: String, required: true },
+  autorizacion_manual: { type: Boolean, default: false },
   razon_decision: String,
   timestamp_decision: Date,
   coordenadas: String,
   descripcion_ubicacion: String
-}, { collection: 'asistencias', strict: false, _id: false });
+}, { 
+  collection: 'asistencias', 
+  strict: false, 
+  _id: false,
+  timestamps: false // Ya manejamos fecha_hora manualmente
+});
 const Asistencia = mongoose.model('asistencias', AsistenciaSchema);
 
 // Modelo para decisiones manuales (US024-US025)
@@ -262,6 +267,69 @@ app.get('/asistencias', async (req, res) => {
     res.json(asistencias);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener asistencias' });
+  }
+});
+
+// Ruta para obtener SOLO asistencias con guardia (registros válidos)
+app.get('/asistencias/con-guardia', async (req, res) => {
+  try {
+    const filtro = {
+      guardia_id: { 
+        $exists: true, 
+        $ne: null, 
+        $ne: "", 
+        $ne: "SIN_GUARDIA", 
+        $ne: "SIN_GUARDIA_ERROR" 
+      },
+      guardia_nombre: { 
+        $exists: true, 
+        $ne: null, 
+        $ne: "", 
+        $ne: "Guardia No Identificado",
+        $ne: "GUARDIA_NO_IDENTIFICADO"
+      }
+    };
+
+    const asistencias = await Asistencia.find(filtro).sort({ fecha_hora: -1 });
+    
+    console.log(`📊 Asistencias con guardia encontradas: ${asistencias.length}`);
+    
+    res.json({
+      total: asistencias.length,
+      asistencias: asistencias
+    });
+  } catch (err) {
+    console.error('❌ Error al obtener asistencias con guardia:', err);
+    res.status(500).json({ error: 'Error al obtener asistencias con guardia' });
+  }
+});
+
+// Ruta para obtener estadísticas de asistencias
+app.get('/asistencias/estadisticas', async (req, res) => {
+  try {
+    const totalRegistros = await Asistencia.countDocuments();
+    
+    const conGuardia = await Asistencia.countDocuments({
+      guardia_id: { 
+        $exists: true, 
+        $ne: null, 
+        $ne: "", 
+        $ne: "SIN_GUARDIA", 
+        $ne: "SIN_GUARDIA_ERROR" 
+      }
+    });
+    
+    const sinGuardia = totalRegistros - conGuardia;
+    
+    res.json({
+      total_registros: totalRegistros,
+      con_guardia: conGuardia,
+      sin_guardia: sinGuardia,
+      porcentaje_con_guardia: ((conGuardia / totalRegistros) * 100).toFixed(2) + '%'
+    });
+  } catch (err) {
+    console.error('❌ Error al obtener estadísticas:', err);
+    res.status(500).json({ error: 'Error al obtener estadísticas' });
   }
 });
 
@@ -497,14 +565,101 @@ app.get('/externos', async (req, res) => {
   }
 });
 
+// Función para validar datos completos de asistencia
+function validarDatosAsistencia(datos) {
+  const camposRequeridos = [
+    'dni', 'nombre', 'apellido', 'codigo_universitario', 
+    'siglas_facultad', 'siglas_escuela', 'tipo', 
+    'guardia_id', 'guardia_nombre'
+  ];
+  
+  const camposFaltantes = camposRequeridos.filter(campo => !datos[campo] || datos[campo] === '');
+  
+  if (camposFaltantes.length > 0) {
+    throw new Error(`Campos requeridos faltantes: ${camposFaltantes.join(', ')}`);
+  }
+  
+  if (!['entrada', 'salida'].includes(datos.tipo)) {
+    throw new Error('Tipo debe ser "entrada" o "salida"');
+  }
+
+  // Validar que el guardia no sea un valor de error
+  if (datos.guardia_id === 'SIN_GUARDIA' || datos.guardia_id === 'SIN_GUARDIA_ERROR') {
+    throw new Error('Error: Guardia no configurado correctamente');
+  }
+
+  if (datos.guardia_nombre === 'Guardia No Identificado' || datos.guardia_nombre === 'GUARDIA_NO_IDENTIFICADO') {
+    throw new Error('Error: Nombre del guardia no válido');
+  }
+  
+  return true;
+}
+
 // Ruta para registrar asistencia completa (US025-US030)
 app.post('/asistencias/completa', async (req, res) => {
   try {
-    const asistencia = new Asistencia(req.body);
-    await asistencia.save();
-    res.status(201).json(asistencia);
+    console.log('📝 Datos recibidos para asistencia:', JSON.stringify(req.body, null, 2));
+    
+    // Validar datos completos
+    validarDatosAsistencia(req.body);
+    
+    // Asegurar que tenga todos los campos necesarios
+    const datosCompletos = {
+      ...req.body,
+      fecha_hora: req.body.fecha_hora || new Date().toISOString(),
+      entrada_tipo: req.body.entrada_tipo || 'nfc',
+      puerta: req.body.puerta || 'Principal',
+      autorizacion_manual: req.body.autorizacion_manual || false,
+      version_registro: req.body.version_registro || 'v2_con_guardia',
+      // Timestamp de creación para auditoría
+      timestamp_creacion: new Date().toISOString()
+    };
+
+    console.log('📝 Guardando asistencia con datos completos:', {
+      dni: datosCompletos.dni,
+      nombre: datosCompletos.nombre,
+      apellido: datosCompletos.apellido,
+      tipo: datosCompletos.tipo,
+      codigo_universitario: datosCompletos.codigo_universitario,
+      siglas_facultad: datosCompletos.siglas_facultad,
+      siglas_escuela: datosCompletos.siglas_escuela,
+      guardia_id: datosCompletos.guardia_id,
+      guardia_nombre: datosCompletos.guardia_nombre,
+      puerta: datosCompletos.puerta,
+      fecha_hora: datosCompletos.fecha_hora
+    });
+
+    const asistencia = new Asistencia(datosCompletos);
+    const savedAsistencia = await asistencia.save();
+    
+    console.log('✅ Asistencia guardada exitosamente con ID:', savedAsistencia._id);
+    res.status(201).json(savedAsistencia);
   } catch (err) {
-    res.status(500).json({ error: 'Error al registrar asistencia completa', details: err.message });
+    console.error('❌ Error al registrar asistencia:', err.message);
+    res.status(500).json({ 
+      error: 'Error al registrar asistencia completa', 
+      details: err.message 
+    });
+  }
+});
+
+// Verificar estado de asistencias por estudiante
+app.get('/asistencias/verificar/:dni', async (req, res) => {
+  try {
+    const { dni } = req.params;
+    const asistencias = await Asistencia.find({ dni }).sort({ fecha_hora: -1 }).limit(10);
+    
+    console.log(`🔍 Verificando asistencias para DNI ${dni}:`, asistencias.length, 'registros encontrados');
+    
+    res.json({
+      dni: dni,
+      total_registros: asistencias.length,
+      ultima_asistencia: asistencias[0] || null,
+      historial_reciente: asistencias
+    });
+  } catch (err) {
+    console.error('❌ Error al verificar asistencias:', err);
+    res.status(500).json({ error: 'Error al verificar asistencias' });
   }
 });
 
@@ -514,12 +669,15 @@ app.get('/asistencias/ultimo-acceso/:dni', async (req, res) => {
     const { dni } = req.params;
     const ultimaAsistencia = await Asistencia.findOne({ dni }).sort({ fecha_hora: -1 });
     
+    console.log(`🔍 Último acceso para DNI ${dni}:`, ultimaAsistencia ? ultimaAsistencia.tipo : 'sin registros');
+    
     if (ultimaAsistencia) {
       res.json({ ultimo_tipo: ultimaAsistencia.tipo });
     } else {
       res.json({ ultimo_tipo: 'salida' }); // Si no hay registros, próximo debería ser entrada
     }
   } catch (err) {
+    console.error('❌ Error al determinar último acceso:', err);
     res.status(500).json({ error: 'Error al determinar último acceso' });
   }
 });

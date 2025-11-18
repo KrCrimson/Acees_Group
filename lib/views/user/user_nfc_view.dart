@@ -216,6 +216,14 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
                     // Botones de acción
                     _buildActionButtons(nfcViewModel),
 
+                    SizedBox(height: 16),
+
+                    // Mensaje de estado del alumno (ENTRADA/SALIDA)
+                    if (nfcViewModel.scannedAlumno != null && 
+                        nfcViewModel.successMessage != null &&
+                        nfcViewModel.successMessage!.contains('registrada'))
+                      _buildStudentStatusMessage(nfcViewModel),
+
                     SizedBox(height: 32),
 
                     // Instrucciones
@@ -545,6 +553,134 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
             ),
       ),
     );
+  }
+
+  // Widget para mostrar el mensaje de estado del alumno (ENTRADA/SALIDA)
+  Widget _buildStudentStatusMessage(NfcViewModel nfcViewModel) {
+    final alumno = nfcViewModel.scannedAlumno!;
+    final lastAccessType = nfcViewModel.lastAccessType ?? 'entrada';
+    
+    // Determinar el tipo de acceso basándose en el tipo registrado
+    bool isEntrada = lastAccessType == 'entrada';
+    
+    String tipoAcceso = 'ACCESO';
+    Color backgroundColor = Colors.blue[50]!;
+    Color borderColor = Colors.blue[200]!;
+    Color textColor = Colors.blue[700]!;
+    IconData iconData = Icons.person;
+    
+    if (isEntrada) {
+      tipoAcceso = 'ENTRADA';
+      backgroundColor = Colors.green[50]!;
+      borderColor = Colors.green[200]!;
+      textColor = Colors.green[700]!;
+      iconData = Icons.login;
+    } else {
+      tipoAcceso = 'SALIDA';
+      backgroundColor = Colors.red[50]!;
+      borderColor = Colors.red[200]!;
+      textColor = Colors.red[700]!;
+      iconData = Icons.logout;
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(16),
+      margin: EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Título del tipo de acceso
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(iconData, color: textColor, size: 28),
+              SizedBox(width: 8),
+              Text(
+                tipoAcceso,
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+              ),
+            ],
+          ),
+          
+          SizedBox(height: 12),
+          
+          // Datos principales del alumno
+          Container(
+            padding: EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildStatusInfoRow('Nombre:', alumno.nombreCompleto, Icons.person),
+                _buildStatusInfoRow('Código:', alumno.codigoUniversitario, Icons.badge),
+                _buildStatusInfoRow('Facultad:', '${alumno.facultad} (${alumno.siglasFacultad})', Icons.school),
+                _buildStatusInfoRow('Escuela:', '${alumno.escuelaProfesional} (${alumno.siglasEscuela})', Icons.class_),
+                _buildStatusInfoRow('Hora:', _formatCurrentTime(), Icons.access_time),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusInfoRow(String label, String value, IconData icon) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: Colors.grey[600]),
+          SizedBox(width: 8),
+          SizedBox(
+            width: 80,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700],
+                fontSize: 13,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: Colors.grey[800],
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatCurrentTime() {
+    final now = DateTime.now();
+    return '${now.day}/${now.month}/${now.year} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
   }
 
   // Diálogo de confirmación para detener el escáner

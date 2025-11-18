@@ -20,6 +20,7 @@ class NfcViewModel extends ChangeNotifier {
   String? _errorMessage;
   String? _successMessage;
   AlumnoModel? _scannedAlumno;
+  String? _lastAccessType; // Para rastrear el último tipo de acceso
 
   // Información del guardia actual
   String? _guardiaId;
@@ -38,6 +39,7 @@ class NfcViewModel extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   String? get successMessage => _successMessage;
   AlumnoModel? get scannedAlumno => _scannedAlumno;
+  String? get lastAccessType => _lastAccessType;
   bool get isNfcReady => !_isScanning && !_isLoading;
   List<AlumnoModel> get recentDetections =>
       List.unmodifiable(_recentDetections);
@@ -58,12 +60,19 @@ class NfcViewModel extends ChangeNotifier {
   Future<void> startNfcScan() async {
     if (_isScanning) return;
 
+    // VALIDAR que el guardia esté configurado ANTES de iniciar
+    if (_guardiaId == null || _guardiaNombre == null) {
+      _setError('❌ Error: Guardia no configurado. Reinicie la sesión.');
+      return;
+    }
+
     _setScanning(true);
     _clearMessages();
     _scannedAlumno = null;
 
     try {
       print('🚀 Iniciando escaneo NFC continuo...');
+      print('👮 Guardia configurado: $_guardiaNombre (ID: $_guardiaId)');
 
       // Verificar NFC disponible
       bool available = await _nfcService.isNfcAvailable();
@@ -176,8 +185,10 @@ class NfcViewModel extends ChangeNotifier {
 
         // Mensaje diferenciado según el tipo
         String emoji = tipoAcceso == 'entrada' ? '🟢' : '🔴';
+        String tipoTexto = tipoAcceso == 'entrada' ? 'ENTRADA' : 'SALIDA';
+        _lastAccessType = tipoAcceso; // Guardar el tipo de acceso
         _setSuccess(
-          '$emoji ${tipoAcceso.toUpperCase()} registrada: ${alumno.nombreCompleto}',
+          '$emoji $tipoTexto registrada: ${alumno.nombreCompleto}',
         );
         _scannedAlumno = alumno;
       } else {
@@ -223,6 +234,7 @@ class NfcViewModel extends ChangeNotifier {
   // Limpiar datos
   void clearScan() {
     _scannedAlumno = null;
+    _lastAccessType = null;
     _clearMessages();
     notifyListeners();
   }
@@ -264,9 +276,23 @@ class NfcViewModel extends ChangeNotifier {
     String guardiaNombre,
     String puntoControl,
   ) {
+    print('👮 Configurando guardia:');
+    print('   ID: $guardiaId');
+    print('   Nombre: $guardiaNombre');
+    print('   Punto Control: $puntoControl');
+    
+    // Validar que los datos no estén vacíos
+    if (guardiaId.isEmpty || guardiaNombre.isEmpty) {
+      print('❌ Error: Datos del guardia vacíos');
+      return;
+    }
+    
     _guardiaId = guardiaId;
     _guardiaNombre = guardiaNombre;
     _puntoControl = puntoControl;
+    
+    print('✅ Guardia configurado correctamente');
+    notifyListeners();
   }
 
   // Verificación avanzada del estudiante (US022)
@@ -302,10 +328,18 @@ class NfcViewModel extends ChangeNotifier {
     DecisionManualModel? decisionManual,
   }) async {
     try {
+      // VALIDAR que el guardia esté configurado
+      if (_guardiaId == null || _guardiaNombre == null) {
+        throw Exception('Error: Guardia no configurado. Reinicie la sesión.');
+      }
+
       final now = DateTime.now();
+      
+      // Generar ID más legible: YYYYMMDD_HHMMSS_DNI
+      final fechaId = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}_${estudiante.dni}';
 
       final asistencia = AsistenciaModel(
-        id: now.millisecondsSinceEpoch.toString(),
+        id: fechaId,
         nombre: estudiante.nombre,
         apellido: estudiante.apellido,
         dni: estudiante.dni,
@@ -315,16 +349,16 @@ class NfcViewModel extends ChangeNotifier {
         tipo: tipoAcceso,
         fechaHora: now,
         entradaTipo: 'nfc',
-        puerta: _puntoControl ?? 'Desconocida',
-        // Nuevos campos US025
-        guardiaId: _guardiaId,
-        guardiaNombre: _guardiaNombre,
+        puerta: _puntoControl ?? 'Principal',
+        // ASEGURAR que SIEMPRE se guarden los datos del guardia
+        guardiaId: _guardiaId!,  // Usar ! porque ya validamos arriba
+        guardiaNombre: _guardiaNombre!,  // Usar ! porque ya validamos arriba
         autorizacionManual: decisionManual != null,
         razonDecision: decisionManual?.razon,
         timestampDecision: decisionManual?.timestamp,
-        // US029 - Ubicación
+        // US029 - Ubicación detallada
         descripcionUbicacion:
-            'Punto de control: ${_puntoControl ?? "No especificado"}',
+            'Acceso ${tipoAcceso} - Punto: ${_puntoControl ?? "Principal"} - Guardia: ${_guardiaNombre}',
       );
 
       if (_offlineService.isOnline) {

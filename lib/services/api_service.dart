@@ -385,17 +385,35 @@ class ApiService {
 
   Future<void> registrarAsistenciaCompleta(AsistenciaModel asistencia) async {
     try {
+      print('📤 Enviando asistencia completa:');
+      print('   DNI: ${asistencia.dni}');
+      print('   Nombre: ${asistencia.nombreCompleto}');
+      print('   Tipo: ${asistencia.tipo}');
+      print('   Código: ${asistencia.codigoUniversitario}');
+      print('   Guardia: ${asistencia.guardiaNombre}');
+      print('   Fecha: ${asistencia.fechaHora}');
+
+      final body = json.encode(asistencia.toJson());
+      print('📋 Datos JSON: $body');
+
       final response = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/asistencias/completa'),
         headers: _headers,
-        body: json.encode(asistencia.toJson()),
+        body: body,
       );
 
-      if (response.statusCode != 201) {
+      print('📨 Respuesta del servidor: ${response.statusCode}');
+      print('📨 Cuerpo de respuesta: ${response.body}');
+
+      if (response.statusCode == 201) {
+        print('✅ Asistencia registrada exitosamente');
+      } else {
         final error = json.decode(response.body);
+        print('❌ Error del servidor: ${error['error']}');
         throw Exception(error['error'] ?? 'Error al registrar asistencia');
       }
     } catch (e) {
+      print('❌ Error de conexión: $e');
       throw Exception('Error de conexión: $e');
     }
   }

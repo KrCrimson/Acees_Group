@@ -67,6 +67,16 @@ class AsistenciaModel {
   }
 
   Map<String, dynamic> toJson() {
+    // Formato de fecha más legible: remover microsegundos
+    final fechaLimpia = DateTime(
+      fechaHora.year,
+      fechaHora.month,
+      fechaHora.day,
+      fechaHora.hour,
+      fechaHora.minute,
+      fechaHora.second,
+    );
+
     return {
       '_id': id,
       'nombre': nombre,
@@ -76,16 +86,19 @@ class AsistenciaModel {
       'siglas_facultad': siglasFacultad,
       'siglas_escuela': siglasEscuela,
       'tipo': tipo,
-      'fecha_hora': fechaHora.toIso8601String(),
+      'fecha_hora': fechaLimpia.toIso8601String(),
       'entrada_tipo': entradaTipo,
       'puerta': puerta,
-      'guardia_id': guardiaId,
-      'guardia_nombre': guardiaNombre,
-      'autorizacion_manual': autorizacionManual,
+      // CAMPOS OBLIGATORIOS DEL GUARDIA
+      'guardia_id': guardiaId ?? 'SIN_GUARDIA_ERROR',
+      'guardia_nombre': guardiaNombre ?? 'GUARDIA_NO_IDENTIFICADO',
+      'autorizacion_manual': autorizacionManual ?? false,
       'razon_decision': razonDecision,
       'timestamp_decision': timestampDecision?.toIso8601String(),
       'coordenadas': coordenadas,
       'descripcion_ubicacion': descripcionUbicacion,
+      // Campo adicional para identificar registros nuevos
+      'version_registro': 'v2_con_guardia',
     };
   }
 
