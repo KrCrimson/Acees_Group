@@ -124,8 +124,10 @@ class AutorizacionService extends ChangeNotifier {
                 puntoControl: asistencia.puerta,
                 guardiaId: asistencia.guardiaId ?? guardiaId,
                 guardiaNombre: asistencia.guardiaNombre ?? 'Guardia',
-                autorizado: true,
-                razon: 'Acceso NFC autorizado',
+                guardiaId: asistencia.guardiaId ?? guardiaId,
+                guardiaNombre: asistencia.guardiaNombre ?? 'Guardia',
+                autorizado: asistencia.estado == 'autorizado',
+                razon: asistencia.razonDecision ?? 'Acceso NFC autorizado',
                 timestamp: asistencia.fechaHora,
               ))
           .toList();
@@ -135,6 +137,40 @@ class AutorizacionService extends ChangeNotifier {
       // Si falla la conexión, usar datos vacíos pero no fallar
       _historialDecisiones = [];
       notifyListeners();
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Actualizar estado de una asistencia
+  Future<void> actualizarEstadoAsistencia(
+      String id, String estado, String? razon) async {
+    _setLoading(true);
+    try {
+      await _apiService.updateAsistenciaEstado(id, estado, razon);
+      
+      // Actualizar localmente
+      final index = _historialDecisiones.indexWhere((d) => d.id == id);
+      if (index != -1) {
+        final decisionAnterior = _historialDecisiones[index];
+        _historialDecisiones[index] = DecisionManualModel(
+          id: decisionAnterior.id,
+          estudianteId: decisionAnterior.estudianteId,
+          estudianteDni: decisionAnterior.estudianteDni,
+          estudianteNombre: decisionAnterior.estudianteNombre,
+          guardiaId: decisionAnterior.guardiaId,
+          guardiaNombre: decisionAnterior.guardiaNombre,
+          autorizado: estado == 'autorizado',
+          razon: razon ?? decisionAnterior.razon,
+          timestamp: decisionAnterior.timestamp,
+          puntoControl: decisionAnterior.puntoControl,
+          tipoAcceso: decisionAnterior.tipoAcceso,
+          datosEstudiante: decisionAnterior.datosEstudiante,
+        );
+        notifyListeners();
+      }
+    } catch (e) {
+      rethrow;
     } finally {
       _setLoading(false);
     }
@@ -183,6 +219,29 @@ class AutorizacionService extends ChangeNotifier {
     return _historialDecisiones
         .where((decision) => decision.timestamp.isAfter(hace24Horas))
         .toList();
+  }
+
+  // Búsqueda
+  String _searchQuery = '';
+
+  void setSearchQuery(String query) {
+    _searchQuery = query;
+    notifyListeners();
+  }
+
+  List<DecisionManualModel> get decisionesFiltradas {
+    final recientes = decisionesRecientes;
+    if (_searchQuery.isEmpty) {
+      return recientes;
+    }
+
+    final queryLower = _searchQuery.toLowerCase();
+    return recientes.where((decision) {
+      final nombreMatch =
+          decision.estudianteNombre.toLowerCase().contains(queryLower);
+      final dniMatch = decision.estudianteDni.contains(queryLower);
+      return nombreMatch || dniMatch;
+    }).toList();
   }
 
   // Obtener personas actualmente en campus

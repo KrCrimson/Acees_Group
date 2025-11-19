@@ -18,6 +18,7 @@ class AsistenciaModel {
   final DateTime? timestampDecision;
   final String? coordenadas;
   final String? descripcionUbicacion;
+  final String estado;
 
   AsistenciaModel({
     required this.id,
@@ -38,6 +39,7 @@ class AsistenciaModel {
     this.timestampDecision,
     this.coordenadas,
     this.descripcionUbicacion,
+    this.estado = 'autorizado',
   });
 
   factory AsistenciaModel.fromJson(Map<String, dynamic> json) {
@@ -62,6 +64,7 @@ class AsistenciaModel {
           : null,
       coordenadas: json['coordenadas'],
       descripcionUbicacion: json['descripcion_ubicacion'],
+      estado: json['estado'] ?? 'autorizado',
     );
   }
 
@@ -96,6 +99,7 @@ class AsistenciaModel {
       'timestamp_decision': timestampDecision?.toIso8601String(),
       'coordenadas': coordenadas,
       'descripcion_ubicacion': descripcionUbicacion,
+      'estado': estado,
       // Campo adicional para identificar registros nuevos
       'version_registro': 'v2_con_guardia',
     };

@@ -99,6 +99,98 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
     );
   }
 
+  void _procesarDenegacion(NfcViewModel nfcViewModel, String razon) async {
+    final asistenciaId = nfcViewModel.lastAsistenciaId;
+    
+    if (asistenciaId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: No se pudo identificar la asistencia para denegar'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final authService = Provider.of<AutorizacionService>(context, listen: false);
+      await authService.actualizarEstadoAsistencia(asistenciaId, 'denegado', razon);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Acceso DENEGADO correctamente'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      
+      // Limpiar la pantalla después de denegar
+      nfcViewModel.clearScan();
+      
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al denegar: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _mostrarDialogoDenegar(BuildContext context, NfcViewModel nfcViewModel) {
+    final razones = [
+      'Estado de ebriedad',
+      'Otro',
+      'Comportamiento agresivo',
+      'Documento de identidad inválido',
+      'Suspensión académica vigente',
+      'Falta de uniforme/vestimenta inadecuada',
+      'Portar objetos prohibidos',
+      'Intento de suplantación de identidad',
+      'Deuda administrativa pendiente',
+      'Ingreso fuera de horario permitido',
+      'Acompañante no autorizado',
+      'Negativa a revisión de seguridad',
+    ];
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Denegar Acceso'),
+          ],
+        ),
+        content: Container(
+          width: double.maxFinite,
+          child: ListView.separated(
+            shrinkWrap: true,
+            itemCount: razones.length,
+            separatorBuilder: (context, index) => Divider(),
+            itemBuilder: (context, index) {
+              final razon = razones[index];
+              return ListTile(
+                title: Text(razon),
+                leading: Icon(Icons.block, color: Colors.red[300]),
+                onTap: () {
+                  Navigator.pop(context);
+                  _procesarDenegacion(nfcViewModel, razon);
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancelar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _handleLogout() {
     showDialog(
       context: context,
@@ -210,10 +302,8 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
 
                     SizedBox(height: 32),
 
-                    // Mensaje de estado del alumno (ENTRADA/SALIDA) - MOVIDO AQUÍ
-                    if (nfcViewModel.scannedAlumno != null &&
-                        nfcViewModel.successMessage != null &&
-                        nfcViewModel.successMessage!.contains('registrada'))
+                    // Mensaje de estado del alumno (ENTRADA/SALIDA) - PERSISTENTE
+                    if (nfcViewModel.scannedAlumno != null)
                       _buildStudentStatusMessage(nfcViewModel),
 
                     SizedBox(height: 16),

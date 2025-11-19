@@ -23,18 +23,21 @@ class _PresenciaDashboardViewState extends State<PresenciaDashboardView>
   final AutorizacionService _autorizacionService = AutorizacionService();
 
   late TabController _tabController;
+  late TextEditingController _searchController;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _searchController = TextEditingController();
     _cargarDatos();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -189,7 +192,8 @@ class _PresenciaDashboardViewState extends State<PresenciaDashboardView>
     return AnimatedBuilder(
       animation: _autorizacionService,
       builder: (context, child) {
-        final decisiones = _autorizacionService.decisionesRecientes;
+        // Usar la lista filtrada en lugar de la lista cruda
+        final decisiones = _autorizacionService.decisionesFiltradas;
 
         return RefreshIndicator(
           onRefresh: _cargarDatos,
@@ -198,13 +202,47 @@ class _PresenciaDashboardViewState extends State<PresenciaDashboardView>
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Text(
-                    'Decisiones Recientes (24h)',
-                    style: GoogleFonts.lato(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey[800],
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Decisiones Recientes (24h)',
+                        style: GoogleFonts.lato(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      // Barra de búsqueda
+                      TextField(
+                        controller: _searchController,
+                        onChanged: (value) {
+                          _autorizacionService.setSearchQuery(value);
+                        },
+                        decoration: InputDecoration(
+                          hintText: 'Buscar por nombre o DNI...',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchController.clear();
+                              _autorizacionService.setSearchQuery('');
+                            },
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -216,13 +254,13 @@ class _PresenciaDashboardViewState extends State<PresenciaDashboardView>
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
-                            Icons.history,
+                            Icons.search_off,
                             size: 64,
                             color: Colors.grey[400],
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            'No hay decisiones recientes',
+                            'No se encontraron resultados',
                             style: GoogleFonts.lato(
                               fontSize: 16,
                               color: Colors.grey[600],
@@ -435,34 +473,220 @@ class _PresenciaDashboardViewState extends State<PresenciaDashboardView>
   }
 
   Widget _buildDecisionCard(DecisionManualModel decision) {
+    // Determinar estilo visual
+    Color bgColor;
+    Color iconColor;
+    IconData icon;
+    
+    if (decision.tipoAcceso == 'salida') {
+      // SALIDA: Rojo
+      bgColor = Colors.red[50]!;
+      iconColor = Colors.red[700]!;
+      icon = Icons.logout;
+    } else if (!decision.autorizado) {
+      // ENTRADA DENEGADA: Amarillo/Naranja
+      bgColor = Colors.orange[50]!;
+      iconColor = Colors.orange[800]!;
+      icon = Icons.warning_amber_rounded;
+    } else {
+      // ENTRADA AUTORIZADA: Verde
+      bgColor = Colors.green[50]!;
+      iconColor = Colors.green[700]!;
+      icon = Icons.login;
+    }
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      color: bgColor, // Color de fondo suave para toda la tarjeta
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor:
-              decision.isAutorizado ? Colors.green[100] : Colors.red[100],
-          child: Icon(
-            decision.isAutorizado ? Icons.check : Icons.close,
-            color: decision.isAutorizado ? Colors.green[700] : Colors.red[700],
-          ),
+          backgroundColor: Colors.white,
+          child: Icon(icon, color: iconColor),
         ),
-        title: Text(decision.estudianteNombre),
+        title: Text(
+          decision.estudianteNombre,
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('DNI: ${decision.estudianteDni}'),
-            Text(
-              '${decision.statusText} - ${decision.tipoAcceso.toUpperCase()}',
+            Row(
+              children: [
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: iconColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: iconColor.withOpacity(0.3)),
+                  ),
+                  child: Text(
+                    decision.tipoAcceso.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: iconColor,
+                    ),
+                  ),
+                ),
+                SizedBox(width: 8),
+                Text(
+                  decision.autorizado ? 'AUTORIZADO' : 'DENEGADO',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: decision.autorizado ? Colors.green[700] : Colors.red[700],
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ),
-            if (decision.razon.isNotEmpty) Text('Razón: ${decision.razon}'),
-            Text(decision.tiempoTranscurrido),
+            if (decision.razon.isNotEmpty) 
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Razón: ${decision.razon}',
+                  style: TextStyle(fontStyle: FontStyle.italic),
+                ),
+              ),
+            Text(
+              decision.tiempoTranscurrido,
+              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+            ),
           ],
         ),
-        trailing: Icon(
-          decision.isAutorizado ? Icons.login : Icons.block,
-          color: decision.isAutorizado ? Colors.green : Colors.red,
-        ),
+        trailing: decision.tipoAcceso == 'entrada' 
+            ? PopupMenuButton<String>(
+                icon: Icon(Icons.more_vert, color: Colors.grey[700]),
+                onSelected: (value) {
+                  if (value == 'cambiar_estado') {
+                    _mostrarDialogoCambioEstado(decision);
+                  }
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'cambiar_estado',
+                    child: Row(
+                      children: [
+                        Icon(
+                          decision.autorizado ? Icons.block : Icons.check_circle,
+                          color: decision.autorizado ? Colors.red : Colors.green,
+                          size: 20,
+                        ),
+                        SizedBox(width: 8),
+                        Text(decision.autorizado ? 'Denegar Acceso' : 'Autorizar Acceso'),
+                      ],
+                    ),
+                  ),
+                ],
+              )
+            : null, // No hay acciones para salidas
       ),
     );
+  }
+
+  void _mostrarDialogoCambioEstado(DecisionManualModel decision) {
+    // Si está autorizado, vamos a denegar -> mostrar lista de razones
+    // Si está denegado, vamos a autorizar -> confirmar y razón opcional
+    
+    if (decision.autorizado) {
+      // CAMBIAR A DENEGADO
+      final razones = [
+        'Estado de ebriedad',
+        'Otro',
+        'Comportamiento agresivo',
+        'Documento de identidad inválido',
+        'Suspensión académica vigente',
+        'Falta de uniforme/vestimenta inadecuada',
+        'Portar objetos prohibidos',
+        'Intento de suplantación de identidad',
+        'Deuda administrativa pendiente',
+        'Ingreso fuera de horario permitido',
+        'Acompañante no autorizado',
+        'Negativa a revisión de seguridad',
+      ];
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Denegar Acceso (Corrección)'),
+          content: Container(
+            width: double.maxFinite,
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: razones.length,
+              separatorBuilder: (context, index) => Divider(),
+              itemBuilder: (context, index) {
+                final razon = razones[index];
+                return ListTile(
+                  title: Text(razon),
+                  leading: Icon(Icons.block, color: Colors.red[300]),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _ejecutarCambioEstado(decision, 'denegado', razon);
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancelar'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // CAMBIAR A AUTORIZADO
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Autorizar Acceso (Corrección)'),
+          content: Text('¿Está seguro de cambiar el estado a AUTORIZADO?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _ejecutarCambioEstado(decision, 'autorizado', 'Corrección manual de guardia');
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+              child: Text('Autorizar'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  void _ejecutarCambioEstado(DecisionManualModel decision, String nuevoEstado, String razon) async {
+    try {
+      await _autorizacionService.actualizarEstadoAsistencia(
+        decision.id,
+        nuevoEstado,
+        razon,
+      );
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Estado actualizado correctamente'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      
+      // Recargar datos para reflejar cambios
+      _cargarDatos();
+      
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al actualizar: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

@@ -730,5 +730,24 @@ class ApiService {
     } catch (e) {
       throw Exception('Error de conexión: $e');
     }
+    Future<void> updateAsistenciaEstado(String id, String estado, String? razon) async {
+    try {
+      final response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}/asistencias/$id/estado'),
+        headers: _headers,
+        body: json.encode({
+          'estado': estado,
+          'razon_decision': razon,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        final error = json.decode(response.body);
+        throw Exception(error['error'] ?? 'Error al actualizar estado');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
   }
+}
 }

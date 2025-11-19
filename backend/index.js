@@ -105,10 +105,11 @@ const AsistenciaSchema = new mongoose.Schema({
   razon_decision: String,
   timestamp_decision: Date,
   coordenadas: String,
-  descripcion_ubicacion: String
-}, { 
-  collection: 'asistencias', 
-  strict: false, 
+  descripcion_ubicacion: String,
+  estado: { type: String, default: 'autorizado', enum: ['autorizado', 'denegado'] }
+}, {
+  collection: 'asistencias',
+  strict: false,
   _id: false,
   timestamps: false // Ya manejamos fecha_hora manualmente
 });
@@ -186,9 +187,9 @@ const UserSchema = new mongoose.Schema({
 }, { collection: 'usuarios', strict: false, _id: false });
 
 // Middleware para hashear contraseña antes de guardar
-UserSchema.pre('save', async function(next) {
+UserSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
-  
+
   try {
     const saltRounds = 10;
     this.password = await bcrypt.hash(this.password, saltRounds);
@@ -199,7 +200,7 @@ UserSchema.pre('save', async function(next) {
 });
 
 // Método para comparar contraseñas
-UserSchema.methods.comparePassword = async function(candidatePassword) {
+UserSchema.methods.comparePassword = async function (candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
@@ -250,7 +251,7 @@ app.get('/', (req, res) => {
     message: "API Sistema Control Acceso NFC - FUNCIONANDO ✅",
     endpoints: {
       alumnos: "/alumnos",
-      facultades: "/facultades", 
+      facultades: "/facultades",
       usuarios: "/usuarios",
       asistencias: "/asistencias",
       externos: "/externos",
@@ -276,26 +277,26 @@ app.get('/asistencias', async (req, res) => {
 app.get('/asistencias/con-guardia', async (req, res) => {
   try {
     const filtro = {
-      guardia_id: { 
-        $exists: true, 
-        $ne: null, 
-        $ne: "", 
-        $ne: "SIN_GUARDIA", 
-        $ne: "SIN_GUARDIA_ERROR" 
+      guardia_id: {
+        $exists: true,
+        $ne: null,
+        $ne: "",
+        $ne: "SIN_GUARDIA",
+        $ne: "SIN_GUARDIA_ERROR"
       },
-      guardia_nombre: { 
-        $exists: true, 
-        $ne: null, 
-        $ne: "", 
+      guardia_nombre: {
+        $exists: true,
+        $ne: null,
+        $ne: "",
         $ne: "Guardia No Identificado",
         $ne: "GUARDIA_NO_IDENTIFICADO"
       }
     };
 
     const asistencias = await Asistencia.find(filtro).sort({ fecha_hora: -1 });
-    
+
     console.log(`📊 Asistencias con guardia encontradas: ${asistencias.length}`);
-    
+
     res.json({
       total: asistencias.length,
       asistencias: asistencias
@@ -310,19 +311,19 @@ app.get('/asistencias/con-guardia', async (req, res) => {
 app.get('/asistencias/estadisticas', async (req, res) => {
   try {
     const totalRegistros = await Asistencia.countDocuments();
-    
+
     const conGuardia = await Asistencia.countDocuments({
-      guardia_id: { 
-        $exists: true, 
-        $ne: null, 
-        $ne: "", 
-        $ne: "SIN_GUARDIA", 
-        $ne: "SIN_GUARDIA_ERROR" 
+      guardia_id: {
+        $exists: true,
+        $ne: null,
+        $ne: "",
+        $ne: "SIN_GUARDIA",
+        $ne: "SIN_GUARDIA_ERROR"
       }
     });
-    
+
     const sinGuardia = totalRegistros - conGuardia;
-    
+
     res.json({
       total_registros: totalRegistros,
       con_guardia: conGuardia,
@@ -375,7 +376,7 @@ app.get('/usuarios', async (req, res) => {
 app.post('/usuarios', async (req, res) => {
   try {
     const { nombre, apellido, dni, email, password, rango, puerta_acargo, telefono } = req.body;
-    
+
     // Validar campos requeridos
     if (!nombre || !apellido || !dni || !email || !password) {
       return res.status(400).json({ error: 'Faltan campos requeridos' });
@@ -394,11 +395,11 @@ app.post('/usuarios', async (req, res) => {
     });
 
     await user.save();
-    
+
     // Responder sin la contraseña
     const userResponse = user.toObject();
     delete userResponse.password;
-    
+
     res.status(201).json(userResponse);
   } catch (err) {
     if (err.code === 11000) {
@@ -413,7 +414,7 @@ app.post('/usuarios', async (req, res) => {
 app.put('/usuarios/:id/password', async (req, res) => {
   try {
     const { password } = req.body;
-    
+
     if (!password) {
       return res.status(400).json({ error: 'Contraseña requerida' });
     }
@@ -469,9 +470,9 @@ app.post('/login', async (req, res) => {
 app.put('/usuarios/:id', async (req, res) => {
   try {
     const { password, ...updateData } = req.body;
-    
+
     updateData.fecha_actualizacion = new Date();
-    
+
     const user = await User.findByIdAndUpdate(
       req.params.id,
       updateData,
@@ -506,17 +507,17 @@ app.get('/usuarios/:id', async (req, res) => {
 // Ruta para buscar alumno por código universitario (CRÍTICO para NFC)
 app.get('/alumnos/:codigo', async (req, res) => {
   try {
-    const alumno = await Alumno.findOne({ 
-      codigo_universitario: req.params.codigo 
+    const alumno = await Alumno.findOne({
+      codigo_universitario: req.params.codigo
     });
-    
+
     if (!alumno) {
       return res.status(404).json({ error: 'Alumno no encontrado' });
     }
 
     // Validar que el alumno esté matriculado (estado = true)
     if (!alumno.estado) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'Alumno no matriculado o inactivo',
         alumno: {
           nombre: alumno.nombre,
@@ -570,17 +571,17 @@ app.get('/externos', async (req, res) => {
 // Función para validar datos completos de asistencia
 function validarDatosAsistencia(datos) {
   const camposRequeridos = [
-    'dni', 'nombre', 'apellido', 'codigo_universitario', 
-    'siglas_facultad', 'siglas_escuela', 'tipo', 
+    'dni', 'nombre', 'apellido', 'codigo_universitario',
+    'siglas_facultad', 'siglas_escuela', 'tipo',
     'guardia_id', 'guardia_nombre'
   ];
-  
+
   const camposFaltantes = camposRequeridos.filter(campo => !datos[campo] || datos[campo] === '');
-  
+
   if (camposFaltantes.length > 0) {
     throw new Error(`Campos requeridos faltantes: ${camposFaltantes.join(', ')}`);
   }
-  
+
   if (!['entrada', 'salida'].includes(datos.tipo)) {
     throw new Error('Tipo debe ser "entrada" o "salida"');
   }
@@ -593,7 +594,7 @@ function validarDatosAsistencia(datos) {
   if (datos.guardia_nombre === 'Guardia No Identificado' || datos.guardia_nombre === 'GUARDIA_NO_IDENTIFICADO') {
     throw new Error('Error: Nombre del guardia no válido');
   }
-  
+
   return true;
 }
 
@@ -601,10 +602,10 @@ function validarDatosAsistencia(datos) {
 app.post('/asistencias/completa', async (req, res) => {
   try {
     console.log('📝 Datos recibidos para asistencia:', JSON.stringify(req.body, null, 2));
-    
+
     // Validar datos completos
     validarDatosAsistencia(req.body);
-    
+
     // Asegurar que tenga todos los campos necesarios
     const datosCompletos = {
       ...req.body,
@@ -613,8 +614,15 @@ app.post('/asistencias/completa', async (req, res) => {
       puerta: req.body.puerta || 'Principal',
       autorizacion_manual: req.body.autorizacion_manual || false,
       version_registro: req.body.version_registro || 'v2_con_guardia',
+      version_registro: req.body.version_registro || 'v2_con_guardia',
       // Timestamp de creación para auditoría
-      timestamp_creacion: new Date().toISOString()
+      timestamp_creacion: new Date().toISOString(),
+      // Asegurar que campos opcionales existan como null si no vienen
+      razon_decision: req.body.razon_decision || null,
+      timestamp_decision: req.body.timestamp_decision || null,
+      coordenadas: req.body.coordenadas || null,
+      descripcion_ubicacion: req.body.descripcion_ubicacion || null,
+      estado: req.body.estado || 'autorizado'
     };
 
     console.log('📝 Guardando asistencia con datos completos:', {
@@ -633,14 +641,14 @@ app.post('/asistencias/completa', async (req, res) => {
 
     const asistencia = new Asistencia(datosCompletos);
     const savedAsistencia = await asistencia.save();
-    
+
     console.log('✅ Asistencia guardada exitosamente con ID:', savedAsistencia._id);
     res.status(201).json(savedAsistencia);
   } catch (err) {
     console.error('❌ Error al registrar asistencia:', err.message);
-    res.status(500).json({ 
-      error: 'Error al registrar asistencia completa', 
-      details: err.message 
+    res.status(500).json({
+      error: 'Error al registrar asistencia completa',
+      details: err.message
     });
   }
 });
@@ -650,9 +658,9 @@ app.get('/asistencias/verificar/:dni', async (req, res) => {
   try {
     const { dni } = req.params;
     const asistencias = await Asistencia.find({ dni }).sort({ fecha_hora: -1 }).limit(10);
-    
+
     console.log(`🔍 Verificando asistencias para DNI ${dni}:`, asistencias.length, 'registros encontrados');
-    
+
     res.json({
       dni: dni,
       total_registros: asistencias.length,
@@ -670,9 +678,9 @@ app.get('/asistencias/ultimo-acceso/:dni', async (req, res) => {
   try {
     const { dni } = req.params;
     const ultimaAsistencia = await Asistencia.findOne({ dni }).sort({ fecha_hora: -1 });
-    
+
     console.log(`🔍 Último acceso para DNI ${dni}:`, ultimaAsistencia ? ultimaAsistencia.tipo : 'sin registros');
-    
+
     if (ultimaAsistencia) {
       res.json({ ultimo_tipo: ultimaAsistencia.tipo });
     } else {
@@ -689,19 +697,53 @@ app.get('/asistencias/guardia/:guardiaId', async (req, res) => {
   try {
     const { guardiaId } = req.params;
     const hace24Horas = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    
+
     console.log(`🔍 Buscando asistencias del guardia ${guardiaId} desde ${hace24Horas}`);
-    
+
     const asistencias = await Asistencia.find({
       guardia_id: guardiaId,
       fecha_hora: { $gte: hace24Horas }
     }).sort({ fecha_hora: -1 });
-    
+
+    console.log(`✅ Encontradas ${asistencias.length} asistencias del guardia ${guardiaId}`);
     console.log(`✅ Encontradas ${asistencias.length} asistencias del guardia ${guardiaId}`);
     res.json(asistencias);
   } catch (err) {
     console.error('❌ Error al obtener asistencias del guardia:', err);
     res.status(500).json({ error: 'Error al obtener asistencias del guardia' });
+  }
+});
+
+// Actualizar estado de asistencia (Autorizar/Denegar)
+app.put('/asistencias/:id/estado', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { estado, razon_decision } = req.body;
+
+    if (!['autorizado', 'denegado'].includes(estado)) {
+      return res.status(400).json({ error: 'Estado inválido' });
+    }
+
+    const updateData = {
+      estado,
+      razon_decision: razon_decision || null,
+      timestamp_decision: new Date()
+    };
+
+    const asistencia = await Asistencia.findByIdAndUpdate(
+      id,
+      updateData,
+      { new: true }
+    );
+
+    if (!asistencia) {
+      return res.status(404).json({ error: 'Asistencia no encontrada' });
+    }
+
+    res.json(asistencia);
+  } catch (err) {
+    console.error('❌ Error al actualizar estado de asistencia:', err);
+    res.status(500).json({ error: 'Error al actualizar estado' });
   }
 });
 
@@ -755,24 +797,24 @@ app.get('/presencia', async (req, res) => {
 app.post('/presencia/actualizar', async (req, res) => {
   try {
     const { estudiante_dni, tipo_acceso, punto_control, guardia_id } = req.body;
-    
+
     if (tipo_acceso === 'entrada') {
       // Crear nueva presencia o actualizar existente
       const presenciaExistente = await Presencia.findOne({ estudiante_dni, esta_dentro: true });
-      
+
       if (presenciaExistente) {
         // Ya está dentro, posible error
         res.status(400).json({ error: 'El estudiante ya se encuentra en el campus' });
         return;
       }
-      
+
       // Obtener datos del estudiante para la presencia
       const estudiante = await Alumno.findOne({ dni: estudiante_dni });
       if (!estudiante) {
         res.status(404).json({ error: 'Estudiante no encontrado' });
         return;
       }
-      
+
       const nuevaPresencia = new Presencia({
         _id: new mongoose.Types.ObjectId().toString(),
         estudiante_id: estudiante._id,
@@ -785,32 +827,32 @@ app.post('/presencia/actualizar', async (req, res) => {
         esta_dentro: true,
         guardia_entrada: guardia_id
       });
-      
+
       await nuevaPresencia.save();
       res.json(nuevaPresencia);
-      
+
     } else if (tipo_acceso === 'salida') {
       // Actualizar presencia existente
       const presencia = await Presencia.findOne({ estudiante_dni, esta_dentro: true });
-      
+
       if (!presencia) {
         res.status(400).json({ error: 'El estudiante no se encuentra registrado como presente' });
         return;
       }
-      
+
       const horaSalida = new Date();
       const tiempoEnCampus = horaSalida - presencia.hora_entrada;
-      
+
       presencia.hora_salida = horaSalida;
       presencia.punto_salida = punto_control;
       presencia.esta_dentro = false;
       presencia.guardia_salida = guardia_id;
       presencia.tiempo_en_campus = tiempoEnCampus;
-      
+
       await presencia.save();
       res.json(presencia);
     }
-    
+
   } catch (err) {
     res.status(500).json({ error: 'Error al actualizar presencia', details: err.message });
   }
@@ -831,12 +873,12 @@ app.get('/presencia/largo-tiempo', async (req, res) => {
   try {
     const ahora = new Date();
     const hace8Horas = new Date(ahora - 8 * 60 * 60 * 1000);
-    
+
     const presenciasLargas = await Presencia.find({
       esta_dentro: true,
       hora_entrada: { $lte: hace8Horas }
     });
-    
+
     res.json(presenciasLargas);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener presencias de largo tiempo' });
@@ -849,16 +891,16 @@ app.get('/presencia/largo-tiempo', async (req, res) => {
 const concurrencyMiddleware = async (req, res, next) => {
   try {
     const { guardia_id, punto_control } = req.body;
-    
+
     // Verificar si otro guardia está activo en el mismo punto de control
     const sessionActiva = await SessionGuard.findOne({
       punto_control,
       is_active: true,
       guardia_id: { $ne: guardia_id }
     });
-    
+
     if (sessionActiva) {
-      return res.status(409).json({ 
+      return res.status(409).json({
         error: 'Otro guardia está activo en este punto de control',
         conflict: true,
         active_guard: {
@@ -869,7 +911,7 @@ const concurrencyMiddleware = async (req, res, next) => {
         }
       });
     }
-    
+
     next();
   } catch (err) {
     res.status(500).json({ error: 'Error verificando concurrencia', details: err.message });
@@ -880,16 +922,16 @@ const concurrencyMiddleware = async (req, res, next) => {
 app.post('/sesiones/iniciar', concurrencyMiddleware, async (req, res) => {
   try {
     const { guardia_id, guardia_nombre, punto_control, device_info } = req.body;
-    
+
     // Finalizar cualquier sesión anterior del mismo guardia
     await SessionGuard.updateMany(
       { guardia_id, is_active: true },
-      { 
-        is_active: false, 
-        fecha_fin: new Date() 
+      {
+        is_active: false,
+        fecha_fin: new Date()
       }
     );
-    
+
     // Crear nueva sesión
     const sessionToken = require('crypto').randomUUID();
     const nuevaSesion = new SessionGuard({
@@ -902,9 +944,9 @@ app.post('/sesiones/iniciar', concurrencyMiddleware, async (req, res) => {
       last_activity: new Date(),
       is_active: true
     });
-    
+
     await nuevaSesion.save();
-    
+
     res.status(201).json({
       session_token: sessionToken,
       message: 'Sesión iniciada exitosamente',
@@ -919,21 +961,21 @@ app.post('/sesiones/iniciar', concurrencyMiddleware, async (req, res) => {
 app.post('/sesiones/heartbeat', async (req, res) => {
   try {
     const { session_token } = req.body;
-    
+
     const sesion = await SessionGuard.findOneAndUpdate(
       { session_token, is_active: true },
       { last_activity: new Date() },
       { new: true }
     );
-    
+
     if (!sesion) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         error: 'Sesión no encontrada o inactiva',
         session_expired: true
       });
     }
-    
-    res.json({ 
+
+    res.json({
       message: 'Heartbeat registrado',
       last_activity: sesion.last_activity
     });
@@ -946,20 +988,20 @@ app.post('/sesiones/heartbeat', async (req, res) => {
 app.post('/sesiones/finalizar', async (req, res) => {
   try {
     const { session_token } = req.body;
-    
+
     const sesion = await SessionGuard.findOneAndUpdate(
       { session_token, is_active: true },
-      { 
+      {
         is_active: false,
         fecha_fin: new Date()
       },
       { new: true }
     );
-    
+
     if (!sesion) {
       return res.status(404).json({ error: 'Sesión no encontrada' });
     }
-    
+
     res.json({ message: 'Sesión finalizada exitosamente' });
   } catch (err) {
     res.status(500).json({ error: 'Error al finalizar sesión', details: err.message });
@@ -980,22 +1022,22 @@ app.get('/sesiones/activas', async (req, res) => {
 app.post('/sesiones/forzar-finalizacion', async (req, res) => {
   try {
     const { guardia_id, admin_id } = req.body;
-    
+
     // Verificar que quien hace la petición es admin
     const admin = await User.findOne({ _id: admin_id, rango: 'admin' });
     if (!admin) {
       return res.status(403).json({ error: 'Solo administradores pueden forzar finalización' });
     }
-    
+
     const resultado = await SessionGuard.updateMany(
       { guardia_id, is_active: true },
-      { 
+      {
         is_active: false,
         fecha_fin: new Date()
       }
     );
-    
-    res.json({ 
+
+    res.json({
       message: 'Sesiones finalizadas por administrador',
       sessions_affected: resultado.modifiedCount
     });
@@ -1063,7 +1105,7 @@ const RecomendacionBus = mongoose.model('recomendaciones_buses', RecomendacionBu
 app.get('/ml/datos-historicos', async (req, res) => {
   try {
     const { fecha_inicio, fecha_fin, dias_semana } = req.query;
-    
+
     // Construir filtro de fechas
     let filtroFecha = {};
     if (fecha_inicio && fecha_fin) {
@@ -1084,10 +1126,10 @@ app.get('/ml/datos-historicos', async (req, res) => {
 
     // Obtener datos de asistencias (entradas y salidas)
     const asistencias = await Asistencia.find(filtroFecha).sort({ fecha_hora: 1 });
-    
+
     // Obtener datos de presencia para análisis de tiempo en campus
     const presencias = await Presencia.find({
-      hora_entrada: filtroFecha.fecha_hora || { $gte: new Date(Date.now() - 30*24*60*60*1000) }
+      hora_entrada: filtroFecha.fecha_hora || { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
     });
 
     // 📊 Procesar datos para análisis ML
@@ -1097,20 +1139,20 @@ app.get('/ml/datos-historicos', async (req, res) => {
         inicio: fecha_inicio || hace30Dias.toISOString(),
         fin: fecha_fin || new Date().toISOString()
       },
-      
+
       // Análisis por horas para identificar patrones de salida
       salidas_por_hora: {},
       entradas_por_hora: {},
-      
+
       // Análisis por días de la semana
       patrones_semanales: {},
-      
+
       // Análisis por facultad para distribución de buses
       salidas_por_facultad: {},
-      
+
       // Tiempos promedio en campus
       tiempo_promedio_campus: 0,
-      
+
       // Datos de presencia actual
       estudiantes_presentes: 0
     };
@@ -1121,18 +1163,18 @@ app.get('/ml/datos-historicos', async (req, res) => {
       const hora = fecha.getHours();
       const diaSemana = fecha.getDay(); // 0=domingo, 1=lunes, etc.
       const tipo = asistencia.tipo || asistencia.entrada_tipo;
-      
+
       // Contar por horas
       if (tipo === 'salida') {
         datosParaML.salidas_por_hora[hora] = (datosParaML.salidas_por_hora[hora] || 0) + 1;
-        
+
         // Contar por facultad
         const facultad = asistencia.siglas_facultad || 'SIN_FACULTAD';
         datosParaML.salidas_por_facultad[facultad] = (datosParaML.salidas_por_facultad[facultad] || 0) + 1;
       } else if (tipo === 'entrada') {
         datosParaML.entradas_por_hora[hora] = (datosParaML.entradas_por_hora[hora] || 0) + 1;
       }
-      
+
       // Patrones semanales
       const diaKey = `dia_${diaSemana}`;
       if (!datosParaML.patrones_semanales[diaKey]) {
@@ -1163,9 +1205,9 @@ app.get('/ml/datos-historicos', async (req, res) => {
     });
 
   } catch (err) {
-    res.status(500).json({ 
-      error: 'Error al obtener datos históricos para ML', 
-      details: err.message 
+    res.status(500).json({
+      error: 'Error al obtener datos históricos para ML',
+      details: err.message
     });
   }
 });
@@ -1226,9 +1268,9 @@ app.post('/ml/recomendaciones-buses', async (req, res) => {
     });
 
   } catch (err) {
-    res.status(500).json({ 
-      error: 'Error al almacenar recomendación de buses', 
-      details: err.message 
+    res.status(500).json({
+      error: 'Error al almacenar recomendación de buses',
+      details: err.message
     });
   }
 });
@@ -1237,22 +1279,22 @@ app.post('/ml/recomendaciones-buses', async (req, res) => {
 app.get('/ml/recomendaciones-buses', async (req, res) => {
   try {
     const { fecha_desde, limite, solo_recientes } = req.query;
-    
+
     let filtro = {};
     let opciones = { sort: { fecha_analisis: -1 } };
-    
+
     // Filtrar por fecha si se especifica
     if (fecha_desde) {
       filtro.fecha_analisis = { $gte: new Date(fecha_desde) };
     }
-    
+
     // Solo recomendaciones recientes (últimas 24 horas)
     if (solo_recientes === 'true') {
       const hace24h = new Date();
       hace24h.setHours(hace24h.getHours() - 24);
       filtro.fecha_analisis = { $gte: hace24h };
     }
-    
+
     // Limitar resultados
     if (limite) {
       opciones.limit = parseInt(limite);
@@ -1261,7 +1303,7 @@ app.get('/ml/recomendaciones-buses', async (req, res) => {
     }
 
     const recomendaciones = await RecomendacionBus.find(filtro, null, opciones);
-    
+
     // Estadísticas rápidas
     const estadisticas = {
       total_recomendaciones: recomendaciones.length,
@@ -1274,19 +1316,19 @@ app.get('/ml/recomendaciones-buses', async (req, res) => {
     if (recomendaciones.length > 0) {
       // Calcular estadísticas
       let sumaBuses = 0, sumaEstudiantes = 0, sumaConfianza = 0;
-      
+
       recomendaciones.forEach(rec => {
         // Horarios más recomendados
         const horario = rec.horario_recomendado;
-        estadisticas.horarios_mas_recomendados[horario] = 
+        estadisticas.horarios_mas_recomendados[horario] =
           (estadisticas.horarios_mas_recomendados[horario] || 0) + 1;
-        
+
         // Promedios
         sumaBuses += rec.numero_buses_sugeridos;
         sumaEstudiantes += rec.estudiantes_esperados;
         sumaConfianza += rec.confianza_prediccion;
       });
-      
+
       estadisticas.promedio_buses = Math.round(sumaBuses / recomendaciones.length);
       estadisticas.promedio_estudiantes = Math.round(sumaEstudiantes / recomendaciones.length);
       estadisticas.confianza_promedio = Math.round((sumaConfianza / recomendaciones.length) * 100) / 100;
@@ -1308,9 +1350,9 @@ app.get('/ml/recomendaciones-buses', async (req, res) => {
     });
 
   } catch (err) {
-    res.status(500).json({ 
-      error: 'Error al obtener recomendaciones de buses', 
-      details: err.message 
+    res.status(500).json({
+      error: 'Error al obtener recomendaciones de buses',
+      details: err.message
     });
   }
 });
@@ -1321,27 +1363,27 @@ app.get('/ml/estado-actual', async (req, res) => {
     const ahora = new Date();
     const horaActual = ahora.getHours();
     const diaActual = ahora.getDay();
-    
+
     // Estudiantes actualmente en campus
     const estudiantesPresentes = await Presencia.find({ esta_dentro: true });
-    
+
     // Patrones de salida de la última hora
     const haceUnaHora = new Date(ahora - 60 * 60 * 1000);
     const salidasUltimaHora = await Asistencia.find({
       tipo: 'salida',
       fecha_hora: { $gte: haceUnaHora }
     });
-    
+
     // Distribución por facultades de estudiantes presentes
     const distribucionFacultades = {};
     estudiantesPresentes.forEach(estudiante => {
       const facultad = estudiante.facultad || 'SIN_FACULTAD';
       distribucionFacultades[facultad] = (distribucionFacultades[facultad] || 0) + 1;
     });
-    
+
     // Estudiantes que llevan más de 6 horas en campus (candidatos a salir pronto)
     const hace6Horas = new Date(ahora - 6 * 60 * 60 * 1000);
-    const candidatosSalida = estudiantesPresentes.filter(est => 
+    const candidatosSalida = estudiantesPresentes.filter(est =>
       est.hora_entrada && new Date(est.hora_entrada) <= hace6Horas
     );
 
@@ -1349,25 +1391,25 @@ app.get('/ml/estado-actual', async (req, res) => {
       timestamp: ahora.toISOString(),
       hora_actual: horaActual,
       dia_semana: diaActual,
-      
+
       presencia: {
         total_estudiantes: estudiantesPresentes.length,
         distribucion_facultades: distribucionFacultades,
         candidatos_salida_pronta: candidatosSalida.length
       },
-      
+
       actividad_reciente: {
         salidas_ultima_hora: salidasUltimaHora.length,
         tendencia_salida: salidasUltimaHora.length > 0 ? 'activa' : 'baja'
       },
-      
+
       // Información contextual para el modelo
       contexto: {
         es_hora_pico_salida: horaActual >= 17 && horaActual <= 22,
         es_dia_laboral: diaActual >= 1 && diaActual <= 5,
         categoria_horario: this.categorizarHorario(horaActual)
       },
-      
+
       // Métricas para predicción
       metricas_prediccion: {
         densidad_actual: estudiantesPresentes.length,
@@ -1383,9 +1425,9 @@ app.get('/ml/estado-actual', async (req, res) => {
     });
 
   } catch (err) {
-    res.status(500).json({ 
-      error: 'Error al obtener estado actual para ML', 
-      details: err.message 
+    res.status(500).json({
+      error: 'Error al obtener estado actual para ML',
+      details: err.message
     });
   }
 });
@@ -1423,7 +1465,7 @@ app.post('/ml/feedback', async (req, res) => {
       diferencias: Object,
       comentarios: String
     }, { collection: 'feedback_ml', strict: false, _id: false });
-    
+
     const Feedback = mongoose.model('feedback_ml', feedbackSchema);
 
     // Calcular diferencias
@@ -1461,9 +1503,9 @@ app.post('/ml/feedback', async (req, res) => {
     });
 
   } catch (err) {
-    res.status(500).json({ 
-      error: 'Error al registrar feedback ML', 
-      details: err.message 
+    res.status(500).json({
+      error: 'Error al registrar feedback ML',
+      details: err.message
     });
   }
 });
@@ -1478,7 +1520,7 @@ function categorizarHorario(hora) {
 
 function calcularTiempoPromedio(estudiantesPresentes) {
   if (estudiantesPresentes.length === 0) return 0;
-  
+
   const ahora = new Date();
   const tiempos = estudiantesPresentes.map(est => {
     if (est.hora_entrada) {
@@ -1486,7 +1528,7 @@ function calcularTiempoPromedio(estudiantesPresentes) {
     }
     return 0;
   }).filter(t => t > 0);
-  
+
   return tiempos.length > 0 ? tiempos.reduce((a, b) => a + b) / tiempos.length : 0;
 }
 

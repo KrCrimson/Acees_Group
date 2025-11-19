@@ -21,6 +21,7 @@ class NfcViewModel extends ChangeNotifier {
   String? _successMessage;
   AlumnoModel? _scannedAlumno;
   String? _lastAccessType; // Para rastrear el último tipo de acceso
+  String? _lastAsistenciaId; // ID de la última asistencia registrada
 
   // Información del guardia actual
   String? _guardiaId;
@@ -44,6 +45,7 @@ class NfcViewModel extends ChangeNotifier {
   String? get successMessage => _successMessage;
   AlumnoModel? get scannedAlumno => _scannedAlumno;
   String? get lastAccessType => _lastAccessType;
+  String? get lastAsistenciaId => _lastAsistenciaId;
   bool get isNfcReady => !_isScanning && !_isLoading;
   List<AlumnoModel> get recentDetections =>
       List.unmodifiable(_recentDetections);
@@ -328,6 +330,7 @@ class NfcViewModel extends ChangeNotifier {
   void clearScan() {
     _scannedAlumno = null;
     _lastAccessType = null;
+    _lastAsistenciaId = null;
     _clearMessages();
     notifyListeners();
   }
@@ -472,9 +475,10 @@ class NfcViewModel extends ChangeNotifier {
         razonDecision: decisionManual?.razon,
         timestampDecision: decisionManual?.timestamp,
         // US029 - Ubicación detallada
-        descripcionUbicacion:
             'Acceso ${tipoAcceso} - Punto: ${_puntoControl ?? "Principal"} - Guardia: ${_guardiaNombre}',
       );
+      
+      _lastAsistenciaId = fechaId;
 
       addLog(
           '🌐 Estado conexión: ${_offlineService.isOnline ? "ONLINE" : "OFFLINE"}');
