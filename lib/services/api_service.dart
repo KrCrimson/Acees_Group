@@ -730,7 +730,9 @@ class ApiService {
     } catch (e) {
       throw Exception('Error de conexión: $e');
     }
-    Future<void> updateAsistenciaEstado(String id, String estado, String? razon) async {
+  }
+
+  Future<void> updateAsistenciaEstado(String id, String estado, String? razon) async {
     try {
       final response = await http.put(
         Uri.parse('${ApiConfig.baseUrl}/asistencias/$id/estado'),
@@ -749,5 +751,4 @@ class ApiService {
       throw Exception('Error de conexión: $e');
     }
   }
-}
 }

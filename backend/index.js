@@ -677,9 +677,13 @@ app.get('/asistencias/verificar/:dni', async (req, res) => {
 app.get('/asistencias/ultimo-acceso/:dni', async (req, res) => {
   try {
     const { dni } = req.params;
-    const ultimaAsistencia = await Asistencia.findOne({ dni }).sort({ fecha_hora: -1 });
+    // MODIFICADO: Ignorar denegados para que el ciclo se reinicie correctamente
+    const ultimaAsistencia = await Asistencia.findOne({
+      dni,
+      estado: { $ne: 'denegado' }
+    }).sort({ fecha_hora: -1 });
 
-    console.log(`🔍 Último acceso para DNI ${dni}:`, ultimaAsistencia ? ultimaAsistencia.tipo : 'sin registros');
+    console.log(`🔍 Último acceso VÁLIDO para DNI ${dni}:`, ultimaAsistencia ? ultimaAsistencia.tipo : 'sin registros');
 
     if (ultimaAsistencia) {
       res.json({ ultimo_tipo: ultimaAsistencia.tipo });
@@ -706,7 +710,6 @@ app.get('/asistencias/guardia/:guardiaId', async (req, res) => {
     }).sort({ fecha_hora: -1 });
 
     console.log(`✅ Encontradas ${asistencias.length} asistencias del guardia ${guardiaId}`);
-    console.log(`✅ Encontradas ${asistencias.length} asistencias del guardia ${guardiaId}`);
     res.json(asistencias);
   } catch (err) {
     console.error('❌ Error al obtener asistencias del guardia:', err);
@@ -714,7 +717,7 @@ app.get('/asistencias/guardia/:guardiaId', async (req, res) => {
   }
 });
 
-// Actualizar estado de asistencia (Autorizar/Denegar)
+// Actualizar estado de asistencia (Autorizar/Denegar) y Sincronizar Presencia
 app.put('/asistencias/:id/estado', async (req, res) => {
   try {
     const { id } = req.params;
@@ -739,6 +742,47 @@ app.put('/asistencias/:id/estado', async (req, res) => {
     if (!asistencia) {
       return res.status(404).json({ error: 'Asistencia no encontrada' });
     }
+
+    // --- LÓGICA DE SINCRONIZACIÓN CON PRESENCIA ---
+    // Si se deniega una entrada, la persona NO debe estar en la lista de presencia
+    if (asistencia.tipo === 'entrada') {
+      if (estado === 'denegado') {
+        // Eliminar de presencia si existe
+        await Presencia.deleteOne({
+          estudiante_dni: asistencia.dni,
+          esta_dentro: true
+        });
+        console.log(`🚫 Presencia eliminada para DNI ${asistencia.dni} por denegación de acceso`);
+      } else if (estado === 'autorizado') {
+        // Si se autoriza (corrección), asegurar que esté en presencia
+        const presenciaExiste = await Presencia.findOne({
+          estudiante_dni: asistencia.dni,
+          esta_dentro: true
+        });
+
+        if (!presenciaExiste) {
+          // Buscar datos del alumno para crear presencia
+          const alumno = await Alumno.findOne({ dni: asistencia.dni });
+          if (alumno) {
+            const nuevaPresencia = new Presencia({
+              _id: new mongoose.Types.ObjectId().toString(),
+              estudiante_id: alumno._id,
+              estudiante_dni: asistencia.dni,
+              estudiante_nombre: `${asistencia.nombre} ${asistencia.apellido}`,
+              facultad: asistencia.siglas_facultad,
+              escuela: asistencia.siglas_escuela,
+              hora_entrada: asistencia.fecha_hora, // Mantener hora original
+              punto_entrada: asistencia.puerta,
+              esta_dentro: true,
+              guardia_entrada: asistencia.guardia_id
+            });
+            await nuevaPresencia.save();
+            console.log(`✅ Presencia restaurada para DNI ${asistencia.dni} por autorización manual`);
+          }
+        }
+      }
+    }
+    // ----------------------------------------------
 
     res.json(asistencia);
   } catch (err) {

@@ -124,8 +124,7 @@ class AutorizacionService extends ChangeNotifier {
                 puntoControl: asistencia.puerta,
                 guardiaId: asistencia.guardiaId ?? guardiaId,
                 guardiaNombre: asistencia.guardiaNombre ?? 'Guardia',
-                guardiaId: asistencia.guardiaId ?? guardiaId,
-                guardiaNombre: asistencia.guardiaNombre ?? 'Guardia',
+
                 autorizado: asistencia.estado == 'autorizado',
                 razon: asistencia.razonDecision ?? 'Acceso NFC autorizado',
                 timestamp: asistencia.fechaHora,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/nfc_viewmodel.dart';
 import '../../viewmodels/auth_viewmodel.dart';
+import '../../services/autorizacion_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/status_widgets.dart';
 import '../../widgets/session_status_widget.dart';

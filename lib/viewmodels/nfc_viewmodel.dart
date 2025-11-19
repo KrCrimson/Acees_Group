@@ -475,6 +475,7 @@ class NfcViewModel extends ChangeNotifier {
         razonDecision: decisionManual?.razon,
         timestampDecision: decisionManual?.timestamp,
         // US029 - Ubicación detallada
+        descripcionUbicacion:
             'Acceso ${tipoAcceso} - Punto: ${_puntoControl ?? "Principal"} - Guardia: ${_guardiaNombre}',
       );
       
