@@ -718,6 +718,7 @@ app.get('/asistencias/guardia/:guardiaId', async (req, res) => {
 });
 
 // Actualizar estado de asistencia (Autorizar/Denegar) y Sincronizar Presencia
+// Actualizar estado de asistencia (Autorizar/Denegar) y Sincronizar Presencia
 app.put('/asistencias/:id/estado', async (req, res) => {
   try {
     const { id } = req.params;
@@ -725,6 +726,42 @@ app.put('/asistencias/:id/estado', async (req, res) => {
 
     if (!['autorizado', 'denegado'].includes(estado)) {
       return res.status(400).json({ error: 'Estado inválido' });
+    }
+
+    // Buscar asistencia original para validar tiempos
+    const asistenciaOriginal = await Asistencia.findById(id);
+    if (!asistenciaOriginal) {
+      return res.status(404).json({ error: 'Asistencia no encontrada' });
+    }
+
+    const ahora = new Date();
+    const LIMITE_TIEMPO_MS = 5 * 60 * 1000; // 5 minutos
+
+    // VALIDACIÓN DE TIEMPO PARA DENEGAR
+    if (estado === 'denegado') {
+      const tiempoTranscurrido = ahora - new Date(asistenciaOriginal.fecha_hora);
+      if (tiempoTranscurrido > LIMITE_TIEMPO_MS) {
+        return res.status(400).json({
+          error: 'Tiempo límite excedido',
+          message: 'Solo se puede denegar una entrada dentro de los 5 minutos posteriores al registro.'
+        });
+      }
+    }
+
+    // VALIDACIÓN DE TIEMPO PARA REVERTIR (Denegado -> Autorizado)
+    if (estado === 'autorizado' && asistenciaOriginal.estado === 'denegado') {
+      if (!asistenciaOriginal.timestamp_decision) {
+        // Si no hay timestamp de decisión, asumimos que es antiguo o manual, bloquear por seguridad
+        // O permitir si es reciente la fecha_hora. Usaremos fecha_hora como fallback.
+      } else {
+        const tiempoDesdeDenegacion = ahora - new Date(asistenciaOriginal.timestamp_decision);
+        if (tiempoDesdeDenegacion > LIMITE_TIEMPO_MS) {
+          return res.status(400).json({
+            error: 'Tiempo límite excedido',
+            message: 'Solo se puede revertir una denegación dentro de los 5 minutos posteriores a la decisión.'
+          });
+        }
+      }
     }
 
     const updateData = {
@@ -739,20 +776,26 @@ app.put('/asistencias/:id/estado', async (req, res) => {
       { new: true }
     );
 
-    if (!asistencia) {
-      return res.status(404).json({ error: 'Asistencia no encontrada' });
-    }
-
-    // --- LÓGICA DE SINCRONIZACIÓN CON PRESENCIA ---
-    // Si se deniega una entrada, la persona NO debe estar en la lista de presencia
+    // --- LÓGICA DE SINCRONIZACIÓN CON PRESENCIA (SOFT DELETE) ---
     if (asistencia.tipo === 'entrada') {
       if (estado === 'denegado') {
-        // Eliminar de presencia si existe
-        await Presencia.deleteOne({
+        // EN LUGAR DE BORRAR, MARCAR COMO SALIDA ESPECIAL
+        // Buscar si está dentro actualmente
+        const presencia = await Presencia.findOne({
           estudiante_dni: asistencia.dni,
           esta_dentro: true
         });
-        console.log(`🚫 Presencia eliminada para DNI ${asistencia.dni} por denegación de acceso`);
+
+        if (presencia) {
+          presencia.esta_dentro = false;
+          presencia.punto_salida = 'ENTRADA_DENEGADA'; // Marcador especial
+          presencia.hora_salida = new Date();
+          presencia.guardia_salida = asistencia.guardia_id; // El guardia que denegó
+          presencia.tiempo_en_campus = 0; // No contó como tiempo válido
+
+          await presencia.save();
+          console.log(`🚫 Presencia invalidada (Soft Delete) para DNI ${asistencia.dni} por denegación de acceso`);
+        }
       } else if (estado === 'autorizado') {
         // Si se autoriza (corrección), asegurar que esté en presencia
         const presenciaExiste = await Presencia.findOne({
