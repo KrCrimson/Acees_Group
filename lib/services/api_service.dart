@@ -109,11 +109,43 @@ class ApiService {
         body: json.encode(usuario.toJson()),
       );
 
-      if (response.statusCode == 201) {
+      if (response.statusCode == 201 || response.statusCode == 200) {
         return UsuarioModel.fromJson(json.decode(response.body));
       } else {
-        final error = json.decode(response.body);
-        throw Exception(error['error'] ?? 'Error al crear usuario');
+        throw Exception('Error al crear usuario: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  Future<UsuarioModel> updateUsuario(UsuarioModel usuario) async {
+    try {
+      final response = await http.put(
+        Uri.parse('${ApiConfig.usuariosUrl}/${usuario.id}'),
+        headers: _headers,
+        body: json.encode(usuario.toJson()),
+      );
+
+      if (response.statusCode == 200) {
+        return UsuarioModel.fromJson(json.decode(response.body));
+      } else {
+        throw Exception('Error al actualizar usuario: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  Future<void> deleteUsuario(String userId) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('${ApiConfig.usuariosUrl}/$userId'),
+        headers: _headers,
+      );
+
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        throw Exception('Error al eliminar usuario: ${response.statusCode}');
       }
     } catch (e) {
       throw Exception('Error de conexión: $e');

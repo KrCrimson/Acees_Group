@@ -180,101 +180,259 @@ class _UserManagementViewState extends State<UserManagementView> {
     return Card(
       margin: EdgeInsets.only(bottom: 12),
       elevation: 2,
-      child: ListTile(
-        contentPadding: EdgeInsets.all(16),
-        leading: CircleAvatar(
-          backgroundColor:
-              usuario.isAdmin ? Colors.purple[100] : Colors.blue[100],
-          child: Icon(
-            usuario.isAdmin ? Icons.admin_panel_settings : Icons.person,
-            color: usuario.isAdmin ? Colors.purple : Colors.blue,
-          ),
-        ),
-        title: Text(
-          usuario.nombreCompleto,
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Column(
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(height: 4),
-            Text('Email: ${usuario.email}'),
-            Text('DNI: ${usuario.dni}'),
-            Text('Rango: ${usuario.rango}'),
-            if (usuario.puertaACargo != null)
-              Text('Puerta: ${usuario.puertaACargo}'),
-          ],
-        ),
-        trailing: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Toggle de estado activo/inactivo
-            Consumer<AdminViewModel>(
-              builder: (context, adminViewModel, child) {
-                return Switch(
-                  value: usuario.isActive,
-                  activeColor: Colors.green,
-                  onChanged:
-                      adminViewModel.isLoading
-                          ? null
-                          : (bool value) async {
-                            final success = await adminViewModel
-                                .toggleUserStatus(usuario.id, value);
-                            if (!success && mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    '❌ Error al cambiar estado del usuario',
-                                  ),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            }
-                          },
-                );
-              },
-            ),
-            // Estado del usuario
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: usuario.isActive ? Colors.green[100] : Colors.red[100],
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                usuario.estado,
-                style: TextStyle(
-                  color: usuario.isActive ? Colors.green[700] : Colors.red[700],
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
+            // Header: Avatar, Nombre y Menú
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor:
+                      usuario.isAdmin ? Colors.purple[100] : Colors.blue[100],
+                  child: Icon(
+                    usuario.isAdmin ? Icons.admin_panel_settings : Icons.person,
+                    color: usuario.isAdmin ? Colors.purple : Colors.blue,
+                    size: 28,
+                  ),
                 ),
-              ),
-            ),
-            // Menú de acciones
-            PopupMenuButton<String>(
-              onSelected: (value) {
-                if (value == 'change_password') {
-                  _showChangePasswordDialog(usuario);
-                }
-              },
-              itemBuilder:
-                  (context) => [
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        usuario.nombreCompleto,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        usuario.rango.toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Badge de estado
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: usuario.isActive ? Colors.green[100] : Colors.red[100],
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    usuario.estado,
+                    style: TextStyle(
+                      color: usuario.isActive ? Colors.green[700] : Colors.red[700],
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                SizedBox(width: 8),
+                // Menú de acciones
+                PopupMenuButton<String>(
+                  icon: Icon(Icons.more_vert),
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      _showEditUserDialog(usuario);
+                    } else if (value == 'change_password') {
+                      _showChangePasswordDialog(usuario);
+                    } else if (value == 'delete') {
+                      _showDeleteConfirmation(usuario);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit, size: 18, color: Colors.blue),
+                          SizedBox(width: 8),
+                          Text('Editar'),
+                        ],
+                      ),
+                    ),
                     PopupMenuItem(
                       value: 'change_password',
                       child: Row(
                         children: [
-                          Icon(Icons.lock_reset, size: 18),
+                          Icon(Icons.lock_reset, size: 18, color: Colors.orange),
                           SizedBox(width: 8),
                           Text('Cambiar Contraseña'),
                         ],
                       ),
                     ),
+                    PopupMenuDivider(),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete, size: 18, color: Colors.red),
+                          SizedBox(width: 8),
+                          Text('Eliminar', style: TextStyle(color: Colors.red)),
+                        ],
+                      ),
+                    ),
                   ],
+                ),
+              ],
+            ),
+            SizedBox(height: 12),
+            Divider(),
+            SizedBox(height: 8),
+            // Información del usuario
+            _buildInfoRow(Icons.email, 'Email', usuario.email),
+            _buildInfoRow(Icons.badge, 'DNI', usuario.dni),
+            if (usuario.telefono != null)
+              _buildInfoRow(Icons.phone, 'Teléfono', usuario.telefono!),
+            if (usuario.puertaACargo != null)
+              _buildInfoRow(Icons.door_front_door, 'Puerta', usuario.puertaACargo!),
+            SizedBox(height: 12),
+            // Toggle de estado activo/inactivo
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Estado del usuario:',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                Consumer<AdminViewModel>(
+                  builder: (context, adminViewModel, child) {
+                    return Row(
+                      children: [
+                        Text(
+                          usuario.isActive ? 'Activo' : 'Inactivo',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: usuario.isActive ? Colors.green : Colors.red,
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Switch(
+                          value: usuario.isActive,
+                          activeColor: Colors.green,
+                          onChanged: adminViewModel.isLoading
+                              ? null
+                              : (bool value) async {
+                                  final success = await adminViewModel
+                                      .toggleUserStatus(usuario.id, value);
+                                  if (!success && mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          '❌ Error al cambiar estado del usuario',
+                                        ),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                },
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: Colors.grey[600]),
+          SizedBox(width: 8),
+          Text(
+            '$label: ',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[600],
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditUserDialog(UsuarioModel usuario) {
+    showDialog(
+      context: context,
+      builder: (context) => EditUserDialog(usuario: usuario),
+    );
+  }
+
+  void _showDeleteConfirmation(UsuarioModel usuario) async {
+    final confirmacion = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Confirmar Eliminación'),
+        content: Text(
+          '¿Está seguro de que desea eliminar a ${usuario.nombreCompleto}?\n\n'
+          'Esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmacion == true) {
+      final adminViewModel = Provider.of<AdminViewModel>(context, listen: false);
+      final success = await adminViewModel.deleteUsuario(usuario.id);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              success
+                  ? '✅ Usuario eliminado correctamente'
+                  : '❌ Error al eliminar usuario',
+            ),
+            backgroundColor: success ? Colors.green : Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
 
@@ -585,6 +743,162 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                       : Text('Cambiar'),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class EditUserDialog extends StatefulWidget {
+  final UsuarioModel usuario;
+
+  const EditUserDialog({Key? key, required this.usuario}) : super(key: key);
+
+  @override
+  _EditUserDialogState createState() => _EditUserDialogState();
+}
+
+class _EditUserDialogState extends State<EditUserDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController _nombreController;
+  late TextEditingController _apellidoController;
+  late TextEditingController _dniController;
+  late TextEditingController _emailController;
+  late TextEditingController _telefonoController;
+  late TextEditingController _puertaController;
+  late String _selectedRango;
+
+  @override
+  void initState() {
+    super.initState();
+    _nombreController = TextEditingController(text: widget.usuario.nombre);
+    _apellidoController = TextEditingController(text: widget.usuario.apellido);
+    _dniController = TextEditingController(text: widget.usuario.dni);
+    _emailController = TextEditingController(text: widget.usuario.email);
+    _telefonoController = TextEditingController(text: widget.usuario.telefono ?? '');
+    _puertaController = TextEditingController(text: widget.usuario.puertaACargo ?? '');
+    _selectedRango = widget.usuario.rango;
+  }
+
+  @override
+  void dispose() {
+    _nombreController.dispose();
+    _apellidoController.dispose();
+    _dniController.dispose();
+    _emailController.dispose();
+    _telefonoController.dispose();
+    _puertaController.dispose();
+    super.dispose();
+  }
+
+  void _handleUpdate() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final adminViewModel = Provider.of<AdminViewModel>(context, listen: false);
+
+    final usuarioActualizado = UsuarioModel(
+      id: widget.usuario.id,
+      nombre: _nombreController.text.trim(),
+      apellido: _apellidoController.text.trim(),
+      dni: _dniController.text.trim(),
+      email: _emailController.text.trim(),
+      password: widget.usuario.password,
+      rango: _selectedRango,
+      estado: widget.usuario.estado,
+      telefono: _telefonoController.text.trim().isEmpty ? null : _telefonoController.text.trim(),
+      puertaACargo: _puertaController.text.trim().isEmpty ? null : _puertaController.text.trim(),
+    );
+
+    bool success = await adminViewModel.updateUsuario(usuarioActualizado);
+    if (success && mounted) {
+      Navigator.pop(context);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Editar Usuario'),
+      content: Container(
+        width: double.maxFinite,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CustomTextField(
+                  label: 'Nombre',
+                  controller: _nombreController,
+                  validator: (value) => value == null || value.isEmpty ? 'Ingrese el nombre' : null,
+                ),
+                SizedBox(height: 16),
+                CustomTextField(
+                  label: 'Apellido',
+                  controller: _apellidoController,
+                  validator: (value) => value == null || value.isEmpty ? 'Ingrese el apellido' : null,
+                ),
+                SizedBox(height: 16),
+                CustomTextField(
+                  label: 'DNI',
+                  controller: _dniController,
+                  keyboardType: TextInputType.number,
+                  validator: (value) => value == null || value.isEmpty ? 'Ingrese el DNI' : null,
+                ),
+                SizedBox(height: 16),
+                CustomTextField(
+                  label: 'Email',
+                  controller: _emailController,
+                  isEmail: true,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) return 'Ingrese el email';
+                    if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) return 'Email inválido';
+                    return null;
+                  },
+                ),
+                SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: _selectedRango,
+                  decoration: InputDecoration(
+                    labelText: 'Rango',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  items: [
+                    DropdownMenuItem(value: 'guardia', child: Text('Guardia')),
+                    DropdownMenuItem(value: 'admin', child: Text('Administrador')),
+                  ],
+                  onChanged: (value) => setState(() => _selectedRango = value!),
+                ),
+                SizedBox(height: 16),
+                CustomTextField(
+                  label: 'Teléfono (Opcional)',
+                  controller: _telefonoController,
+                  keyboardType: TextInputType.phone,
+                ),
+                SizedBox(height: 16),
+                CustomTextField(
+                  label: 'Puerta a Cargo (Opcional)',
+                  controller: _puertaController,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Cancelar'),
+        ),
+        Consumer<AdminViewModel>(
+          builder: (context, adminViewModel, child) {
+            return ElevatedButton(
+              onPressed: adminViewModel.isLoading ? null : _handleUpdate,
+              child: adminViewModel.isLoading
+                  ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                  : Text('Guardar Cambios'),
             );
           },
         ),

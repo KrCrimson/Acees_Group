@@ -68,6 +68,45 @@ class AdminViewModel extends ChangeNotifier {
     }
   }
 
+  // Actualizar usuario
+  Future<bool> updateUsuario(UsuarioModel usuario) async {
+    _setLoading(true);
+    _clearMessages();
+
+    try {
+      final usuarioActualizado = await _apiService.updateUsuario(usuario);
+      final index = _usuarios.indexWhere((u) => u.id == usuario.id);
+      if (index != -1) {
+        _usuarios[index] = usuarioActualizado;
+      }
+      _setSuccess('Usuario actualizado exitosamente');
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      _setError(e.toString());
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // Eliminar usuario
+  Future<bool> deleteUsuario(String userId) async {
+    _setLoading(true);
+    _clearMessages();
+
+    try {
+      await _apiService.deleteUsuario(userId);
+      _usuarios.removeWhere((u) => u.id == userId);
+      _setSuccess('Usuario eliminado exitosamente');
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      _setError(e.toString());
+      _setLoading(false);
+      return false;
+    }
+  }
+
   // Filtrar usuarios por tipo
   List<UsuarioModel> getUsuariosByRango(String rango) {
     return _usuarios.where((user) => user.rango == rango).toList();

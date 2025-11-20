@@ -23,6 +23,10 @@ class _AdminViewState extends State<AdminView> {
     AdminDashboard(),
     UserManagementView(),
     ReportsView(),
+    SessionConfigView(),
+    SyncConfigView(),
+    SessionManagementView(adminId: '', adminName: 'Admin'), // Se actualizará con datos reales
+    HistorialView(),
   ];
 
   void _handleLogout() {
@@ -110,15 +114,37 @@ class _AdminViewState extends State<AdminView> {
         onTap: (index) => setState(() => _selectedIndex = index),
         type: BottomNavigationBarType.fixed,
         selectedItemColor: Theme.of(context).primaryColor,
+        unselectedItemColor: Colors.grey,
+        selectedFontSize: 12,
+        unselectedFontSize: 10,
         items: [
           BottomNavigationBarItem(
             icon: Icon(Icons.dashboard),
             label: 'Dashboard',
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Usuarios'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.people),
+            label: 'Usuarios',
+          ),
           BottomNavigationBarItem(
             icon: Icon(Icons.analytics),
             label: 'Reportes',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.timer),
+            label: 'Sesión',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.sync_alt),
+            label: 'Sync',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.supervisor_account),
+            label: 'Gestión',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.history),
+            label: 'Historial',
           ),
         ],
       ),
@@ -200,10 +226,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
                 // Resumen de datos
                 _buildDataSummary(reportsViewModel),
-                SizedBox(height: 24),
-
-                // Acciones rápidas
-                _buildQuickActions(),
               ],
             );
           },
@@ -381,136 +403,5 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  Widget _buildQuickActions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Acciones Rápidas',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.grey[800],
-          ),
-        ),
-        SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: CustomButton(
-                text: 'Gestionar Usuarios',
-                icon: Icons.people,
-                onPressed: () {
-                  // Cambiar a la pestaña de usuarios
-                  final adminView =
-                      context.findAncestorStateOfType<_AdminViewState>();
-                  adminView?.setState(() {
-                    adminView._selectedIndex = 1;
-                  });
-                },
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: CustomButton(
-                text: 'Ver Reportes',
-                icon: Icons.analytics,
-                backgroundColor: Colors.green,
-                onPressed: () {
-                  // Cambiar a la pestaña de reportes
-                  final adminView =
-                      context.findAncestorStateOfType<_AdminViewState>();
-                  adminView?.setState(() {
-                    adminView._selectedIndex = 2;
-                  });
-                },
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: CustomButton(
-                text: 'Configurar Sesión',
-                icon: Icons.timer,
-                backgroundColor: Colors.orange,
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => SessionConfigView(),
-                    ),
-                  );
-                },
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: CustomButton(
-                text: 'Sincronización',
-                icon: Icons.sync_alt,
-                backgroundColor: Colors.teal,
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => SyncConfigView()),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: CustomButton(
-                text: 'Gestión Sesiones',
-                icon: Icons.supervisor_account,
-                backgroundColor: Colors.purple,
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (context) => Consumer<AuthViewModel>(
-                            builder: (context, authViewModel, child) {
-                              return SessionManagementView(
-                                adminId: authViewModel.currentUser?.id ?? '',
-                                adminName:
-                                    authViewModel.currentUser?.nombreCompleto ??
-                                    'Admin',
-                              );
-                            },
-                          ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: CustomButton(
-                text: 'Ver Historial',
-                icon: Icons.history,
-                backgroundColor: Colors.indigo,
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => HistorialView()),
-                  );
-                },
-              ),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: Container(), // Espacio vacío para simetría
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+
 }

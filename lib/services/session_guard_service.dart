@@ -108,23 +108,37 @@ class SessionGuardService extends ChangeNotifier {
 
   /// Finalizar sesión actual
   Future<bool> finalizarSesion() async {
-    if (!_isSessionActive || _sessionToken == null) return true;
+    if (!_isSessionActive || _sessionToken == null) {
+      debugPrint('⚠️ [SESSION] No hay sesión activa para finalizar');
+      return true;
+    }
 
     try {
+      debugPrint('🔍 [SESSION] Finalizando sesión: $_sessionToken');
+      
       final response = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/sesiones/finalizar'),
         headers: _headers,
         body: json.encode({'session_token': _sessionToken}),
       );
 
+      debugPrint('🔍 [SESSION] Status Code: ${response.statusCode}');
+      debugPrint('🔍 [SESSION] Response: ${response.body}');
+
       if (response.statusCode == 200) {
+        debugPrint('✅ [SESSION] Sesión finalizada exitosamente');
         _limpiarSesion();
         return true;
+      } else if (response.statusCode == 404) {
+        debugPrint('⚠️ [SESSION] Sesión no encontrada, limpiando localmente');
+        _limpiarSesion();
+        return true;
+      } else {
+        debugPrint('❌ [SESSION] Error ${response.statusCode}: ${response.body}');
+        return false;
       }
-
-      return false;
     } catch (e) {
-      debugPrint('Error finalizando sesión: $e');
+      debugPrint('❌ [SESSION] Error finalizando sesión: $e');
       // En caso de error de conexión, limpiar sesión localmente
       _limpiarSesion();
       return true;

@@ -1132,23 +1132,32 @@ app.post('/sesiones/heartbeat', async (req, res) => {
 // Finalizar sesión
 app.post('/sesiones/finalizar', async (req, res) => {
   try {
+    console.log('🔍 [SESIONES] Request finalizar:', req.body);
     const { session_token } = req.body;
+
+    if (!session_token) {
+      console.log('❌ [SESIONES] Falta session_token');
+      return res.status(400).json({ error: 'session_token es requerido' });
+    }
 
     const sesion = await SessionGuard.findOneAndUpdate(
       { session_token, is_active: true },
       {
         is_active: false,
-        fecha_fin: new Date()
+        fecha_fin: getPeruDate()
       },
       { new: true }
     );
 
     if (!sesion) {
-      return res.status(404).json({ error: 'Sesión no encontrada' });
+      console.log('❌ [SESIONES] Sesión no encontrada:', session_token);
+      return res.status(404).json({ error: 'Sesión no encontrada o ya finalizada' });
     }
 
-    res.json({ message: 'Sesión finalizada exitosamente' });
+    console.log('✅ [SESIONES] Sesión finalizada:', sesion._id);
+    res.json({ message: 'Sesión finalizada exitosamente', sesion });
   } catch (err) {
+    console.error('❌ [SESIONES] Error:', err);
     res.status(500).json({ error: 'Error al finalizar sesión', details: err.message });
   }
 });
