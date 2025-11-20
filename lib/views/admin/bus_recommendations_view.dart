@@ -44,12 +44,22 @@ class _BusRecommendationsViewState extends State<BusRecommendationsView> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        _addToDebugLog(
-            '✅ Recomendaciones cargadas: ${data['recommendations'].length} items');
-        setState(() {
-          _recommendations = data['recommendations'] ?? [];
-          _loading = false;
-        });
+        final horarios = data['horarios'];
+        
+        if (horarios != null && horarios is List) {
+          _addToDebugLog('✅ Recomendaciones cargadas: ${horarios.length} horarios');
+          setState(() {
+            _recommendations = horarios;
+            _loading = false;
+          });
+        } else {
+          _addToDebugLog('⚠️ No hay horarios en la respuesta');
+          setState(() {
+            _recommendations = [];
+            _error = data['mensaje'] ?? 'No hay datos disponibles';
+            _loading = false;
+          });
+        }
       } else {
         final errorData = json.decode(response.body);
         final errorMsg = errorData['error'] ?? 'Error desconocido';
@@ -88,8 +98,9 @@ class _BusRecommendationsViewState extends State<BusRecommendationsView> {
             backgroundColor: esPico ? Colors.red : Colors.blue,
             child: Text(hora.toString(), style: TextStyle(color: Colors.white)),
           ),
-          title: Text('Hora: ${hora.toString().padLeft(2, '0')}:00', 
-            style: TextStyle(fontWeight: esPico ? FontWeight.bold : FontWeight.normal)),
+          title: Text('Hora: ${hora.toString().padLeft(2, '0')}:00',
+              style: TextStyle(
+                  fontWeight: esPico ? FontWeight.bold : FontWeight.normal)),
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -100,13 +111,13 @@ class _BusRecommendationsViewState extends State<BusRecommendationsView> {
           trailing: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.directions_bus, 
-                color: esPico ? Colors.red : Theme.of(context).primaryColor),
+              Icon(Icons.directions_bus,
+                  color: esPico ? Colors.red : Theme.of(context).primaryColor),
               SizedBox(height: 4),
-              Text('$buses buses', style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: esPico ? Colors.red : Colors.black
-              )),
+              Text('$buses buses',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: esPico ? Colors.red : Colors.black)),
             ],
           ),
         );

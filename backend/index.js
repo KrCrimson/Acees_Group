@@ -395,16 +395,30 @@ app.post('/usuarios', async (req, res) => {
       return res.status(400).json({ error: 'Faltan campos requeridos' });
     }
 
+    // Generar ID único
+    const generateUserId = () => {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      let result = '';
+      for (let i = 0; i < 28; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return result;
+    };
+
     // Crear usuario (la contraseña se hashea automáticamente)
     const user = new User({
+      _id: generateUserId(),
       nombre,
       apellido,
       dni,
       email,
       password,
       rango: rango || 'guardia',
-      puerta_acargo,
-      telefono
+      puerta_acargo: puerta_acargo || '',
+      telefono: telefono || '',
+      estado: 'activo',
+      fecha_creacion: new Date(),
+      fecha_actualizacion: new Date()
     });
 
     await user.save();
@@ -415,10 +429,11 @@ app.post('/usuarios', async (req, res) => {
 
     res.status(201).json(userResponse);
   } catch (err) {
+    console.error('Error creando usuario:', err);
     if (err.code === 11000) {
       res.status(400).json({ error: 'DNI o email ya existe' });
     } else {
-      res.status(500).json({ error: 'Error al crear usuario' });
+      res.status(500).json({ error: 'Error al crear usuario: ' + err.message });
     }
   }
 });
@@ -443,7 +458,8 @@ app.put('/usuarios/:id/password', async (req, res) => {
 
     res.json({ message: 'Contraseña actualizada exitosamente' });
   } catch (err) {
-    res.status(500).json({ error: 'Error al actualizar contraseña' });
+    console.error('Error actualizando contraseña:', err);
+    res.status(500).json({ error: 'Error al actualizar contraseña: ' + err.message });
   }
 });
 
@@ -1894,6 +1910,21 @@ app.get('/ml/bus-recommendations', async (req, res) => {
       });
     }
     
+    // Asegurar que siempre haya datos
+    if (horarios.length === 0) {
+      return res.json({
+        success: true,
+        capacidad_por_bus: capacidadBus,
+        periodo_analizado: "Sin datos suficientes",
+        horarios: [],
+        resumen: {
+          hora_mas_congestionada: null,
+          buses_maximos_requeridos: 0
+        },
+        mensaje: "No hay suficientes datos de asistencias para generar recomendaciones"
+      });
+    }
+    
     res.json({
       success: true,
       capacidad_por_bus: capacidadBus,
@@ -1909,7 +1940,8 @@ app.get('/ml/bus-recommendations', async (req, res) => {
     console.error('❌ Error generando recomendaciones:', error);
     res.status(500).json({ 
       error: error.message,
-      details: 'Error al analizar datos de asistencias'
+      details: 'Error al analizar datos de asistencias',
+      horarios: [] // Asegurar que siempre retorne un array
     });
   }
 });
