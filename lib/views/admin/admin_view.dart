@@ -10,6 +10,7 @@ import 'session_config_view.dart';
 import 'session_management_view.dart';
 import 'historial_view.dart';
 import 'sync_config_view.dart';
+import 'bus_recommendations_view.dart';
 
 class AdminView extends StatefulWidget {
   @override
@@ -23,6 +24,7 @@ class _AdminViewState extends State<AdminView> {
     AdminDashboard(),
     UserManagementView(),
     ReportsView(),
+    BusRecommendationsView(),
     SessionConfigView(),
     SyncConfigView(),
     SessionManagementView(adminId: '', adminName: 'Admin'),
@@ -129,6 +131,10 @@ class _AdminViewState extends State<AdminView> {
           BottomNavigationBarItem(
             icon: Icon(Icons.analytics),
             label: 'Reportes',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.directions_bus),
+            label: 'Buses',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.timer),

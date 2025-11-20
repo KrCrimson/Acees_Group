@@ -1835,6 +1835,47 @@ app.get('/ml/prediction/peak-hours/next-24h', async (req, res) => {
   }
 });
 
+// RECOMMENDATIONS FOR BUSES (based on peak hours predictions)
+app.get('/ml/bus-recommendations', async (req, res) => {
+  try {
+    if (!peakModel) {
+      return res.status(500).json({ error: 'Modelo predictivo no inicializado' });
+    }
+
+    // Parámetros opcionales: capacidad por bus y margen de seguridad
+    const busCapacity = parseInt(req.query.busCapacity) || 40;
+    const safetyMargin = parseFloat(req.query.safetyMargin) || 1.2; // 20% extra
+
+    const predictionsResult = await peakModel.predictNext24Hours();
+
+    // Mapear predicciones a recomendaciones de buses
+    const recommendations = predictionsResult.predictions.map(p => {
+      const total = p.predicciones.total || 0;
+      const recommendedBuses = Math.max(0, Math.ceil((total * safetyMargin) / busCapacity));
+
+      return {
+        hora: p.hora,
+        fecha_hora: p.fecha_hora,
+        predicciones: p.predicciones,
+        es_pico: p.es_pico,
+        confianza: p.confianza,
+        recommendedBuses,
+        busCapacity,
+        safetyMargin
+      };
+    });
+
+    res.json({
+      success: true,
+      generatedAt: predictionsResult.generatedAt,
+      recommendations,
+      modelMetrics: predictionsResult.modelMetrics
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // CONGESTION ALERTS ENDPOINTS
 app.post('/ml/congestion-alerts/configure', async (req, res) => {
   try {
