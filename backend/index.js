@@ -1969,6 +1969,125 @@ app.post('/ml/generate-test-data', async (req, res) => {
   }
 });
 
+// DEBUG: Verificar datos en BD
+app.get('/ml/debug/data-count', async (req, res) => {
+  try {
+    const totalAsistencias = await Asistencia.countDocuments();
+    const entradas = await Asistencia.countDocuments({ tipo: 'entrada' });
+    const salidas = await Asistencia.countDocuments({ tipo: 'salida' });
+    
+    // Verificar datos recientes (últimos 90 días)
+    const fechaInicio = new Date();
+    fechaInicio.setMonth(fechaInicio.getMonth() - 3);
+    
+    const recentTotal = await Asistencia.countDocuments({
+      fecha_hora: { $gte: fechaInicio }
+    });
+    
+    const recentEntradas = await Asistencia.countDocuments({
+      fecha_hora: { $gte: fechaInicio },
+      tipo: 'entrada'
+    });
+    
+    const recentSalidas = await Asistencia.countDocuments({
+      fecha_hora: { $gte: fechaInicio },
+      tipo: 'salida'
+    });
+
+    // Mostrar algunos ejemplos
+    const ejemplos = await Asistencia.find()
+      .limit(5)
+      .select('fecha_hora tipo siglas_facultad siglas_escuela');
+
+    res.json({
+      success: true,
+      data: {
+        total: {
+          asistencias: totalAsistencias,
+          entradas: entradas,
+          salidas: salidas
+        },
+        recent3Months: {
+          total: recentTotal,
+          entradas: recentEntradas,
+          salidas: recentSalidas,
+          fechaInicio: fechaInicio.toISOString()
+        },
+        ejemplos: ejemplos
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DEBUG: VERIFICAR DATOS DE LA BD
+app.get('/ml/debug/verificar-datos', async (req, res) => {
+  try {
+    // Contar todos los registros
+    const totalAsistencias = await Asistencia.countDocuments();
+    
+    // Contar por tipo
+    const entradas = await Asistencia.countDocuments({ tipo: 'entrada' });
+    const salidas = await Asistencia.countDocuments({ tipo: 'salida' });
+    
+    // Contar registros recientes (últimos 3 meses)
+    const fechaLimite = new Date();
+    fechaLimite.setMonth(fechaLimite.getMonth() - 3);
+    const fechaLimiteISO = fechaLimite.toISOString();
+    
+    const recientes = await Asistencia.countDocuments({
+      fecha_hora: { $gte: fechaLimiteISO }
+    });
+    
+    // Obtener algunos ejemplos
+    const ejemplos = await Asistencia.find().limit(3);
+    
+    // Verificar estructura de fechas
+    const fechaStats = await Asistencia.aggregate([
+      {
+        $project: {
+          fecha_hora: 1,
+          tipo: 1,
+          año: { $year: { $dateFromString: { dateString: "$fecha_hora" } } },
+          mes: { $month: { $dateFromString: { dateString: "$fecha_hora" } } }
+        }
+      },
+      {
+        $group: {
+          _id: { año: "$año", mes: "$mes" },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { "_id.año": -1, "_id.mes": -1 } },
+      { $limit: 6 }
+    ]);
+
+    res.json({
+      success: true,
+      datos: {
+        total_asistencias: totalAsistencias,
+        entradas: entradas,
+        salidas: salidas,
+        recientes_3_meses: recientes,
+        fecha_limite_consulta: fechaLimiteISO,
+        distribucion_mensual: fechaStats,
+        ejemplos_registros: ejemplos.map(a => ({
+          _id: a._id,
+          tipo: a.tipo,
+          fecha_hora: a.fecha_hora,
+          nombre: a.nombre,
+          siglas_facultad: a.siglas_facultad,
+          siglas_escuela: a.siglas_escuela
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error verificando datos:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // AUTO-TRAIN MODEL IF NOT TRAINED (simplified endpoint)
 app.post('/ml/bus-recommendations/auto-train', async (req, res) => {
   try {
@@ -1977,11 +2096,30 @@ app.post('/ml/bus-recommendations/auto-train', async (req, res) => {
     }
 
     console.log('🚀 Iniciando entrenamiento automático del modelo...');
+    
+    // Primero verificar datos disponibles
+    const totalAsistencias = await Asistencia.countDocuments();
+    const entradas = await Asistencia.countDocuments({ tipo: 'entrada' });
+    const salidas = await Asistencia.countDocuments({ tipo: 'salida' });
+    
+    console.log(`📊 Total asistencias: ${totalAsistencias}`);
+    console.log(`📊 Entradas: ${entradas}, Salidas: ${salidas}`);
+    
+    if (totalAsistencias < 50) {
+      return res.status(400).json({ 
+        error: `Datos insuficientes: solo ${totalAsistencias} registros. Se necesitan al menos 50.`,
+        totalAsistencias,
+        entradas,
+        salidas
+      });
+    }
+    
     const result = await peakModel.trainPeakHoursModel({ months: 3, testSize: 0.2 });
     
     res.json({
       success: true,
       message: 'Modelo entrenado exitosamente',
+      dataUsed: { totalAsistencias, entradas, salidas },
       result
     });
   } catch (error) {
