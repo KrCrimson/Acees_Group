@@ -1842,6 +1842,14 @@ app.get('/ml/bus-recommendations', async (req, res) => {
       return res.status(500).json({ error: 'Modelo predictivo no inicializado' });
     }
 
+    // Verificar si el modelo está entrenado
+    if (!peakModel.entranceModel || !peakModel.exitModel) {
+      return res.status(400).json({ 
+        error: 'Modelo no entrenado. Use POST /ml/pipeline/train para entrenar el modelo primero.',
+        needsTraining: true 
+      });
+    }
+
     // Parámetros opcionales: capacidad por bus y margen de seguridad
     const busCapacity = parseInt(req.query.busCapacity) || 40;
     const safetyMargin = parseFloat(req.query.safetyMargin) || 1.2; // 20% extra
@@ -1872,6 +1880,27 @@ app.get('/ml/bus-recommendations', async (req, res) => {
       modelMetrics: predictionsResult.modelMetrics
     });
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// AUTO-TRAIN MODEL IF NOT TRAINED (simplified endpoint)
+app.post('/ml/bus-recommendations/auto-train', async (req, res) => {
+  try {
+    if (!peakModel) {
+      return res.status(500).json({ error: 'Modelo predictivo no inicializado' });
+    }
+
+    console.log('🚀 Iniciando entrenamiento automático del modelo...');
+    const result = await peakModel.trainPeakHoursModel({ months: 3, testSize: 0.2 });
+    
+    res.json({
+      success: true,
+      message: 'Modelo entrenado exitosamente',
+      result
+    });
+  } catch (error) {
+    console.error('❌ Error entrenando modelo:', error);
     res.status(500).json({ error: error.message });
   }
 });

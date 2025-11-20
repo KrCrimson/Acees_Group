@@ -1,6 +1,6 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../../config/api_config.dart';
 
 class BusRecommendationsView extends StatefulWidget {
@@ -9,14 +9,60 @@ class BusRecommendationsView extends StatefulWidget {
 }
 
 class _BusRecommendationsViewState extends State<BusRecommendationsView> {
-  bool _loading = true;
+  bool _loading = false;
+  bool _training = false;
   String? _error;
   List<dynamic> _recommendations = [];
+  String _debugLog = 'Debug Log:\n';
 
   @override
   void initState() {
     super.initState();
     _loadRecommendations();
+  }
+
+  void _addToDebugLog(String message) {
+    setState(() {
+      _debugLog += '${DateTime.now().toString().substring(11, 19)}: $message\n';
+    });
+  }
+
+  Future<void> _trainModel() async {
+    setState(() {
+      _training = true;
+      _error = null;
+    });
+
+    _addToDebugLog('Iniciando entrenamiento del modelo ML...');
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/ml/bus-recommendations/auto-train'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        _addToDebugLog('✅ Modelo entrenado exitosamente');
+        setState(() {
+          _training = false;
+        });
+        // Recargar recomendaciones después del entrenamiento
+        _loadRecommendations();
+      } else {
+        final errorData = json.decode(response.body);
+        _addToDebugLog('❌ Error entrenando: ${errorData['error']}');
+        setState(() {
+          _error = errorData['error'] ?? 'Error entrenando modelo';
+          _training = false;
+        });
+      }
+    } catch (e) {
+      _addToDebugLog('❌ Excepción: $e');
+      setState(() {
+        _error = e.toString();
+        _training = false;
+      });
+    }
   }
 
   Future<void> _loadRecommendations() async {
@@ -25,43 +71,50 @@ class _BusRecommendationsViewState extends State<BusRecommendationsView> {
       _error = null;
     });
 
+    _addToDebugLog('Cargando recomendaciones...');
+
     try {
-      final uri = Uri.parse('${ApiConfig.baseUrl}/ml/bus-recommendations');
-      final response = await http.get(uri);
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/ml/bus-recommendations'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      _addToDebugLog('Response status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        _addToDebugLog('✅ Recomendaciones cargadas: ${data['recommendations'].length} items');
         setState(() {
           _recommendations = data['recommendations'] ?? [];
           _loading = false;
         });
       } else {
+        final errorData = json.decode(response.body);
+        final errorMsg = errorData['error'] ?? 'Error desconocido';
+        _addToDebugLog('❌ Error ${response.statusCode}: $errorMsg');
         setState(() {
-          _error = 'Error: ${response.statusCode}';
+          _error = errorMsg;
           _loading = false;
         });
       }
     } catch (e) {
+      _addToDebugLog('❌ Excepción: $e');
       setState(() {
-        _error = 'Error de conexión: $e';
+        _error = e.toString();
         _loading = false;
       });
     }
   }
 
   Widget _buildList() {
-    if (_recommendations.isEmpty) {
-      return Center(child: Text('No hay recomendaciones disponibles'));
-    }
-
     return ListView.separated(
-      physics: NeverScrollableScrollPhysics(),
       shrinkWrap: true,
+      physics: NeverScrollableScrollPhysics(),
       itemCount: _recommendations.length,
       separatorBuilder: (_, __) => Divider(),
       itemBuilder: (context, index) {
         final rec = _recommendations[index];
-  final hora = rec['hora'];
+        final hora = rec['hora'];
         final pred = rec['predicciones'] ?? {};
         final total = pred['total'] ?? 0;
         final entrada = pred['entrada'] ?? 0;
@@ -109,15 +162,103 @@ class _BusRecommendationsViewState extends State<BusRecommendationsView> {
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 12),
-            if (_loading) Center(child: CircularProgressIndicator()),
-            if (_error != null) Column(
+            
+            // Botones de acción
+            Row(
               children: [
-                Text(_error!, style: TextStyle(color: Colors.red)),
-                SizedBox(height: 8),
-                ElevatedButton(onPressed: _loadRecommendations, child: Text('Reintentar')),
+                ElevatedButton.icon(
+                  onPressed: _loading ? null : _loadRecommendations,
+                  icon: Icon(Icons.refresh),
+                  label: Text('Actualizar'),
+                ),
+                SizedBox(width: 12),
+                if (_error != null && _error!.contains('no entrenado'))
+                  ElevatedButton.icon(
+                    onPressed: _training ? null : _trainModel,
+                    icon: _training 
+                      ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : Icon(Icons.school),
+                    label: Text(_training ? 'Entrenando...' : 'Entrenar ML'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
               ],
             ),
-            if (!_loading && _error == null) _buildList(),
+            SizedBox(height: 16),
+            
+            // Contenido principal
+            if (_loading) 
+              Center(child: CircularProgressIndicator()),
+            
+            if (_error != null) 
+              Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  border: Border.all(color: Colors.red.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.error_outline, color: Colors.red),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Error: $_error',
+                            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            
+            if (!_loading && _error == null && _recommendations.isNotEmpty)
+              _buildList(),
+            
+            if (!_loading && _error == null && _recommendations.isEmpty)
+              Center(
+                child: Text(
+                  'No hay recomendaciones disponibles',
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+              ),
+            
+            SizedBox(height: 24),
+            
+            // Terminal de debug
+            Text(
+              'Debug Terminal:',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              height: 200,
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.black87,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: SingleChildScrollView(
+                child: Text(
+                  _debugLog,
+                  style: TextStyle(
+                    color: Colors.green,
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
