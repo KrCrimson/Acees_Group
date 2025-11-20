@@ -9,6 +9,8 @@
     "railway:start": "node index.js",
     "ml:train": "node ml/scripts/run_training.js",
     "ml:validate": "node ml/scripts/validate_dataset.js",
+    "generate-test-data": "node generate_test_data.js",
+    "generate-asistencias": "node generate_test_asistencias.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {

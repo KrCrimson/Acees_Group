@@ -27,6 +27,46 @@ class _BusRecommendationsViewState extends State<BusRecommendationsView> {
     });
   }
 
+  Future<void> _generateTestData() async {
+    setState(() {
+      _training = true;
+      _error = null;
+    });
+
+    _addToDebugLog('Generando datos de prueba...');
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/ml/generate-test-data'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'days': 120, 'recordsPerDay': 50}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        _addToDebugLog('✅ Datos generados: ${data['generated']} registros');
+        _addToDebugLog(
+            '📊 Total: ${data['totals']['total']}, Entradas: ${data['totals']['entradas']}, Salidas: ${data['totals']['salidas']}');
+        setState(() {
+          _training = false;
+        });
+      } else {
+        final errorData = json.decode(response.body);
+        _addToDebugLog('❌ Error generando datos: ${errorData['error']}');
+        setState(() {
+          _error = errorData['error'] ?? 'Error generando datos';
+          _training = false;
+        });
+      }
+    } catch (e) {
+      _addToDebugLog('❌ Excepción: $e');
+      setState(() {
+        _error = e.toString();
+        _training = false;
+      });
+    }
+  }
+
   Future<void> _trainModel() async {
     setState(() {
       _training = true;
@@ -83,7 +123,8 @@ class _BusRecommendationsViewState extends State<BusRecommendationsView> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        _addToDebugLog('✅ Recomendaciones cargadas: ${data['recommendations'].length} items');
+        _addToDebugLog(
+            '✅ Recomendaciones cargadas: ${data['recommendations'].length} items');
         setState(() {
           _recommendations = data['recommendations'] ?? [];
           _loading = false;
@@ -130,7 +171,8 @@ class _BusRecommendationsViewState extends State<BusRecommendationsView> {
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Total estimado: $total — Entrada: $entrada, Salida: $salida'),
+              Text(
+                  'Total estimado: $total — Entrada: $entrada, Salida: $salida'),
               Text('Confianza: $confianza'),
             ],
           ),
@@ -139,7 +181,8 @@ class _BusRecommendationsViewState extends State<BusRecommendationsView> {
             children: [
               Icon(Icons.directions_bus, color: Theme.of(context).primaryColor),
               SizedBox(height: 4),
-              Text('$buses buses', style: TextStyle(fontWeight: FontWeight.bold)),
+              Text('$buses buses',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
             ],
           ),
         );
@@ -162,22 +205,43 @@ class _BusRecommendationsViewState extends State<BusRecommendationsView> {
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 12),
-            
+
             // Botones de acción
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 ElevatedButton.icon(
                   onPressed: _loading ? null : _loadRecommendations,
                   icon: Icon(Icons.refresh),
                   label: Text('Actualizar'),
                 ),
-                SizedBox(width: 12),
-                if (_error != null && _error!.contains('no entrenado'))
+                if (_error != null && _error!.contains('Datos insuficientes'))
+                  ElevatedButton.icon(
+                    onPressed: _training ? null : _generateTestData,
+                    icon: _training
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : Icon(Icons.data_usage),
+                    label: Text(_training ? 'Generando...' : 'Generar Datos'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                if (_error != null &&
+                    (_error!.contains('no entrenado') ||
+                        _error!.contains('Datos insuficientes')))
                   ElevatedButton.icon(
                     onPressed: _training ? null : _trainModel,
-                    icon: _training 
-                      ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                      : Icon(Icons.school),
+                    icon: _training
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : Icon(Icons.school),
                     label: Text(_training ? 'Entrenando...' : 'Entrenar ML'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue,
@@ -187,12 +251,11 @@ class _BusRecommendationsViewState extends State<BusRecommendationsView> {
               ],
             ),
             SizedBox(height: 16),
-            
+
             // Contenido principal
-            if (_loading) 
-              Center(child: CircularProgressIndicator()),
-            
-            if (_error != null) 
+            if (_loading) Center(child: CircularProgressIndicator()),
+
+            if (_error != null)
               Container(
                 width: double.infinity,
                 padding: EdgeInsets.all(16),
@@ -211,7 +274,8 @@ class _BusRecommendationsViewState extends State<BusRecommendationsView> {
                         Expanded(
                           child: Text(
                             'Error: $_error',
-                            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                                color: Colors.red, fontWeight: FontWeight.bold),
                           ),
                         ),
                       ],
@@ -219,10 +283,10 @@ class _BusRecommendationsViewState extends State<BusRecommendationsView> {
                   ],
                 ),
               ),
-            
+
             if (!_loading && _error == null && _recommendations.isNotEmpty)
               _buildList(),
-            
+
             if (!_loading && _error == null && _recommendations.isEmpty)
               Center(
                 child: Text(
@@ -230,9 +294,9 @@ class _BusRecommendationsViewState extends State<BusRecommendationsView> {
                   style: TextStyle(fontSize: 16, color: Colors.grey),
                 ),
               ),
-            
+
             SizedBox(height: 24),
-            
+
             // Terminal de debug
             Text(
               'Debug Terminal:',

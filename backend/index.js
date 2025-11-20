@@ -1884,6 +1884,91 @@ app.get('/ml/bus-recommendations', async (req, res) => {
   }
 });
 
+// GENERATE TEST DATA ENDPOINT
+app.post('/ml/generate-test-data', async (req, res) => {
+  try {
+    const { days = 120, recordsPerDay = 50 } = req.body;
+    
+    console.log('🎲 Generando datos de prueba...');
+    
+    // Generar datos de prueba
+    const testData = [];
+    const facultades = ['Ingeniería', 'Ciencias', 'Medicina', 'Derecho', 'Administración'];
+    const carreras = {
+      'Ingeniería': ['Sistemas', 'Civil', 'Industrial', 'Electrónica'],
+      'Ciencias': ['Matemáticas', 'Física', 'Química', 'Biología'],
+      'Medicina': ['Medicina General', 'Enfermería', 'Odontología'],
+      'Derecho': ['Derecho', 'Ciencias Políticas'],
+      'Administración': ['Administración', 'Contabilidad', 'Marketing']
+    };
+    const puertas = ['Puerta A', 'Puerta B', 'Puerta C', 'Puerta Principal'];
+    const nombres = [
+      'Juan Pérez', 'María García', 'Carlos López', 'Ana Martínez',
+      'Luis Rodríguez', 'Elena Fernández', 'Diego Silva', 'Carmen Ruiz'
+    ];
+
+    const alumnoIds = [];
+    for (let i = 0; i < 50; i++) {
+      alumnoIds.push(new mongoose.Types.ObjectId());
+    }
+
+    for (let day = 0; day < days; day++) {
+      const fecha = new Date(Date.now() - (day * 24 * 60 * 60 * 1000));
+      
+      // Skip some weekends
+      if (fecha.getDay() === 0 || fecha.getDay() === 6) {
+        if (Math.random() > 0.3) continue;
+      }
+
+      const dailyRecords = Math.floor(Math.random() * recordsPerDay) + 20;
+      
+      for (let i = 0; i < dailyRecords; i++) {
+        const peakHours = [7, 8, 9, 12, 13, 14, 17, 18, 19];
+        const normalHours = [10, 11, 15, 16, 20];
+        const hour = Math.random() < 0.7 
+          ? peakHours[Math.floor(Math.random() * peakHours.length)]
+          : normalHours[Math.floor(Math.random() * normalHours.length)];
+        const minute = Math.floor(Math.random() * 60);
+        
+        const facultad = facultades[Math.floor(Math.random() * facultades.length)];
+        
+        testData.push({
+          alumno_id: alumnoIds[Math.floor(Math.random() * alumnoIds.length)],
+          nombre_completo: nombres[Math.floor(Math.random() * nombres.length)],
+          carrera: carreras[facultad][Math.floor(Math.random() * carreras[facultad].length)],
+          facultad,
+          fecha,
+          hora: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
+          tipo: Math.random() > 0.5 ? 'entrada' : 'salida',
+          puerta: puertas[Math.floor(Math.random() * puertas.length)],
+          metodo_acceso: 'NFC'
+        });
+      }
+    }
+
+    // Insertar datos
+    await Asistencia.insertMany(testData);
+    
+    const totalCount = await Asistencia.countDocuments();
+    const entradaCount = await Asistencia.countDocuments({ tipo: 'entrada' });
+    const salidaCount = await Asistencia.countDocuments({ tipo: 'salida' });
+
+    res.json({
+      success: true,
+      message: 'Datos de prueba generados exitosamente',
+      generated: testData.length,
+      totals: {
+        total: totalCount,
+        entradas: entradaCount,
+        salidas: salidaCount
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error generando datos:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // AUTO-TRAIN MODEL IF NOT TRAINED (simplified endpoint)
 app.post('/ml/bus-recommendations/auto-train', async (req, res) => {
   try {

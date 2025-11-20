@@ -34,32 +34,31 @@ class _AdminViewState extends State<AdminView> {
   void _handleLogout() {
     showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Text('Cerrar Sesión'),
-            content: Text('¿Está seguro de que desea cerrar sesión?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('Cancelar'),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  final authViewModel = Provider.of<AuthViewModel>(
-                    context,
-                    listen: false,
-                  );
-                  authViewModel.logout();
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => LoginView()),
-                  );
-                },
-                child: Text('Cerrar Sesión'),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: Text('Cerrar Sesión'),
+        content: Text('¿Está seguro de que desea cerrar sesión?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancelar'),
           ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              final authViewModel = Provider.of<AuthViewModel>(
+                context,
+                listen: false,
+              );
+              authViewModel.logout();
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => LoginView()),
+              );
+            },
+            child: Text('Cerrar Sesión'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -79,32 +78,31 @@ class _AdminViewState extends State<AdminView> {
                     _handleLogout();
                   }
                 },
-                itemBuilder:
-                    (context) => [
-                      PopupMenuItem(
-                        value: 'profile',
-                        child: ListTile(
-                          leading: Icon(Icons.admin_panel_settings),
-                          title: Text('Administrador'),
-                          subtitle: Text(
-                            authViewModel.currentUser?.nombreCompleto ?? '',
-                          ),
-                          contentPadding: EdgeInsets.zero,
-                        ),
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'profile',
+                    child: ListTile(
+                      leading: Icon(Icons.admin_panel_settings),
+                      title: Text('Administrador'),
+                      subtitle: Text(
+                        authViewModel.currentUser?.nombreCompleto ?? '',
                       ),
-                      PopupMenuDivider(),
-                      PopupMenuItem(
-                        value: 'logout',
-                        child: ListTile(
-                          leading: Icon(Icons.logout, color: Colors.red),
-                          title: Text(
-                            'Cerrar Sesión',
-                            style: TextStyle(color: Colors.red),
-                          ),
-                          contentPadding: EdgeInsets.zero,
-                        ),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                  PopupMenuDivider(),
+                  PopupMenuItem(
+                    value: 'logout',
+                    child: ListTile(
+                      leading: Icon(Icons.logout, color: Colors.red),
+                      title: Text(
+                        'Cerrar Sesión',
+                        style: TextStyle(color: Colors.red),
                       ),
-                    ],
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
+                ],
               );
             },
           ),
@@ -408,6 +406,4 @@ class _AdminDashboardState extends State<AdminDashboard> {
       ),
     );
   }
-
-
 }
