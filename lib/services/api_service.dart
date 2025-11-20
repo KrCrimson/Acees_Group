@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 import '../models/alumno_model.dart';
 import '../models/usuario_model.dart';
 import '../models/asistencia_model.dart';
@@ -683,20 +684,41 @@ class ApiService {
 
   Future<List<Map<String, dynamic>>> getSesionesActivas() async {
     try {
+      debugPrint('🔍 [API] Consultando sesiones activas en: ${ApiConfig.baseUrl}/sesiones/activas');
+      
       final response = await http.get(
         Uri.parse('${ApiConfig.baseUrl}/sesiones/activas'),
         headers: _headers,
       );
 
+      debugPrint('🔍 [API] Status Code: ${response.statusCode}');
+      debugPrint('🔍 [API] Response Body: ${response.body}');
+
       if (response.statusCode == 200) {
         List<dynamic> data = json.decode(response.body);
+        debugPrint('✅ [API] ${data.length} sesiones activas encontradas');
+        
+        // Log detallado de cada sesión
+        for (var i = 0; i < data.length; i++) {
+          final sesion = data[i];
+          debugPrint('📋 [API] Sesión ${i + 1}:');
+          debugPrint('   - Guardia: ${sesion['guardia_nombre']}');
+          debugPrint('   - ID: ${sesion['guardia_id']}');
+          debugPrint('   - Punto Control: ${sesion['punto_control']}');
+          debugPrint('   - Session Token: ${sesion['session_token']}');
+          debugPrint('   - is_active: ${sesion['is_active']}');
+          debugPrint('   - fecha_inicio: ${sesion['fecha_inicio']}');
+        }
+        
         return data.cast<Map<String, dynamic>>();
       } else {
+        debugPrint('❌ [API] Error ${response.statusCode}: ${response.body}');
         throw Exception(
           'Error al obtener sesiones activas: ${response.statusCode}',
         );
       }
     } catch (e) {
+      debugPrint('❌ [API] Excepción: $e');
       throw Exception('Error de conexión: $e');
     }
   }

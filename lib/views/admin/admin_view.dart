@@ -25,7 +25,7 @@ class _AdminViewState extends State<AdminView> {
     ReportsView(),
     SessionConfigView(),
     SyncConfigView(),
-    SessionManagementView(adminId: '', adminName: 'Admin'), // Se actualizará con datos reales
+    SessionManagementView(adminId: '', adminName: 'Admin'),
     HistorialView(),
   ];
 
@@ -145,6 +145,10 @@ class _AdminViewState extends State<AdminView> {
           BottomNavigationBarItem(
             icon: Icon(Icons.history),
             label: 'Historial',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.bug_report),
+            label: 'Logs',
           ),
         ],
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/api_service.dart';
+import 'package:intl/intl.dart';
 
 class SessionManagementView extends StatefulWidget {
   final String adminId;
@@ -21,26 +22,72 @@ class _SessionManagementViewState extends State<SessionManagementView> {
   List<Map<String, dynamic>> _sesionesActivas = [];
   bool _isLoading = true;
   String? _errorMessage;
+  
+  // Lista de logs
+  final List<String> _logs = [];
+  final ScrollController _logScrollController = ScrollController();
+
+  void _addLog(String message) {
+    setState(() {
+      final timestamp = DateFormat('HH:mm:ss').format(DateTime.now());
+      _logs.add('[$timestamp] $message');
+      if (_logs.length > 100) {
+        _logs.removeAt(0);
+      }
+    });
+    // Auto-scroll al final
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_logScrollController.hasClients) {
+        _logScrollController.animateTo(
+          _logScrollController.position.maxScrollExtent,
+          duration: Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
 
   @override
   void initState() {
     super.initState();
+    _addLog('🚀 Sistema de logs iniciado');
     _cargarSesionesActivas();
   }
 
+  @override
+  void dispose() {
+    _logScrollController.dispose();
+    super.dispose();
+  }
+
   Future<void> _cargarSesionesActivas() async {
+    _addLog('🔍 Cargando sesiones activas...');
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
     try {
+      _addLog('📡 Consultando endpoint: /sesiones/activas');
       final sesiones = await _apiService.getSesionesActivas();
+      
+      _addLog('✅ Respuesta recibida: ${sesiones.length} sesiones');
+      
+      for (var i = 0; i < sesiones.length; i++) {
+        final s = sesiones[i];
+        _addLog('📋 Sesión ${i + 1}: ${s['guardia_nombre']} - ${s['punto_control']}');
+        _addLog('   ID: ${s['guardia_id']}');
+        _addLog('   Token: ${s['session_token']}');
+        _addLog('   Activa: ${s['is_active']}');
+      }
+      
       setState(() {
         _sesionesActivas = sesiones;
         _isLoading = false;
       });
+      _addLog('✅ Sesiones cargadas correctamente');
     } catch (e) {
+      _addLog('❌ ERROR: $e');
       setState(() {
         _errorMessage = e.toString();
         _isLoading = false;
@@ -177,44 +224,8 @@ class _SessionManagementViewState extends State<SessionManagementView> {
       );
     }
 
-    if (_sesionesActivas.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.security, size: 64, color: Colors.grey[400]),
-            SizedBox(height: 16),
-            Text(
-              'No hay sesiones activas',
-              style: GoogleFonts.lato(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey[600],
-              ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'Todos los guardias están desconectados',
-              style: GoogleFonts.lato(color: Colors.grey[500]),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ListView(
-      padding: EdgeInsets.all(16),
+    return Column(
       children: [
-        _buildResumenGeneral(),
-        SizedBox(height: 24),
-        Text(
-          'Sesiones Activas (${_sesionesActivas.length})',
-          style: GoogleFonts.lato(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.grey[800],
-          ),
-        ),
         SizedBox(height: 16),
         ..._sesionesActivas.map((sesion) => _buildSesionCard(sesion)),
       ],
