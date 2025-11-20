@@ -1,480 +1,583 @@
 /**
- * Servicio de Actualización Automática Semanal de Modelos ML
- * Scheduler que reentrena modelos automáticamente cada semana
- * Adaptado para el proyecto principal Acees_Group
+ * Servicio de Actualización Automática Semanal del Modelo
+ * Reentrenamiento incremental y validación de performance
  */
 
-const cron = require('node-cron');
+const LinearRegression = require('./linear_regression');
+const CrossValidation = require('./cross_validation');
+const ParameterOptimizer = require('./parameter_optimizer');
+const DatasetCollector = require('./dataset_collector');
 const fs = require('fs').promises;
 const path = require('path');
 
 class WeeklyModelUpdateService {
   constructor(AsistenciaModel) {
     this.Asistencia = AsistenciaModel;
-    this.schedulerActive = false;
-    this.updateHistory = [];
-    this.configPath = path.join(__dirname, 'data/scheduler_config.json');
-    this.historyPath = path.join(__dirname, 'data/update_history.json');
-    
-    // Configuración por defecto
-    this.config = {
-      enabled: true,
-      cronExpression: '0 2 * * 0', // Domingos a las 2:00 AM
-      autoRetrain: true,
-      backupPreviousModel: true,
-      performanceTreshold: 0.75, // Mínimo 75% precisión
-      rollbackOnFailure: true
+    this.collector = new DatasetCollector(AsistenciaModel);
+    this.modelsDir = path.join(__dirname, '../data/linear_regression_models');
+    this.updateHistoryDir = path.join(__dirname, '../data/model_updates');
+    this.scheduleConfig = {
+      enabled: false,
+      dayOfWeek: 0, // Domingo (0-6)
+      hour: 2, // 2 AM
+      interval: 7 // días
     };
   }
 
   /**
-   * Inicializa el servicio de actualización semanal
+   * Ejecuta actualización semanal del modelo
    */
-  async initialize() {
-    try {
-      await this.loadConfiguration();
-      await this.loadUpdateHistory();
-      
-      if (this.config.enabled) {
-        await this.startScheduler();
-      }
-      
-      console.log('📅 Servicio de actualización semanal inicializado');
-    } catch (error) {
-      console.error('❌ Error inicializando servicio de actualización:', error.message);
-    }
-  }
-
-  /**
-   * Inicia el scheduler automático
-   */
-  async startScheduler() {
-    try {
-      if (this.schedulerActive) {
-        console.log('⚠️ Scheduler ya está activo');
-        return { success: false, message: 'Scheduler ya está activo' };
-      }
-
-      // Configurar tarea cron
-      this.cronJob = cron.schedule(this.config.cronExpression, async () => {
-        console.log('⏰ Ejecutando actualización semanal automática...');
-        await this.executeWeeklyUpdate();
-      }, {
-        scheduled: true,
-        timezone: 'America/Lima' // Zona horaria de Perú
-      });
-
-      this.schedulerActive = true;
-      console.log(`📅 Scheduler iniciado: ${this.config.cronExpression} (Zona: America/Lima)`);
-
-      return {
-        success: true,
-        message: 'Scheduler iniciado correctamente',
-        nextExecution: this.getNextExecutionTime(),
-        cronExpression: this.config.cronExpression
-      };
-    } catch (error) {
-      console.error('❌ Error iniciando scheduler:', error.message);
-      throw new Error(`Error iniciando scheduler: ${error.message}`);
-    }
-  }
-
-  /**
-   * Detiene el scheduler automático
-   */
-  async stopScheduler() {
-    try {
-      if (!this.schedulerActive || !this.cronJob) {
-        return { success: false, message: 'Scheduler no está activo' };
-      }
-
-      this.cronJob.stop();
-      this.cronJob.destroy();
-      this.schedulerActive = false;
-
-      console.log('🛑 Scheduler detenido');
-      return {
-        success: true,
-        message: 'Scheduler detenido correctamente'
-      };
-    } catch (error) {
-      console.error('❌ Error deteniendo scheduler:', error.message);
-      throw new Error(`Error deteniendo scheduler: ${error.message}`);
-    }
-  }
-
-  /**
-   * Ejecuta actualización semanal completa
-   */
-  async executeWeeklyUpdate() {
-    const updateId = `update_${Date.now()}`;
-    const startTime = new Date();
+  async executeWeeklyUpdate(options = {}) {
+    const {
+      incremental = true,
+      validatePerformance = true,
+      checkDrift = true,
+      targetR2 = 0.7
+    } = options;
 
     try {
-      console.log(`🚀 [${updateId}] Iniciando actualización semanal...`);
+      console.log('🔄 Iniciando actualización semanal del modelo...');
 
-      // 1. Verificar disponibilidad de datos nuevos
-      const dataValidation = await this.validateNewData();
-      if (!dataValidation.hasNewData) {
-        console.log(`⚠️ [${updateId}] No hay datos nuevos suficientes para reentrenamiento`);
-        return this.recordUpdateResult(updateId, 'skipped', 'No hay datos nuevos', startTime);
+      // 1. Cargar modelo actual
+      const currentModel = await this.loadCurrentModel();
+      if (!currentModel) {
+        throw new Error('No hay modelo actual para actualizar');
       }
 
-      // 2. Hacer backup del modelo anterior
-      if (this.config.backupPreviousModel) {
-        await this.backupCurrentModel();
+      console.log(`✅ Modelo actual cargado: ${currentModel.filepath}`);
+
+      // 2. Recopilar datos nuevos (última semana)
+      const newData = await this.collectNewData(7); // Últimos 7 días
+      console.log(`✅ Datos nuevos recopilados: ${newData.length} registros`);
+
+      if (newData.length < 10) {
+        throw new Error('Datos insuficientes para actualización (mínimo 10 registros)');
       }
 
-      // 3. Recopilar datos actualizados
-      console.log(`📊 [${updateId}] Recopilando dataset actualizado...`);
-      const { MLETLService } = require('./ml_etl_service');
-      const etlService = new MLETLService(this.Asistencia);
-      
-      const etlResult = await etlService.runETLPipeline({
-        months: 3,
-        validateData: true,
-        cleanData: true
-      });
-
-      // 4. Reentrenar modelo con datos nuevos
-      console.log(`🧠 [${updateId}] Reentrenando modelo...`);
-      const { PeakHoursPredictiveModel } = require('./peak_hours_predictive_model');
-      const peakModel = new PeakHoursPredictiveModel(this.Asistencia);
-      
-      const trainingResult = await peakModel.trainPeakHoursModel({
-        months: 3,
-        testSize: 0.2
-      });
-
-      // 5. Validar performance del nuevo modelo
-      const newAccuracy = trainingResult.metrics.overall.accuracy;
-      console.log(`📈 [${updateId}] Nueva precisión: ${(newAccuracy * 100).toFixed(2)}%`);
-
-      if (newAccuracy < this.config.performanceTreshold) {
-        console.log(`❌ [${updateId}] Precisión insuficiente: ${(newAccuracy * 100).toFixed(2)}%`);
-        
-        if (this.config.rollbackOnFailure) {
-          await this.rollbackToPreviousModel();
-          return this.recordUpdateResult(updateId, 'failed_rollback', 'Precisión insuficiente, rollback ejecutado', startTime, {
-            newAccuracy,
-            threshold: this.config.performanceTreshold
-          });
-        } else {
-          return this.recordUpdateResult(updateId, 'failed', 'Precisión insuficiente', startTime, {
-            newAccuracy,
-            threshold: this.config.performanceTreshold
-          });
-        }
+      // 3. Verificar drift del modelo
+      let driftDetected = false;
+      if (checkDrift) {
+        driftDetected = await this.checkModelDrift(currentModel, newData);
+        console.log(`📊 Drift detectado: ${driftDetected ? 'SÍ' : 'NO'}`);
       }
 
-      // 6. Actualizar sistema de alertas
-      console.log(`🚨 [${updateId}] Actualizando sistema de alertas...`);
-      const { CongestionAlertSystem } = require('./congestion_alert_system');
-      const alertSystem = new CongestionAlertSystem(this.Asistencia);
-      await alertSystem.initialize();
-      
-      const alertCheck = await alertSystem.checkAndGenerateAlerts();
-
-      // 7. Generar predicciones de validación
-      const predictions = await peakModel.predictNext24Hours();
-
-      // 8. Registrar actualización exitosa
-      const endTime = new Date();
-      const duration = endTime - startTime;
-
-      console.log(`✅ [${updateId}] Actualización completada exitosamente en ${Math.round(duration / 1000)}s`);
-
-      return this.recordUpdateResult(updateId, 'success', 'Actualización exitosa', startTime, {
-        etlRecords: etlResult.transform.records,
-        newAccuracy: newAccuracy,
-        previousAccuracy: null, // Se podría obtener del backup
-        alertsGenerated: alertCheck.alertsGenerated,
-        predictionsGenerated: predictions.predictions.length,
-        duration: duration
-      });
-
-    } catch (error) {
-      console.error(`❌ [${updateId}] Error durante actualización:`, error.message);
-
-      if (this.config.rollbackOnFailure) {
-        try {
-          await this.rollbackToPreviousModel();
-          return this.recordUpdateResult(updateId, 'error_rollback', error.message, startTime);
-        } catch (rollbackError) {
-          console.error(`❌ [${updateId}] Error en rollback:`, rollbackError.message);
-          return this.recordUpdateResult(updateId, 'error_no_rollback', `${error.message} + Rollback failed: ${rollbackError.message}`, startTime);
-        }
+      // 4. Reentrenamiento incremental o completo
+      let updatedModel;
+      if (incremental && !driftDetected) {
+        console.log('🔄 Reentrenamiento incremental...');
+        updatedModel = await this.incrementalRetrain(currentModel, newData, targetR2);
       } else {
-        return this.recordUpdateResult(updateId, 'error', error.message, startTime);
+        console.log('🔄 Reentrenamiento completo...');
+        updatedModel = await this.fullRetrain(currentModel, newData, targetR2);
       }
-    }
-  }
 
-  /**
-   * Valida si hay datos nuevos suficientes para reentrenamiento
-   */
-  async validateNewData() {
-    try {
-      // Obtener fecha de última actualización
-      const lastUpdate = this.updateHistory.length > 0 
-        ? new Date(this.updateHistory[0].timestamp)
-        : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 días atrás por defecto
+      // 5. Validar performance
+      let performanceValidation = null;
+      if (validatePerformance) {
+        console.log('✅ Validando performance...');
+        performanceValidation = await this.validatePerformance(
+          updatedModel,
+          currentModel,
+          newData
+        );
 
-      // Contar registros nuevos desde la última actualización
-      const newRecords = await this.Asistencia.countDocuments({
-        fecha_hora: { $gte: lastUpdate }
+        // Si el nuevo modelo es peor, mantener el anterior
+        if (performanceValidation.degradation > 0.1) {
+          console.warn('⚠️ Degradación detectada. Manteniendo modelo anterior.');
+          return {
+            success: false,
+            reason: 'performance_degradation',
+            currentModel: currentModel.modelData,
+            performanceComparison: performanceValidation
+          };
+        }
+      }
+
+      // 6. Guardar modelo actualizado
+      const updatedModelPath = await this.saveUpdatedModel(updatedModel, {
+        previousModel: currentModel.modelData,
+        incremental,
+        driftDetected,
+        performanceValidation
       });
 
-      const minimumNewRecords = 50; // Mínimo de registros nuevos requeridos
-      const hasNewData = newRecords >= minimumNewRecords;
+      // 7. Registrar actualización
+      await this.recordUpdate({
+        previousModel: currentModel.filepath,
+        newModel: updatedModelPath,
+        incremental,
+        driftDetected,
+        performanceValidation,
+        newDataSize: newData.length
+      });
+
+      console.log('✅ Actualización semanal completada exitosamente');
 
       return {
-        hasNewData,
-        newRecords,
-        minimumRequired: minimumNewRecords,
-        lastUpdateDate: lastUpdate.toISOString(),
-        daysSinceLastUpdate: Math.floor((Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24))
+        success: true,
+        previousModel: currentModel.filepath,
+        updatedModel: updatedModelPath,
+        incremental,
+        driftDetected,
+        performanceValidation,
+        newDataSize: newData.length,
+        timestamp: new Date().toISOString()
       };
     } catch (error) {
-      throw new Error(`Error validando datos nuevos: ${error.message}`);
+      throw new Error(`Error en actualización semanal: ${error.message}`);
     }
   }
 
   /**
-   * Hace backup del modelo actual
+   * Reentrenamiento incremental
    */
-  async backupCurrentModel() {
+  async incrementalRetrain(currentModel, newData, targetR2) {
     try {
-      const backupDir = path.join(__dirname, 'data/model_backups');
-      await fs.mkdir(backupDir, { recursive: true });
+      // Preparar datos nuevos
+      const features = currentModel.modelData.features;
+      const { X, y } = this.prepareDataForTraining(newData, features, currentModel.modelData.targetColumn);
+
+      // Obtener datos de entrenamiento anteriores (muestra)
+      const oldX = currentModel.modelData.trainingData?.lastX || [];
+      const oldY = currentModel.modelData.trainingData?.lastY || [];
+
+      // Combinar datos antiguos y nuevos (peso mayor a datos nuevos)
+      const combinedX = [...oldX.slice(-1000), ...X]; // Últimos 1000 del anterior + nuevos
+      const combinedY = [...oldY.slice(-1000), ...y];
+
+      // Usar parámetros del modelo actual como punto de partida
+      const currentParams = currentModel.modelData.params;
+      
+      // Entrenar con learning rate más bajo para ajuste fino
+      const model = new LinearRegression({
+        ...currentParams,
+        learningRate: currentParams.learningRate * 0.5, // Learning rate más bajo
+        iterations: 500 // Menos iteraciones para ajuste fino
+      });
+
+      // Inicializar con pesos del modelo anterior
+      model.setParams(currentParams);
+      
+      // Ajuste fino con nuevos datos
+      const trainingResult = model.fit(combinedX, combinedY);
+
+      // Validación cruzada
+      const cvValidator = new CrossValidation({ k: 5 });
+      const cvResults = cvValidator.crossValidateMultipleMetrics(combinedX, combinedY, {
+        learningRate: currentParams.learningRate * 0.5,
+        iterations: 500,
+        regularization: currentParams.regularization,
+        featureScaling: currentParams.featureScaling
+      });
+
+      // Evaluar en nuevos datos
+      const newEvaluation = model.evaluate(X, y);
+
+      return {
+        model: model.save(),
+        features,
+        targetColumn: currentModel.modelData.targetColumn,
+        trainingData: {
+          trainSize: combinedX.length,
+          oldDataSize: oldX.length,
+          newDataSize: X.length,
+          lastX: combinedX.slice(-500), // Guardar últimos para próxima actualización
+          lastY: combinedY.slice(-500)
+        },
+        metrics: {
+          training: trainingResult,
+          crossValidation: cvResults.summary,
+          newData: newEvaluation
+        },
+        incremental: true,
+        meetsR2Threshold: newEvaluation.r2 >= targetR2
+      };
+    } catch (error) {
+      throw new Error(`Error en reentrenamiento incremental: ${error.message}`);
+    }
+  }
+
+  /**
+   * Reentrenamiento completo
+   */
+  async fullRetrain(currentModel, newData, targetR2) {
+    try {
+      // Recopilar todos los datos históricos (últimos 3 meses + nuevos)
+      const allData = await this.collector.collectHistoricalDataset({
+        months: 3,
+        includeFeatures: true,
+        outputFormat: 'json'
+      });
+
+      const datasetContent = await fs.readFile(allData.filepath, 'utf8');
+      const dataset = JSON.parse(datasetContent);
+
+      // Combinar con datos nuevos
+      const combinedDataset = [...dataset, ...newData];
+
+      // Preparar datos
+      const features = currentModel.modelData.features;
+      const { X, y } = this.prepareDataForTraining(
+        combinedDataset,
+        features,
+        currentModel.modelData.targetColumn
+      );
+
+      // Optimizar parámetros
+      const optimizer = new ParameterOptimizer();
+      const optimizationResult = optimizer.optimizeForR2(X, y, targetR2, 5);
+
+      // Entrenar modelo completo
+      const model = new LinearRegression(optimizationResult.bestParams);
+      const trainingResult = model.fit(X, y);
+
+      // Validación cruzada
+      const cvValidator = new CrossValidation({ k: 5 });
+      const cvResults = cvValidator.crossValidateMultipleMetrics(X, y, optimizationResult.bestParams);
+
+      // Split train/test
+      const splitIndex = Math.floor(X.length * 0.8);
+      const X_test = X.slice(splitIndex);
+      const y_test = y.slice(splitIndex);
+      const testEvaluation = model.evaluate(X_test, y_test);
+
+      return {
+        model: model.save(),
+        features,
+        targetColumn: currentModel.modelData.targetColumn,
+        trainingData: {
+          trainSize: X.length,
+          testSize: X_test.length,
+          lastX: X.slice(-500),
+          lastY: y.slice(-500)
+        },
+        metrics: {
+          training: trainingResult,
+          crossValidation: cvResults.summary,
+          test: testEvaluation
+        },
+        optimization: optimizationResult,
+        incremental: false,
+        meetsR2Threshold: testEvaluation.r2 >= targetR2
+      };
+    } catch (error) {
+      throw new Error(`Error en reentrenamiento completo: ${error.message}`);
+    }
+  }
+
+  /**
+   * Prepara datos para entrenamiento
+   */
+  prepareDataForTraining(dataset, featureColumns, targetColumn) {
+    const X = [];
+    const y = [];
+
+    dataset.forEach(row => {
+      const features = featureColumns.map(col => {
+        const value = row[col];
+        if (typeof value === 'string') {
+          return this.hashString(value);
+        }
+        return typeof value === 'number' && !isNaN(value) ? value : 0;
+      });
+
+      const target = row[targetColumn];
+      if (target !== undefined && target !== null) {
+        X.push(features);
+        y.push(typeof target === 'number' ? target : parseFloat(target) || 0);
+      }
+    });
+
+    return { X, y };
+  }
+
+  /**
+   * Hash string a número
+   */
+  hashString(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return Math.abs(hash) % 1000;
+  }
+
+  /**
+   * Recopila datos nuevos
+   */
+  async collectNewData(days = 7) {
+    const endDate = new Date();
+    const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000);
+
+    const query = {
+      fecha_hora: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    };
+
+    const asistencias = await this.Asistencia.find(query)
+      .sort({ fecha_hora: 1 })
+      .lean();
+
+    return asistencias;
+  }
+
+  /**
+   * Carga modelo actual
+   */
+  async loadCurrentModel() {
+    try {
+      const files = await fs.readdir(this.modelsDir);
+      const jsonFiles = files.filter(f => f.endsWith('.json')).sort().reverse();
+
+      if (jsonFiles.length === 0) {
+        return null;
+      }
+
+      const filepath = path.join(this.modelsDir, jsonFiles[0]);
+      const content = await fs.readFile(filepath, 'utf8');
+      const modelData = JSON.parse(content);
+
+      const model = new LinearRegression();
+      model.setParams(modelData.params);
+
+      return {
+        model,
+        modelData,
+        filepath
+      };
+    } catch (error) {
+      throw new Error(`Error cargando modelo actual: ${error.message}`);
+    }
+  }
+
+  /**
+   * Verifica drift del modelo
+   */
+  async checkModelDrift(currentModel, newData) {
+    try {
+      // Calcular estadísticas de datos nuevos
+      const newStats = this.calculateDataStats(newData);
+      
+      // Obtener estadísticas del modelo anterior (si están guardadas)
+      const oldStats = currentModel.modelData.dataStats || null;
+
+      if (!oldStats) {
+        // Si no hay estadísticas anteriores, calcular drift básico
+        return this.basicDriftCheck(newStats);
+      }
+
+      // Comparar estadísticas
+      const driftScore = this.compareStats(oldStats, newStats);
+
+      // Considerar drift si el score es > 0.3
+      return driftScore > 0.3;
+    } catch (error) {
+      console.warn('Error verificando drift:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Calcula estadísticas de datos
+   */
+  calculateDataStats(data) {
+    const horas = data.map(r => {
+      const fecha = new Date(r.fecha_hora);
+      return fecha.getHours();
+    });
+
+    const tipos = data.map(r => r.tipo || 'entrada');
+
+    return {
+      meanHour: horas.reduce((sum, h) => sum + h, 0) / horas.length,
+      stdHour: this.calculateStd(horas),
+      tipoDistribution: {
+        entrada: tipos.filter(t => t === 'entrada').length / tipos.length,
+        salida: tipos.filter(t => t === 'salida').length / tipos.length
+      },
+      dataSize: data.length
+    };
+  }
+
+  /**
+   * Calcula desviación estándar
+   */
+  calculateStd(values) {
+    const mean = values.reduce((sum, v) => sum + v, 0) / values.length;
+    const variance = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length;
+    return Math.sqrt(variance);
+  }
+
+  /**
+   * Compara estadísticas
+   */
+  compareStats(oldStats, newStats) {
+    // Comparar media de horas
+    const hourDiff = Math.abs(oldStats.meanHour - newStats.meanHour) / 24;
+    
+    // Comparar distribución de tipos
+    const tipoDiff = Math.abs(
+      oldStats.tipoDistribution.entrada - newStats.tipoDistribution.entrada
+    );
+
+    // Score combinado
+    const driftScore = (hourDiff + tipoDiff) / 2;
+
+    return driftScore;
+  }
+
+  /**
+   * Verificación básica de drift
+   */
+  basicDriftCheck(stats) {
+    // Verificar si hay cambios significativos en distribución
+    return stats.tipoDistribution.entrada < 0.3 || stats.tipoDistribution.entrada > 0.7;
+  }
+
+  /**
+   * Valida performance del modelo
+   */
+  async validatePerformance(newModel, oldModel, testData) {
+    try {
+      const features = newModel.features;
+      const { X, y } = this.prepareDataForTraining(testData, features, newModel.targetColumn);
+
+      // Evaluar nuevo modelo
+      const newModelInstance = new LinearRegression();
+      newModelInstance.setParams(newModel.model.params);
+      const newEvaluation = newModelInstance.evaluate(X, y);
+
+      // Evaluar modelo anterior
+      const oldModelInstance = new LinearRegression();
+      oldModelInstance.setParams(oldModel.modelData.params);
+      const oldEvaluation = oldModelInstance.evaluate(X, y);
+
+      // Comparar métricas
+      const r2Improvement = newEvaluation.r2 - oldEvaluation.r2;
+      const rmseImprovement = oldEvaluation.rmse - newEvaluation.rmse;
+      const maeImprovement = oldEvaluation.mae - newEvaluation.mae;
+
+      const degradation = Math.max(
+        oldEvaluation.r2 - newEvaluation.r2,
+        (newEvaluation.rmse - oldEvaluation.rmse) / oldEvaluation.rmse,
+        (newEvaluation.mae - oldEvaluation.mae) / oldEvaluation.mae
+      );
+
+      return {
+        newModel: newEvaluation,
+        oldModel: oldEvaluation,
+        r2Improvement: parseFloat(r2Improvement.toFixed(4)),
+        rmseImprovement: parseFloat(rmseImprovement.toFixed(4)),
+        maeImprovement: parseFloat(maeImprovement.toFixed(4)),
+        degradation: Math.max(0, parseFloat(degradation.toFixed(4))),
+        isImproved: r2Improvement > 0 && rmseImprovement > 0
+      };
+    } catch (error) {
+      throw new Error(`Error validando performance: ${error.message}`);
+    }
+  }
+
+  /**
+   * Guarda modelo actualizado
+   */
+  async saveUpdatedModel(modelData, metadata) {
+    try {
+      await fs.mkdir(this.modelsDir, { recursive: true });
 
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const backupPath = path.join(backupDir, `model_backup_${timestamp}.json`);
+      const filename = `linear_regression_${timestamp}.json`;
+      const filepath = path.join(this.modelsDir, filename);
 
-      // Aquí se haría el backup real del modelo
-      // Por simplicidad, creamos un placeholder
-      const backupData = {
-        timestamp: new Date().toISOString(),
-        version: '1.0',
-        accuracy: 'placeholder',
-        note: 'Backup automático antes de actualización semanal'
+      const fullModelData = {
+        ...modelData,
+        metadata: {
+          ...metadata,
+          updateType: modelData.incremental ? 'incremental' : 'full',
+          timestamp: new Date().toISOString()
+        },
+        dataStats: this.calculateDataStats(metadata.newData || [])
       };
 
-      await fs.writeFile(backupPath, JSON.stringify(backupData, null, 2));
-      console.log(`💾 Backup creado: ${backupPath}`);
+      await fs.writeFile(filepath, JSON.stringify(fullModelData, null, 2));
+
+      return filepath;
     } catch (error) {
-      console.error('❌ Error creando backup:', error.message);
-      throw error;
+      throw new Error(`Error guardando modelo actualizado: ${error.message}`);
     }
   }
 
   /**
-   * Rollback al modelo anterior
+   * Registra actualización
    */
-  async rollbackToPreviousModel() {
+  async recordUpdate(updateInfo) {
     try {
-      console.log('🔄 Ejecutando rollback al modelo anterior...');
-      
-      // Aquí se implementaría la lógica real de rollback
-      // Por simplicidad, solo registramos el evento
-      console.log('✅ Rollback completado');
+      await fs.mkdir(this.updateHistoryDir, { recursive: true });
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `update_${timestamp}.json`;
+      const filepath = path.join(this.updateHistoryDir, filename);
+
+      const updateRecord = {
+        ...updateInfo,
+        timestamp: new Date().toISOString()
+      };
+
+      await fs.writeFile(filepath, JSON.stringify(updateRecord, null, 2));
+
+      return filepath;
     } catch (error) {
-      console.error('❌ Error en rollback:', error.message);
-      throw error;
-    }
-  }
-
-  /**
-   * Registra el resultado de una actualización
-   */
-  async recordUpdateResult(updateId, status, message, startTime, details = {}) {
-    const updateRecord = {
-      id: updateId,
-      timestamp: startTime.toISOString(),
-      status: status, // 'success', 'failed', 'skipped', 'error', 'failed_rollback', 'error_rollback'
-      message: message,
-      duration: Date.now() - startTime.getTime(),
-      details: details
-    };
-
-    this.updateHistory.unshift(updateRecord);
-    
-    // Mantener solo los últimos 50 registros
-    if (this.updateHistory.length > 50) {
-      this.updateHistory = this.updateHistory.slice(0, 50);
-    }
-
-    await this.saveUpdateHistory();
-    return updateRecord;
-  }
-
-  /**
-   * Obtiene el estado del scheduler
-   */
-  getSchedulerStatus() {
-    return {
-      active: this.schedulerActive,
-      cronExpression: this.config.cronExpression,
-      nextExecution: this.getNextExecutionTime(),
-      lastUpdate: this.updateHistory[0] || null,
-      config: this.config,
-      historyCount: this.updateHistory.length
-    };
-  }
-
-  /**
-   * Obtiene la próxima fecha de ejecución
-   */
-  getNextExecutionTime() {
-    if (!this.schedulerActive) return null;
-
-    try {
-      // Lógica simplificada para calcular próxima ejecución de cron
-      const now = new Date();
-      const nextSunday = new Date(now);
-      nextSunday.setDate(now.getDate() + (7 - now.getDay()));
-      nextSunday.setHours(2, 0, 0, 0); // 2:00 AM
-
-      if (nextSunday <= now) {
-        nextSunday.setDate(nextSunday.getDate() + 7);
-      }
-
-      return nextSunday.toISOString();
-    } catch (error) {
+      console.warn('Error registrando actualización:', error.message);
       return null;
     }
   }
 
   /**
+   * Configura schedule de actualización semanal
+   */
+  configureSchedule(config) {
+    this.scheduleConfig = {
+      ...this.scheduleConfig,
+      ...config
+    };
+
+    return this.scheduleConfig;
+  }
+
+  /**
+   * Obtiene configuración del schedule
+   */
+  getScheduleConfig() {
+    return this.scheduleConfig;
+  }
+
+  /**
    * Obtiene historial de actualizaciones
    */
-  getUpdateHistory(limit = 20) {
-    return {
-      history: this.updateHistory.slice(0, limit),
-      total: this.updateHistory.length,
-      summary: this.getHistorySummary()
-    };
-  }
-
-  /**
-   * Genera resumen del historial
-   */
-  getHistorySummary() {
-    const summary = {
-      total: this.updateHistory.length,
-      byStatus: {
-        success: 0,
-        failed: 0,
-        skipped: 0,
-        error: 0
-      },
-      averageDuration: 0,
-      lastSuccessful: null
-    };
-
-    if (this.updateHistory.length === 0) return summary;
-
-    let totalDuration = 0;
-    this.updateHistory.forEach(update => {
-      const status = update.status.includes('success') ? 'success' :
-                    update.status.includes('failed') ? 'failed' :
-                    update.status.includes('error') ? 'error' : 'skipped';
-      
-      summary.byStatus[status]++;
-      totalDuration += update.duration || 0;
-
-      if (status === 'success' && !summary.lastSuccessful) {
-        summary.lastSuccessful = update.timestamp;
-      }
-    });
-
-    summary.averageDuration = Math.round(totalDuration / this.updateHistory.length);
-    return summary;
-  }
-
-  /**
-   * Configura el scheduler
-   */
-  async configureScheduler(newConfig) {
+  async getUpdateHistory(limit = 10) {
     try {
-      const oldConfig = { ...this.config };
-      this.config = { ...this.config, ...newConfig };
+      const files = await fs.readdir(this.updateHistoryDir);
+      const jsonFiles = files.filter(f => f.endsWith('.json')).sort().reverse().slice(0, limit);
 
-      // Si cambió la expresión cron y el scheduler está activo, reiniciarlo
-      if (this.schedulerActive && newConfig.cronExpression && newConfig.cronExpression !== oldConfig.cronExpression) {
-        await this.stopScheduler();
-        await this.startScheduler();
-      }
+      const updates = await Promise.all(
+        jsonFiles.map(async (file) => {
+          const content = await fs.readFile(
+            path.join(this.updateHistoryDir, file),
+            'utf8'
+          );
+          return JSON.parse(content);
+        })
+      );
 
-      // Si se habilitó y no estaba activo, iniciarlo
-      if (newConfig.enabled && !oldConfig.enabled && !this.schedulerActive) {
-        await this.startScheduler();
-      }
-
-      // Si se deshabilitó y estaba activo, detenerlo
-      if (newConfig.enabled === false && oldConfig.enabled && this.schedulerActive) {
-        await this.stopScheduler();
-      }
-
-      await this.saveConfiguration();
-
-      return {
-        success: true,
-        message: 'Configuración actualizada',
-        oldConfig: oldConfig,
-        newConfig: this.config
-      };
+      return updates;
     } catch (error) {
-      throw new Error(`Error configurando scheduler: ${error.message}`);
-    }
-  }
-
-  /**
-   * Ejecuta actualización manual inmediata
-   */
-  async executeManualUpdate() {
-    console.log('🔧 Ejecutando actualización manual...');
-    return await this.executeWeeklyUpdate();
-  }
-
-  // Métodos auxiliares para persistencia
-  async loadConfiguration() {
-    try {
-      const data = await fs.readFile(this.configPath, 'utf8');
-      this.config = { ...this.config, ...JSON.parse(data) };
-    } catch (error) {
-      // Si no existe, usar configuración por defecto
-      await this.saveConfiguration();
-    }
-  }
-
-  async saveConfiguration() {
-    try {
-      await fs.mkdir(path.dirname(this.configPath), { recursive: true });
-      await fs.writeFile(this.configPath, JSON.stringify(this.config, null, 2));
-    } catch (error) {
-      console.error('❌ Error guardando configuración:', error.message);
-    }
-  }
-
-  async loadUpdateHistory() {
-    try {
-      const data = await fs.readFile(this.historyPath, 'utf8');
-      this.updateHistory = JSON.parse(data);
-    } catch (error) {
-      // Si no existe, inicializar vacío
-      this.updateHistory = [];
-    }
-  }
-
-  async saveUpdateHistory() {
-    try {
-      await fs.mkdir(path.dirname(this.historyPath), { recursive: true });
-      await fs.writeFile(this.historyPath, JSON.stringify(this.updateHistory, null, 2));
-    } catch (error) {
-      console.error('❌ Error guardando historial:', error.message);
+      return [];
     }
   }
 }
 
 module.exports = WeeklyModelUpdateService;
+

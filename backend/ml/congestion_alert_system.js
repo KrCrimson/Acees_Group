@@ -1,518 +1,318 @@
 /**
  * Sistema de Alertas de Congestión
- * Sistema automático de alertas con thresholds configurables
- * Adaptado para el proyecto principal Acees_Group
+ * Detecta y alerta sobre congestión prevista basándose en predicciones ML
+ * US040 - Alertas congestión
  */
 
-const fs = require('fs').promises;
-const path = require('path');
+const PeakHoursPredictor = require('./peak_hours_predictor');
 
 class CongestionAlertSystem {
   constructor(AsistenciaModel) {
-    this.Asistencia = AsistenciaModel;
-    this.alertsDir = path.join(__dirname, 'data/alerts');
-    this.configPath = path.join(this.alertsDir, 'alert_config.json');
-    this.historyPath = path.join(this.alertsDir, 'alert_history.json');
-    
-    // Configuración por defecto de thresholds
-    this.defaultConfig = {
-      thresholds: {
-        low: 50,      // >50 accesos/hora
-        medium: 100,  // >100 accesos/hora
-        high: 150,    // >150 accesos/hora
-        critical: 200 // >200 accesos/hora
-      },
-      notifications: {
-        dashboard: true,
-        email: false, // Simplificado para este proyecto
-        console: true
-      },
-      monitoring: {
-        enabled: true,
-        checkIntervalMinutes: 15,
-        historicalContextHours: 24
-      }
+    this.predictor = new PeakHoursPredictor(null, AsistenciaModel);
+    this.thresholds = {
+      low: 50,      // Alerta baja: >50 accesos/hora
+      medium: 100,  // Alerta media: >100 accesos/hora
+      high: 150,    // Alerta alta: >150 accesos/hora
+      critical: 200 // Alerta crítica: >200 accesos/hora
     };
-    
-    this.currentConfig = { ...this.defaultConfig };
+    this.config = {
+      enabled: true,
+      notificationChannels: ['dashboard', 'email'], // dashboard, email, sms, push
+      alertWindow: 24, // horas de anticipación
+      checkInterval: 60 // minutos entre checks
+    };
     this.alertHistory = [];
   }
 
   /**
-   * Inicializa el sistema de alertas
+   * Configura thresholds personalizados
    */
-  async initialize() {
-    try {
-      await fs.mkdir(this.alertsDir, { recursive: true });
-      await this.loadConfiguration();
-      await this.loadAlertHistory();
-      console.log('🚨 Sistema de alertas de congestión inicializado');
-    } catch (error) {
-      console.error('❌ Error inicializando sistema de alertas:', error.message);
-    }
-  }
-
-  /**
-   * Configura thresholds de alerta
-   */
-  async configureThresholds(newThresholds) {
-    try {
-      this.currentConfig.thresholds = { ...this.currentConfig.thresholds, ...newThresholds };
-      await this.saveConfiguration();
-      
-      console.log('⚙️ Thresholds actualizados:', this.currentConfig.thresholds);
-      
-      return {
-        success: true,
-        message: 'Thresholds configurados correctamente',
-        currentThresholds: this.currentConfig.thresholds
-      };
-    } catch (error) {
-      throw new Error(`Error configurando thresholds: ${error.message}`);
-    }
-  }
-
-  /**
-   * Verifica congestión actual y genera alertas si es necesario
-   */
-  async checkAndGenerateAlerts() {
-    try {
-      console.log('🔍 Verificando niveles de congestión...');
-
-      const currentHour = new Date().getHours();
-      const congestionData = await this.getCurrentCongestionLevels();
-      
-      const alerts = [];
-      
-      // Verificar cada puerta y tipo de acceso
-      for (const location of congestionData.locations) {
-        const alertLevel = this.determineAlertLevel(location.count);
-        
-        if (alertLevel !== 'normal') {
-          const alert = await this.createAlert(location, alertLevel, congestionData.context);
-          alerts.push(alert);
-          
-          // Enviar notificación
-          await this.sendNotification(alert);
-        }
-      }
-
-      // Guardar alertas en historial
-      if (alerts.length > 0) {
-        await this.saveAlertsToHistory(alerts);
-      }
-
-      return {
-        success: true,
-        alertsGenerated: alerts.length,
-        alerts: alerts,
-        congestionSummary: {
-          totalAccesses: congestionData.total,
-          peakLocation: congestionData.peakLocation,
-          averagePerHour: congestionData.averagePerHour
-        },
-        timestamp: new Date().toISOString()
-      };
-    } catch (error) {
-      console.error('❌ Error verificando congestión:', error.message);
-      throw new Error(`Error verificando congestión: ${error.message}`);
-    }
-  }
-
-  /**
-   * Obtiene niveles actuales de congestión
-   */
-  async getCurrentCongestionLevels() {
-    try {
-      const now = new Date();
-      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-      
-      // Congestión por ubicación en la última hora
-      const locationCongestion = await this.Asistencia.aggregate([
-        {
-          $match: {
-            fecha_hora: { $gte: oneHourAgo, $lte: now }
-          }
-        },
-        {
-          $group: {
-            _id: {
-              puerta: '$puerta',
-              tipo: '$tipo'
-            },
-            count: { $sum: 1 },
-            facultades: { $addToSet: '$siglas_facultad' },
-            lastAccess: { $max: '$fecha_hora' }
-          }
-        },
-        {
-          $sort: { count: -1 }
-        }
-      ]);
-
-      // Contexto histórico (últimas 24 horas)
-      const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-      const historicalData = await this.Asistencia.aggregate([
-        {
-          $match: {
-            fecha_hora: { $gte: oneDayAgo, $lte: now }
-          }
-        },
-        {
-          $group: {
-            _id: {
-              hour: { $hour: '$fecha_hora' },
-              tipo: '$tipo'
-            },
-            avgCount: { $avg: 1 },
-            totalCount: { $sum: 1 }
-          }
-        }
-      ]);
-
-      const totalAccesses = locationCongestion.reduce((sum, loc) => sum + loc.count, 0);
-      const peakLocation = locationCongestion[0] || null;
-      
-      return {
-        total: totalAccesses,
-        locations: locationCongestion.map(loc => ({
-          puerta: loc._id.puerta,
-          tipo: loc._id.tipo,
-          count: loc.count,
-          facultades: loc.facultades,
-          lastAccess: loc.lastAccess,
-          location: `${loc._id.puerta}_${loc._id.tipo}`
-        })),
-        peakLocation: peakLocation,
-        averagePerHour: totalAccesses,
-        context: {
-          historical: historicalData,
-          timeRange: { from: oneHourAgo, to: now }
-        }
-      };
-    } catch (error) {
-      throw new Error(`Error obteniendo datos de congestión: ${error.message}`);
-    }
-  }
-
-  /**
-   * Determina nivel de alerta basado en el conteo
-   */
-  determineAlertLevel(count) {
-    const thresholds = this.currentConfig.thresholds;
-    
-    if (count >= thresholds.critical) return 'critical';
-    if (count >= thresholds.high) return 'high';
-    if (count >= thresholds.medium) return 'medium';
-    if (count >= thresholds.low) return 'low';
-    
-    return 'normal';
-  }
-
-  /**
-   * Crea objeto de alerta
-   */
-  async createAlert(location, level, context) {
-    const now = new Date();
-    
+  configureThresholds(thresholds) {
+    this.thresholds = { ...this.thresholds, ...thresholds };
     return {
-      id: `alert_${now.getTime()}_${Math.random().toString(36).substr(2, 9)}`,
-      timestamp: now.toISOString(),
-      level: level,
-      location: {
-        puerta: location.puerta,
-        tipo: location.tipo,
-        description: `${location.puerta} - ${location.tipo}`
-      },
-      metrics: {
-        currentCount: location.count,
-        threshold: this.currentConfig.thresholds[level],
-        facultadesInvolucradas: location.facultades,
-        lastAccess: location.lastAccess
-      },
-      message: this.generateAlertMessage(location, level),
-      severity: this.getSeverityScore(level),
-      recommendations: this.generateRecommendations(location, level),
-      context: {
-        timeWindow: '1 hora',
-        historicalComparison: await this.getHistoricalComparison(location, context)
-      }
+      success: true,
+      thresholds: this.thresholds
     };
+  }
+
+  /**
+   * Configura sistema de alertas
+   */
+  configure(config) {
+    this.config = { ...this.config, ...config };
+    return {
+      success: true,
+      config: this.config
+    };
+  }
+
+  /**
+   * Verifica y genera alertas de congestión
+   */
+  async checkCongestionAlerts(dateRange = null, options = {}) {
+    const {
+      lookAheadHours = this.config.alertWindow,
+      includeHistorical = true
+    } = options;
+
+    try {
+      // Obtener predicciones
+      await this.predictor.loadLatestModel();
+      
+      if (!dateRange) {
+        const now = new Date();
+        const endDate = new Date(now);
+        endDate.setHours(endDate.getHours() + lookAheadHours);
+        dateRange = {
+          startDate: now.toISOString(),
+          endDate: endDate.toISOString()
+        };
+      }
+
+      const predictions = await this.predictor.predictPeakHours(dateRange);
+
+      // Analizar predicciones y generar alertas
+      const alerts = this.analyzePredictions(predictions.predictions);
+
+      // Agregar contexto histórico si está habilitado
+      if (includeHistorical) {
+        alerts.forEach(alert => {
+          alert.historicalContext = this.getHistoricalContext(alert);
+        });
+      }
+
+      // Filtrar alertas según configuración
+      const activeAlerts = alerts.filter(alert => 
+        this.shouldTriggerAlert(alert)
+      );
+
+      // Guardar en historial
+      if (activeAlerts.length > 0) {
+        this.alertHistory.push({
+          timestamp: new Date(),
+          alerts: activeAlerts,
+          totalAlerts: activeAlerts.length
+        });
+      }
+
+      return {
+        success: true,
+        dateRange: predictions.dateRange,
+        alerts: activeAlerts,
+        summary: this.generateAlertSummary(activeAlerts),
+        thresholds: this.thresholds,
+        timestamp: new Date()
+      };
+    } catch (error) {
+      throw new Error(`Error verificando alertas de congestión: ${error.message}`);
+    }
+  }
+
+  /**
+   * Analiza predicciones y genera alertas
+   */
+  analyzePredictions(predictions) {
+    const alerts = [];
+
+    predictions.forEach(prediction => {
+      const level = this.getAlertLevel(prediction.predictedTotal);
+      
+      if (level !== 'none') {
+        alerts.push({
+          id: `alert_${Date.now()}_${prediction.hora}`,
+          level: level,
+          timestamp: prediction.timestamp,
+          fecha: prediction.fecha,
+          hora: prediction.hora,
+          predictedTotal: prediction.predictedTotal,
+          predictedEntrance: prediction.predictedEntrance,
+          predictedExit: prediction.predictedExit,
+          confidence: prediction.confidence,
+          threshold: this.thresholds[level],
+          message: this.generateAlertMessage(prediction, level),
+          recommendations: this.generateRecommendations(prediction, level)
+        });
+      }
+    });
+
+    return alerts.sort((a, b) => {
+      const levelOrder = { critical: 4, high: 3, medium: 2, low: 1, none: 0 };
+      return levelOrder[b.level] - levelOrder[a.level];
+    });
+  }
+
+  /**
+   * Determina nivel de alerta basado en predicción
+   */
+  getAlertLevel(predictedTotal) {
+    if (predictedTotal >= this.thresholds.critical) return 'critical';
+    if (predictedTotal >= this.thresholds.high) return 'high';
+    if (predictedTotal >= this.thresholds.medium) return 'medium';
+    if (predictedTotal >= this.thresholds.low) return 'low';
+    return 'none';
   }
 
   /**
    * Genera mensaje de alerta
    */
-  generateAlertMessage(location, level) {
-    const messages = {
-      low: `Congestión moderada detectada en ${location.puerta} (${location.tipo}): ${location.count} accesos en la última hora`,
-      medium: `Congestión significativa en ${location.puerta} (${location.tipo}): ${location.count} accesos/hora - Monitorear de cerca`,
-      high: `¡ALTA congestión en ${location.puerta} (${location.tipo})! ${location.count} accesos/hora - Considerar medidas preventivas`,
-      critical: `🚨 CONGESTIÓN CRÍTICA en ${location.puerta} (${location.tipo}): ${location.count} accesos/hora - ¡ACCIÓN INMEDIATA REQUERIDA!`
+  generateAlertMessage(prediction, level) {
+    const levelMessages = {
+      critical: 'CONGESTIÓN CRÍTICA',
+      high: 'ALTA CONGESTIÓN',
+      medium: 'CONGESTIÓN MODERADA',
+      low: 'CONGESTIÓN LEVE'
     };
-    
-    return messages[level] || 'Nivel de congestión desconocido';
+
+    return `${levelMessages[level]} prevista para ${prediction.fecha} a las ${prediction.hora}:00. ` +
+           `Se esperan ${prediction.predictedTotal} accesos (${prediction.predictedEntrance} entradas, ${prediction.predictedExit} salidas). ` +
+           `Confianza: ${(prediction.confidence * 100).toFixed(1)}%`;
   }
 
   /**
-   * Obtiene puntuación de severidad
+   * Genera recomendaciones basadas en alerta
    */
-  getSeverityScore(level) {
-    const scores = { low: 1, medium: 2, high: 3, critical: 4 };
-    return scores[level] || 0;
-  }
+  generateRecommendations(prediction, level) {
+    const recommendations = [];
 
-  /**
-   * Genera recomendaciones basadas en el nivel de alerta
-   */
-  generateRecommendations(location, level) {
-    const baseRecommendations = {
-      low: [
-        'Monitorear tendencia en las próximas horas',
-        'Preparar personal adicional si es necesario'
-      ],
-      medium: [
-        'Aumentar frecuencia de monitoreo',
-        'Considerar apertura de puertas adicionales',
-        'Notificar a personal de seguridad'
-      ],
-      high: [
-        'Implementar control de flujo',
-        'Abrir todas las puertas disponibles',
-        'Asignar personal adicional de inmediato',
-        'Comunicar a estudiantes sobre congestión'
-      ],
-      critical: [
-        '🚨 ACTIVAR PROTOCOLO DE EMERGENCIA',
-        'Abrir todas las salidas de emergencia si es necesario',
-        'Coordinar con seguridad universitaria',
-        'Implementar desvío de tráfico estudiantil',
-        'Comunicación masiva inmediata'
-      ]
-    };
+    if (level === 'critical' || level === 'high') {
+      recommendations.push({
+        type: 'RESOURCE_ALLOCATION',
+        priority: 'HIGH',
+        action: 'Aumentar personal de guardias en puntos de control',
+        description: 'Asignar guardias adicionales para manejar la alta demanda'
+      });
 
-    const recommendations = [...baseRecommendations[level]];
-    
-    // Recomendaciones específicas por ubicación
-    if (location.puerta === 'fafing' && level >= 'medium') {
-      recommendations.push('Considerar usar entrada principal como alternativa');
+      recommendations.push({
+        type: 'SCHEDULE_OPTIMIZATION',
+        priority: 'HIGH',
+        action: 'Optimizar horarios de buses',
+        description: 'Ajustar frecuencia de buses para reducir congestión'
+      });
     }
-    
-    if (location.tipo === 'entrada' && level >= 'high') {
-      recommendations.push('Implementar sistema de citas o horarios escalonados');
+
+    if (level === 'medium') {
+      recommendations.push({
+        type: 'MONITORING',
+        priority: 'MEDIUM',
+        action: 'Monitorear de cerca la situación',
+        description: 'Estar preparado para escalar recursos si es necesario'
+      });
     }
+
+    recommendations.push({
+      type: 'NOTIFICATION',
+      priority: 'LOW',
+      action: 'Notificar a estudiantes sobre horarios pico',
+      description: 'Comunicar horarios pico esperados para distribuir carga'
+    });
 
     return recommendations;
   }
 
   /**
-   * Obtiene comparación histórica
+   * Obtiene contexto histórico para una alerta
    */
-  async getHistoricalComparison(location, context) {
-    try {
-      const currentHour = new Date().getHours();
-      const currentDay = new Date().getDay();
-      
-      // Buscar datos históricos de la misma hora y día de la semana
-      const historicalAvg = context.historical.find(h => 
-        h._id.hour === currentHour && h._id.tipo === location.tipo
+  getHistoricalContext(alert) {
+    // Buscar alertas similares en el historial
+    const similarAlerts = this.alertHistory
+      .flatMap(entry => entry.alerts)
+      .filter(a => 
+        a.hora === alert.hora && 
+        a.level === alert.level &&
+        new Date(a.timestamp) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Últimos 7 días
       );
 
-      if (historicalAvg) {
-        const comparison = location.count / historicalAvg.avgCount;
-        return {
-          historicalAverage: Math.round(historicalAvg.avgCount),
-          currentVsHistorical: `${(comparison * 100).toFixed(0)}%`,
-          trend: comparison > 1.5 ? 'Muy por encima del promedio' :
-                comparison > 1.2 ? 'Por encima del promedio' :
-                comparison < 0.8 ? 'Por debajo del promedio' : 'Normal'
-        };
-      }
-
-      return {
-        historicalAverage: 'No disponible',
-        currentVsHistorical: 'N/A',
-        trend: 'Sin datos históricos suficientes'
-      };
-    } catch (error) {
-      return {
-        historicalAverage: 'Error',
-        currentVsHistorical: 'N/A',
-        trend: 'Error obteniendo comparación'
-      };
-    }
+    return {
+      similarAlertsCount: similarAlerts.length,
+      lastSimilarAlert: similarAlerts.length > 0 
+        ? similarAlerts[similarAlerts.length - 1].timestamp 
+        : null,
+      frequency: similarAlerts.length > 0 
+        ? `${similarAlerts.length} veces en los últimos 7 días`
+        : 'Primera vez'
+    };
   }
 
   /**
-   * Envía notificación de alerta
+   * Determina si una alerta debe ser activada
    */
-  async sendNotification(alert) {
-    try {
-      if (this.currentConfig.notifications.console) {
-        this.logAlertToConsole(alert);
-      }
-
-      if (this.currentConfig.notifications.dashboard) {
-        // Placeholder para integración con dashboard
-        console.log(`📊 [DASHBOARD] Alerta enviada: ${alert.level.toUpperCase()}`);
-      }
-
-      // Aquí se pueden agregar más canales de notificación (email, SMS, etc.)
-      
-    } catch (error) {
-      console.error('❌ Error enviando notificación:', error.message);
-    }
+  shouldTriggerAlert(alert) {
+    // Filtrar según configuración
+    if (!this.config.enabled) return false;
+    
+    // Solo alertas de nivel medio o superior por defecto
+    const levelOrder = { critical: 4, high: 3, medium: 2, low: 1 };
+    return levelOrder[alert.level] >= 2;
   }
 
   /**
-   * Registra alerta en consola
+   * Genera resumen de alertas
    */
-  logAlertToConsole(alert) {
-    const emoji = {
-      low: '🟡',
-      medium: '🟠', 
-      high: '🔴',
-      critical: '🚨'
+  generateAlertSummary(alerts) {
+    const summary = {
+      total: alerts.length,
+      byLevel: {
+        critical: alerts.filter(a => a.level === 'critical').length,
+        high: alerts.filter(a => a.level === 'high').length,
+        medium: alerts.filter(a => a.level === 'medium').length,
+        low: alerts.filter(a => a.level === 'low').length
+      },
+      nextAlert: alerts.length > 0 ? alerts[0] : null,
+      peakTime: this.findPeakTime(alerts)
     };
 
-    console.log(`\\n${emoji[alert.level]} ===== ALERTA DE CONGESTIÓN =====`);
-    console.log(`Nivel: ${alert.level.toUpperCase()}`);
-    console.log(`Ubicación: ${alert.location.description}`);
-    console.log(`Mensaje: ${alert.message}`);
-    console.log(`Hora: ${alert.timestamp}`);
-    console.log(`Recomendaciones:`);
-    alert.recommendations.forEach(rec => console.log(`  • ${rec}`));
-    console.log(`=====================================\\n`);
+    return summary;
   }
 
   /**
-   * Guarda alertas en historial
+   * Encuentra hora pico de las alertas
    */
-  async saveAlertsToHistory(alerts) {
-    try {
-      this.alertHistory.push(...alerts);
-      
-      // Mantener solo las últimas 1000 alertas
-      if (this.alertHistory.length > 1000) {
-        this.alertHistory = this.alertHistory.slice(-1000);
-      }
-      
-      await fs.writeFile(this.historyPath, JSON.stringify(this.alertHistory, null, 2));
-    } catch (error) {
-      console.error('❌ Error guardando historial de alertas:', error.message);
-    }
+  findPeakTime(alerts) {
+    if (alerts.length === 0) return null;
+
+    const hourCounts = {};
+    alerts.forEach(alert => {
+      hourCounts[alert.hora] = (hourCounts[alert.hora] || 0) + alert.predictedTotal;
+    });
+
+    const peakHour = Object.entries(hourCounts)
+      .sort((a, b) => b[1] - a[1])[0];
+
+    return peakHour 
+      ? { hour: parseInt(peakHour[0]), totalAccess: peakHour[1] }
+      : null;
   }
 
   /**
    * Obtiene historial de alertas
    */
-  async getAlertHistory(options = {}) {
-    const { limit = 50, level = null, hours = 24 } = options;
-    
-    try {
-      let filteredHistory = [...this.alertHistory];
-      
-      // Filtrar por nivel si se especifica
-      if (level) {
-        filteredHistory = filteredHistory.filter(alert => alert.level === level);
-      }
-      
-      // Filtrar por tiempo
-      const cutoffTime = new Date(Date.now() - hours * 60 * 60 * 1000);
-      filteredHistory = filteredHistory.filter(alert => 
-        new Date(alert.timestamp) >= cutoffTime
-      );
-      
-      // Ordenar por timestamp descendente y limitar
-      filteredHistory.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-      filteredHistory = filteredHistory.slice(0, limit);
-      
-      return {
-        success: true,
-        alerts: filteredHistory,
-        total: filteredHistory.length,
-        summary: this.generateHistorySummary(filteredHistory)
-      };
-    } catch (error) {
-      throw new Error(`Error obteniendo historial: ${error.message}`);
-    }
-  }
-
-  /**
-   * Genera resumen del historial
-   */
-  generateHistorySummary(history) {
-    const summary = {
-      total: history.length,
-      byLevel: { low: 0, medium: 0, high: 0, critical: 0 },
-      byLocation: {},
-      lastAlert: history[0]?.timestamp || null
+  getAlertHistory(limit = 50) {
+    return {
+      history: this.alertHistory.slice(-limit),
+      total: this.alertHistory.length,
+      recentAlerts: this.alertHistory
+        .flatMap(entry => entry.alerts)
+        .slice(-limit)
     };
-    
-    history.forEach(alert => {
-      summary.byLevel[alert.level]++;
-      
-      const location = alert.location.description;
-      summary.byLocation[location] = (summary.byLocation[location] || 0) + 1;
-    });
-    
-    return summary;
   }
 
   /**
    * Limpia historial de alertas
    */
-  async clearAlertHistory() {
-    try {
-      this.alertHistory = [];
-      await fs.writeFile(this.historyPath, JSON.stringify([], null, 2));
-      
-      return {
-        success: true,
-        message: 'Historial de alertas limpiado correctamente'
-      };
-    } catch (error) {
-      throw new Error(`Error limpiando historial: ${error.message}`);
-    }
-  }
+  clearAlertHistory(daysToKeep = 30) {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
 
-  /**
-   * Carga configuración guardada
-   */
-  async loadConfiguration() {
-    try {
-      const data = await fs.readFile(this.configPath, 'utf8');
-      this.currentConfig = JSON.parse(data);
-    } catch (error) {
-      // Si no existe, usar configuración por defecto
-      this.currentConfig = { ...this.defaultConfig };
-      await this.saveConfiguration();
-    }
-  }
+    this.alertHistory = this.alertHistory.filter(
+      entry => new Date(entry.timestamp) > cutoffDate
+    );
 
-  /**
-   * Guarda configuración actual
-   */
-  async saveConfiguration() {
-    try {
-      await fs.writeFile(this.configPath, JSON.stringify(this.currentConfig, null, 2));
-    } catch (error) {
-      console.error('❌ Error guardando configuración:', error.message);
-    }
-  }
-
-  /**
-   * Carga historial de alertas guardado
-   */
-  async loadAlertHistory() {
-    try {
-      const data = await fs.readFile(this.historyPath, 'utf8');
-      this.alertHistory = JSON.parse(data);
-    } catch (error) {
-      // Si no existe, inicializar vacío
-      this.alertHistory = [];
-    }
+    return {
+      success: true,
+      remainingEntries: this.alertHistory.length
+    };
   }
 }
 
 module.exports = CongestionAlertSystem;
+

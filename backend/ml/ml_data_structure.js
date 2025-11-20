@@ -1,7 +1,6 @@
 /**
  * Estructura de Datos ML - Definición y Validación
  * Define estructura estándar para datos de ML
- * Adaptado para el proyecto principal Acees_Group
  */
 
 class MLDataStructure {
@@ -143,7 +142,6 @@ class MLDataStructure {
 
   /**
    * Normaliza datos a estructura ML estándar
-   * Adaptado para los campos del proyecto principal
    */
   normalizeToMLStructure(data) {
     return data.map(record => {
@@ -152,7 +150,7 @@ class MLDataStructure {
 
       return {
         // Metadata
-        id: record._id ? record._id.toString() : `record_${Date.now()}_${Math.random()}`,
+        id: record.id || `record_${Date.now()}_${Math.random()}`,
         fecha: fecha.toISOString().split('T')[0],
         fecha_hora: fecha.toISOString(),
         timestamp: fecha.getTime(),
@@ -168,29 +166,25 @@ class MLDataStructure {
                       (fecha.getDay() === 0 || fecha.getDay() === 6 ? 1 : 0),
         es_feriado: record.es_feriado !== undefined ? record.es_feriado : 0,
 
-        // Features estudiante - adaptado a los campos del proyecto principal
+        // Features estudiante
         codigo_universitario: record.codigo_universitario || null,
         siglas_facultad: record.siglas_facultad || 'GEN',
         siglas_escuela: record.siglas_escuela || 'GEN',
 
-        // Features acceso - adaptado a los campos del proyecto principal
-        tipo: record.tipo || 'salida', // El campo tipo existe en nuestros datos
-        entrada_tipo: record.entrada_tipo || 'nfc', // El campo entrada_tipo existe
-        puerta: record.puerta || 'fafing', // El campo puerta existe
+        // Features acceso
+        tipo: record.tipo || 'entrada',
+        entrada_tipo: record.entrada_tipo || 'NFC',
+        puerta: record.puerta || 'PRINCIPAL',
 
-        // Features guardia - adaptado a los campos del proyecto principal
+        // Features guardia
         guardia_id: record.guardia_id || null,
-        guardia_nombre: record.guardia_nombre || null,
         autorizacion_manual: record.autorizacion_manual ? 1 : 0,
 
         // Target
         target: record.target !== undefined ? record.target : (record.autorizacion_manual ? 1 : 0),
         is_peak_hour: record.is_peak_hour !== undefined ? record.is_peak_hour : 
                      this.isPeakHour(fecha.getHours(), fecha.getDay()),
-        count: record.count !== undefined ? record.count : 1,
-        
-        // Campo estado del proyecto principal
-        estado: record.estado || 'autorizado'
+        count: record.count !== undefined ? record.count : 1
       };
     });
   }
@@ -223,7 +217,7 @@ class MLDataStructure {
     
     return {
       version: schema.version,
-      description: 'Estructura estándar para datos de Machine Learning - Proyecto Acees_Group',
+      description: 'Estructura estándar para datos de Machine Learning',
       schema: schema.schema,
       constraints: schema.constraints,
       examples: {
@@ -234,13 +228,8 @@ class MLDataStructure {
           hora: 8,
           dia_semana: 1,
           mes: 1,
-          tipo: 'salida',
-          entrada_tipo: 'nfc',
-          puerta: 'fafing',
-          siglas_facultad: 'FACEM',
-          siglas_escuela: 'EPIOL',
-          guardia_nombre: 'sebastian arce',
-          estado: 'autorizado',
+          tipo: 'entrada',
+          siglas_facultad: 'FIIS',
           target: 0,
           is_peak_hour: 1
         }
@@ -250,3 +239,4 @@ class MLDataStructure {
 }
 
 module.exports = MLDataStructure;
+

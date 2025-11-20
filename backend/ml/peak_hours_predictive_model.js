@@ -1,464 +1,104 @@
 /**
  * Modelo Predictivo de Horarios Pico Entrada/Salida
  * Predice horarios de mayor congestión para anticipar carga
- * Adaptado para el proyecto principal Acees_Group
  */
 
+const LinearRegression = require('./linear_regression');
+const CrossValidation = require('./cross_validation');
+const ParameterOptimizer = require('./parameter_optimizer');
+const DatasetCollector = require('./dataset_collector');
 const fs = require('fs').promises;
 const path = require('path');
 
 class PeakHoursPredictiveModel {
   constructor(AsistenciaModel) {
     this.Asistencia = AsistenciaModel;
-    this.modelsDir = path.join(__dirname, 'data/peak_hours_models');
+    this.collector = new DatasetCollector(AsistenciaModel);
+    this.modelsDir = path.join(__dirname, '../data/peak_hours_models');
     this.entranceModel = null;
     this.exitModel = null;
-    this.modelMetrics = {
-      entrance: { accuracy: 0, precision: 0, recall: 0, f1Score: 0 },
-      exit: { accuracy: 0, precision: 0, recall: 0, f1Score: 0 }
-    };
-  }
-
-  /**
-   * Entrena el modelo de predicción de horarios pico
-   */
-  async trainPeakHoursModel(options = {}) {
-    const { months = 3, testSize = 0.2 } = options;
-
-    try {
-      console.log('🚀 Iniciando entrenamiento de modelo de horarios pico...');
-
-      // 1. Recopilar datos históricos
-      const dataset = await this.collectTrainingData(months);
-      console.log(`📊 Dataset recopilado: ${dataset.length} registros`);
-
-      // 2. Preparar datos para entrenamiento
-      const { trainingData, testData } = await this.preparePeakHoursData(dataset, testSize);
-      console.log(`🔄 Datos preparados: ${trainingData.length} entrenamiento, ${testData.length} prueba`);
-
-      // 3. Entrenar modelos separados para entrada y salida
-      this.entranceModel = await this.trainTypeSpecificModel(trainingData, 'entrada');
-      this.exitModel = await this.trainTypeSpecificModel(trainingData, 'salida');
-
-      // 4. Validar modelos
-      const entranceMetrics = await this.validateModel(this.entranceModel, testData, 'entrada');
-      const exitMetrics = await this.validateModel(this.exitModel, testData, 'salida');
-
-      this.modelMetrics.entrance = entranceMetrics;
-      this.modelMetrics.exit = exitMetrics;
-
-      // 5. Guardar modelos
-      await this.saveModels();
-
-      const overallAccuracy = (entranceMetrics.accuracy + exitMetrics.accuracy) / 2;
-
-      console.log('✅ Entrenamiento completado exitosamente');
-      console.log(`📈 Precisión promedio: ${(overallAccuracy * 100).toFixed(2)}%`);
-
-      return {
-        success: true,
-        metrics: {
-          entrance: entranceMetrics,
-          exit: exitMetrics,
-          overall: {
-            accuracy: overallAccuracy,
-            precision: (entranceMetrics.precision + exitMetrics.precision) / 2,
-            recall: (entranceMetrics.recall + exitMetrics.recall) / 2,
-            f1Score: (entranceMetrics.f1Score + exitMetrics.f1Score) / 2
-          }
-        },
-        trainingData: {
-          totalRecords: dataset.length,
-          trainingRecords: trainingData.length,
-          testRecords: testData.length,
-          months: months
-        },
-        modelSaved: true
-      };
-    } catch (error) {
-      console.error('❌ Error entrenando modelo:', error.message);
-      throw new Error(`Error entrenando modelo de horarios pico: ${error.message}`);
-    }
-  }
-
-  /**
-   * Recopila datos históricos para entrenamiento
-   */
-  async collectTrainingData(months) {
-    try {
-      const fechaInicio = new Date();
-      fechaInicio.setMonth(fechaInicio.getMonth() - months);
-
-      const dataset = await this.Asistencia.find({
-        fecha_hora: { $gte: fechaInicio },
-        tipo: { $in: ['entrada', 'salida'] }
-      }).sort({ fecha_hora: 1 });
-
-      return dataset.map(record => ({
-        id: record._id.toString(),
-        fecha_hora: record.fecha_hora,
-        tipo: record.tipo,
-        siglas_facultad: record.siglas_facultad,
-        siglas_escuela: record.siglas_escuela,
-        puerta: record.puerta,
-        entrada_tipo: record.entrada_tipo,
-        estado: record.estado
-      }));
-    } catch (error) {
-      throw new Error(`Error recopilando datos: ${error.message}`);
-    }
   }
 
   /**
    * Prepara datos específicos para predicción de horarios pico
    */
-  async preparePeakHoursData(dataset, testSize = 0.2) {
-    try {
-      // Agrupar por hora, día y tipo
-      const hourlyData = this.aggregateHourlyData(dataset);
-
-      // Convertir a formato de entrenamiento con features
-      const processedData = this.extractFeaturesFromHourlyData(hourlyData);
-
-      // Dividir en entrenamiento y prueba
-      const splitIndex = Math.floor(processedData.length * (1 - testSize));
-      const trainingData = processedData.slice(0, splitIndex);
-      const testData = processedData.slice(splitIndex);
-
-      return { trainingData, testData };
-    } catch (error) {
-      throw new Error(`Error preparando datos: ${error.message}`);
-    }
-  }
-
-  /**
-   * Agrega datos por hora, día y tipo
-   */
-  aggregateHourlyData(dataset) {
+  preparePeakHoursData(dataset) {
+    // Agrupar por hora y tipo (entrada/salida)
     const hourlyData = {};
 
-    dataset.forEach(record => {
-      const fecha = new Date(record.fecha_hora);
+    dataset.forEach(row => {
+      const fecha = new Date(row.fecha_hora);
       const hora = fecha.getHours();
-      const fechaStr = fecha.toDateString();
-      const key = `${fechaStr}_${hora}_${record.tipo}`;
+      const tipo = row.tipo === 'entrada' ? 'entrance' : 'exit';
+      const key = `${hora}_${tipo}_${fecha.toDateString()}`;
 
       if (!hourlyData[key]) {
         hourlyData[key] = {
-          fecha: fecha,
-          hora: hora,
-          tipo: record.tipo,
+          hora,
+          tipo,
+          fecha: fecha.toDateString(),
           count: 0,
-          facultades: new Set(),
-          puertas: new Set()
+          features: this.extractFeaturesForHour(row, fecha)
         };
       }
 
       hourlyData[key].count++;
-      hourlyData[key].facultades.add(record.siglas_facultad);
-      hourlyData[key].puertas.add(record.puerta);
     });
 
-    return hourlyData;
-  }
+    // Convertir a formato para entrenamiento
+    const X_entrance = [];
+    const y_entrance = [];
+    const X_exit = [];
+    const y_exit = [];
 
-  /**
-   * Extrae features de datos agregados por hora
-   */
-  extractFeaturesFromHourlyData(hourlyData) {
-    return Object.keys(hourlyData).map(key => {
+    Object.keys(hourlyData).forEach(key => {
       const data = hourlyData[key];
-      const fecha = data.fecha;
+      
+      // Features: hora, día_semana, mes, es_fin_semana, es_feriado, semana_anio
+      const features = [
+        data.hora,
+        data.features.dia_semana,
+        data.features.mes,
+        data.features.es_fin_semana,
+        data.features.es_feriado,
+        data.features.semana_anio
+      ];
 
-      return {
-        // Features temporales
-        hora: data.hora,
-        dia_semana: fecha.getDay(),
-        dia_mes: fecha.getDate(),
-        mes: fecha.getMonth() + 1,
-        semana_anio: this.getWeekOfYear(fecha),
-        
-        // Features binarias
-        es_fin_semana: (fecha.getDay() === 0 || fecha.getDay() === 6) ? 1 : 0,
-        es_feriado: this.isHoliday(fecha) ? 1 : 0,
-        es_horario_pico: this.isPeakHour(data.hora, fecha.getDay()) ? 1 : 0,
-        
-        // Features del acceso
-        tipo: data.tipo,
-        es_entrada: data.tipo === 'entrada' ? 1 : 0,
-        diversidad_facultades: data.facultades.size,
-        diversidad_puertas: data.puertas.size,
-        
-        // Target
-        count: data.count,
-        is_peak: data.count > this.calculatePeakThreshold(data.tipo) ? 1 : 0
-      };
+      if (data.tipo === 'entrance') {
+        X_entrance.push(features);
+        y_entrance.push(data.count);
+      } else {
+        X_exit.push(features);
+        y_exit.push(data.count);
+      }
     });
+
+    return {
+      X_entrance,
+      y_entrance,
+      X_exit,
+      y_exit,
+      featureNames: ['hora', 'dia_semana', 'mes', 'es_fin_semana', 'es_feriado', 'semana_anio']
+    };
   }
 
   /**
-   * Entrena modelo específico para un tipo (entrada/salida)
+   * Extrae características para una hora específica
    */
-  async trainTypeSpecificModel(trainingData, tipo) {
-    try {
-      const typeData = trainingData.filter(record => record.tipo === tipo);
-      
-      if (typeData.length < 10) {
-        throw new Error(`Datos insuficientes para tipo ${tipo}: ${typeData.length} registros`);
-      }
-
-      // Preparar features y targets
-      const features = typeData.map(record => [
-        record.hora,
-        record.dia_semana,
-        record.mes,
-        record.es_fin_semana,
-        record.es_feriado,
-        record.diversidad_facultades,
-        record.diversidad_puertas
-      ]);
-
-      const targets = typeData.map(record => record.count);
-
-      // Modelo simple de regresión lineal implementado manualmente
-      const model = this.trainLinearRegression(features, targets);
-      
-      return {
-        type: tipo,
-        model: model,
-        featureNames: ['hora', 'dia_semana', 'mes', 'es_fin_semana', 'es_feriado', 'diversidad_facultades', 'diversidad_puertas'],
-        trainedAt: new Date().toISOString(),
-        trainingSize: typeData.length
-      };
-    } catch (error) {
-      throw new Error(`Error entrenando modelo ${tipo}: ${error.message}`);
-    }
+  extractFeaturesForHour(row, fecha) {
+    return {
+      hora: fecha.getHours(),
+      dia_semana: fecha.getDay(),
+      mes: fecha.getMonth() + 1,
+      semana_anio: this.getWeekOfYear(fecha),
+      es_fin_semana: (fecha.getDay() === 0 || fecha.getDay() === 6) ? 1 : 0,
+      es_feriado: this.isHoliday(fecha) ? 1 : 0
+    };
   }
 
   /**
-   * Implementación simple de regresión lineal
+   * Calcula semana del año
    */
-  trainLinearRegression(X, y) {
-    const n = X.length;
-    const m = X[0].length;
-    
-    // Inicializar pesos aleatoriamente
-    const weights = Array(m + 1).fill(0).map(() => Math.random() * 0.01);
-    
-    const learningRate = 0.01;
-    const epochs = 1000;
-    
-    // Entrenamiento por gradiente descendente
-    for (let epoch = 0; epoch < epochs; epoch++) {
-      const gradients = Array(m + 1).fill(0);
-      
-      for (let i = 0; i < n; i++) {
-        // Predicción
-        let prediction = weights[0]; // bias
-        for (let j = 0; j < m; j++) {
-          prediction += weights[j + 1] * X[i][j];
-        }
-        
-        // Error
-        const error = prediction - y[i];
-        
-        // Gradientes
-        gradients[0] += error; // bias gradient
-        for (let j = 0; j < m; j++) {
-          gradients[j + 1] += error * X[i][j];
-        }
-      }
-      
-      // Actualizar pesos
-      for (let j = 0; j <= m; j++) {
-        weights[j] -= learningRate * gradients[j] / n;
-      }
-    }
-    
-    return { weights, features: m };
-  }
-
-  /**
-   * Valida el modelo con datos de prueba
-   */
-  async validateModel(model, testData, tipo) {
-    try {
-      const typeTestData = testData.filter(record => record.tipo === tipo);
-      
-      if (typeTestData.length === 0) {
-        return { accuracy: 0, precision: 0, recall: 0, f1Score: 0 };
-      }
-
-      let correct = 0;
-      let truePositives = 0;
-      let falsePositives = 0;
-      let falseNegatives = 0;
-
-      for (const record of typeTestData) {
-        const features = [
-          record.hora,
-          record.dia_semana,
-          record.mes,
-          record.es_fin_semana,
-          record.es_feriado,
-          record.diversidad_facultades,
-          record.diversidad_puertas
-        ];
-
-        const prediction = this.predict(model, features);
-        const actualIsPeak = record.is_peak;
-        const predictedIsPeak = prediction > this.calculatePeakThreshold(tipo) ? 1 : 0;
-
-        if (predictedIsPeak === actualIsPeak) {
-          correct++;
-        }
-
-        if (actualIsPeak === 1 && predictedIsPeak === 1) truePositives++;
-        if (actualIsPeak === 0 && predictedIsPeak === 1) falsePositives++;
-        if (actualIsPeak === 1 && predictedIsPeak === 0) falseNegatives++;
-      }
-
-      const accuracy = correct / typeTestData.length;
-      const precision = truePositives / (truePositives + falsePositives) || 0;
-      const recall = truePositives / (truePositives + falseNegatives) || 0;
-      const f1Score = 2 * (precision * recall) / (precision + recall) || 0;
-
-      return { accuracy, precision, recall, f1Score };
-    } catch (error) {
-      throw new Error(`Error validando modelo ${tipo}: ${error.message}`);
-    }
-  }
-
-  /**
-   * Realiza predicción con el modelo
-   */
-  predict(model, features) {
-    let prediction = model.model.weights[0]; // bias
-    for (let i = 0; i < features.length; i++) {
-      prediction += model.model.weights[i + 1] * features[i];
-    }
-    return Math.max(0, prediction); // No negativos
-  }
-
-  /**
-   * Predice horarios pico para las próximas 24 horas
-   */
-  async predictNext24Hours() {
-    try {
-      if (!this.entranceModel || !this.exitModel) {
-        await this.loadModels();
-      }
-
-      const predictions = [];
-      const now = new Date();
-      
-      for (let i = 0; i < 24; i++) {
-        const futureTime = new Date(now.getTime() + (i * 60 * 60 * 1000));
-        
-        const features = [
-          futureTime.getHours(),
-          futureTime.getDay(),
-          futureTime.getMonth() + 1,
-          (futureTime.getDay() === 0 || futureTime.getDay() === 6) ? 1 : 0,
-          this.isHoliday(futureTime) ? 1 : 0,
-          3, // diversidad_facultades promedio
-          2  // diversidad_puertas promedio
-        ];
-
-        const entrancePrediction = this.predict(this.entranceModel, features);
-        const exitPrediction = this.predict(this.exitModel, features);
-
-        predictions.push({
-          hora: futureTime.getHours(),
-          fecha_hora: futureTime.toISOString(),
-          predicciones: {
-            entrada: Math.round(entrancePrediction),
-            salida: Math.round(exitPrediction),
-            total: Math.round(entrancePrediction + exitPrediction)
-          },
-          es_pico: {
-            entrada: entrancePrediction > this.calculatePeakThreshold('entrada'),
-            salida: exitPrediction > this.calculatePeakThreshold('salida'),
-            general: (entrancePrediction + exitPrediction) > 50
-          },
-          confianza: this.calculateConfidence(features)
-        });
-      }
-
-      return {
-        success: true,
-        predictions: predictions,
-        generatedAt: new Date().toISOString(),
-        modelMetrics: this.modelMetrics
-      };
-    } catch (error) {
-      throw new Error(`Error prediciendo horarios pico: ${error.message}`);
-    }
-  }
-
-  /**
-   * Calcula umbral para determinar horario pico
-   */
-  calculatePeakThreshold(tipo) {
-    return tipo === 'entrada' ? 30 : 25; // Umbrales ajustables
-  }
-
-  /**
-   * Calcula confianza de la predicción
-   */
-  calculateConfidence(features) {
-    // Simplificado: basado en si es horario típico de universidad
-    const hora = features[0];
-    const esFinde = features[3];
-    
-    if (esFinde) return 0.6;
-    if (hora >= 7 && hora <= 19) return 0.85;
-    return 0.4;
-  }
-
-  /**
-   * Guarda modelos entrenados
-   */
-  async saveModels() {
-    try {
-      await fs.mkdir(this.modelsDir, { recursive: true });
-      
-      const modelsData = {
-        entrance: this.entranceModel,
-        exit: this.exitModel,
-        metrics: this.modelMetrics,
-        savedAt: new Date().toISOString()
-      };
-
-      const filepath = path.join(this.modelsDir, 'peak_hours_models.json');
-      await fs.writeFile(filepath, JSON.stringify(modelsData, null, 2));
-      
-      console.log(`💾 Modelos guardados en: ${filepath}`);
-    } catch (error) {
-      console.error('❌ Error guardando modelos:', error.message);
-    }
-  }
-
-  /**
-   * Carga modelos guardados
-   */
-  async loadModels() {
-    try {
-      const filepath = path.join(this.modelsDir, 'peak_hours_models.json');
-      const data = await fs.readFile(filepath, 'utf8');
-      const modelsData = JSON.parse(data);
-      
-      this.entranceModel = modelsData.entrance;
-      this.exitModel = modelsData.exit;
-      this.modelMetrics = modelsData.metrics;
-      
-      console.log('📥 Modelos cargados exitosamente');
-    } catch (error) {
-      throw new Error(`Error cargando modelos: ${error.message}`);
-    }
-  }
-
-  // Métodos auxiliares
   getWeekOfYear(date) {
     const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
     const dayNum = d.getUTCDay() || 7;
@@ -467,18 +107,568 @@ class PeakHoursPredictiveModel {
     return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
   }
 
-  isPeakHour(hora, diaSemana) {
-    const peakHours = [7, 8, 9, 17, 18, 19];
-    const isWeekend = diaSemana === 0 || diaSemana === 6;
-    return peakHours.includes(hora) && !isWeekend;
+  /**
+   * Verifica si es feriado
+   */
+  isHoliday(date) {
+    return false; // Implementar lógica de feriados si es necesario
   }
 
-  isHoliday(date) {
-    const holidays = ['01-01', '05-01', '07-28', '07-29', '08-30', '10-08', '11-01', '12-08', '12-25'];
-    const monthDay = String(date.getMonth() + 1).padStart(2, '0') + '-' + 
-                    String(date.getDate()).padStart(2, '0');
-    return holidays.includes(monthDay);
+  /**
+   * Entrena modelos predictivos para entrada y salida
+   */
+  async trainPredictiveModels(options = {}) {
+    const {
+      months = 3,
+      testSize = 0.2,
+      optimizeParams = true,
+      cvFolds = 5,
+      targetAccuracy = 0.8
+    } = options;
+
+    try {
+      // 1. Recopilar dataset histórico
+      const collectionResult = await this.collector.collectHistoricalDataset({
+        months,
+        includeFeatures: true,
+        outputFormat: 'json'
+      });
+
+      const datasetContent = await fs.readFile(collectionResult.filepath, 'utf8');
+      const dataset = JSON.parse(datasetContent);
+
+      // 2. Preparar datos específicos para horarios pico
+      const { X_entrance, y_entrance, X_exit, y_exit, featureNames } = 
+        this.preparePeakHoursData(dataset);
+
+      if (X_entrance.length < cvFolds || X_exit.length < cvFolds) {
+        throw new Error(`Dataset insuficiente. Se requieren al menos ${cvFolds} muestras.`);
+      }
+
+      // 3. Entrenar modelo de ENTRADAS
+      console.log('🔵 Entrenando modelo de ENTRADAS...');
+      const entranceResult = await this.trainModel(
+        X_entrance,
+        y_entrance,
+        'entrance',
+        optimizeParams,
+        cvFolds,
+        targetAccuracy
+      );
+
+      // 4. Entrenar modelo de SALIDAS
+      console.log('🔴 Entrenando modelo de SALIDAS...');
+      const exitResult = await this.trainModel(
+        X_exit,
+        y_exit,
+        'exit',
+        optimizeParams,
+        cvFolds,
+        targetAccuracy
+      );
+
+      // 5. Guardar modelos
+      const modelData = {
+        entrance: entranceResult,
+        exit: exitResult,
+        featureNames,
+        meetsAccuracyThreshold: entranceResult.accuracy >= targetAccuracy && 
+                                 exitResult.accuracy >= targetAccuracy,
+        createdAt: new Date().toISOString()
+      };
+
+      await this.saveModels(modelData);
+
+      return {
+        success: true,
+        entrance: entranceResult,
+        exit: exitResult,
+        meetsAccuracyThreshold: modelData.meetsAccuracyThreshold,
+        modelPath: modelData.modelPath
+      };
+    } catch (error) {
+      throw new Error(`Error entrenando modelos predictivos: ${error.message}`);
+    }
+  }
+
+  /**
+   * Entrena un modelo específico (entrada o salida) con mejoras
+   */
+  async trainModel(X, y, type, optimizeParams, cvFolds, targetAccuracy) {
+    // Split train/test
+    const splitIndex = Math.floor(X.length * (1 - 0.2));
+    const X_train = X.slice(0, splitIndex);
+    const y_train = y.slice(0, splitIndex);
+    const X_test = X.slice(splitIndex);
+    const y_test = y.slice(splitIndex);
+
+    // Optimizar parámetros si está habilitado
+    let bestParams = {
+      learningRate: 0.01,
+      iterations: 1000,
+      regularization: 0.01,
+      featureScaling: true
+    };
+
+    let optimizationResult = null;
+
+    if (optimizeParams) {
+      const optimizer = new ParameterOptimizer();
+      // Optimizar para R² alto (que se traduce en buena precisión)
+      optimizationResult = optimizer.optimizeForR2(X_train, y_train, 0.7, cvFolds);
+      bestParams = optimizationResult.bestParams;
+    }
+
+    // Early stopping
+    const EarlyStopping = require('./early_stopping');
+    const earlyStopping = new EarlyStopping({
+      patience: 20,
+      minDelta: 0.001,
+      monitor: 'loss',
+      mode: 'min',
+      restoreBestWeights: true
+    });
+
+    // Entrenar modelo con early stopping
+    const model = new LinearRegression(bestParams);
+    const trainingResult = model.fit(X_train, y_train, {
+      validationSplit: 0.2,
+      earlyStopping: earlyStopping,
+      verbose: false
+    });
+
+    // Validación cruzada mejorada
+    const cvValidator = new CrossValidation({ k: cvFolds });
+    const cvResults = cvValidator.crossValidateMultipleMetrics(X_train, y_train, bestParams);
+
+    // Evaluar en test
+    const testEvaluation = model.evaluate(X_test, y_test);
+
+    // Calcular precisión mejorada
+    const accuracy = this.calculateAccuracy(testEvaluation, y_test);
+
+    // Métricas mejoradas
+    const EnhancedMetricsService = require('./enhanced_metrics_service');
+    const enhancedMetrics = new EnhancedMetricsService();
+    const testPredictions = model.predictBatch(X_test);
+    const enhancedMetricsResult = enhancedMetrics.calculateEnhancedMetrics(
+      testPredictions,
+      y_test,
+      { includeRegressionMetrics: true, includeClassificationMetrics: false }
+    );
+
+    return {
+      type,
+      model: model.save(),
+      params: bestParams,
+      metrics: {
+        training: trainingResult,
+        crossValidation: cvResults.summary,
+        test: testEvaluation,
+        accuracy: accuracy,
+        enhanced: enhancedMetricsResult.regression || {}
+      },
+      optimization: optimizationResult,
+      earlyStopping: earlyStopping.getState(),
+      meetsAccuracyThreshold: accuracy >= targetAccuracy
+    };
+  }
+
+  /**
+   * Calcula precisión basada en error relativo
+   */
+  calculateAccuracy(evaluation, y_actual) {
+    const meanActual = y_actual.reduce((sum, val) => sum + val, 0) / y_actual.length;
+    if (meanActual === 0) return 0;
+
+    // Precisión basada en RMSE relativo
+    const relativeRMSE = evaluation.rmse / meanActual;
+    const accuracy = Math.max(0, 1 - relativeRMSE);
+
+    return parseFloat(accuracy.toFixed(4));
+  }
+
+  /**
+   * Guarda modelos entrenados
+   */
+  async saveModels(modelData) {
+    try {
+      await fs.mkdir(this.modelsDir, { recursive: true });
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `peak_hours_model_${timestamp}.json`;
+      const filepath = path.join(this.modelsDir, filename);
+
+      modelData.modelPath = filepath;
+      await fs.writeFile(filepath, JSON.stringify(modelData, null, 2));
+
+      return filepath;
+    } catch (error) {
+      throw new Error(`Error guardando modelos: ${error.message}`);
+    }
+  }
+
+  /**
+   * Carga modelos más recientes
+   */
+  async loadLatestModels() {
+    try {
+      const files = await fs.readdir(this.modelsDir);
+      const jsonFiles = files.filter(f => f.endsWith('.json')).sort().reverse();
+
+      if (jsonFiles.length === 0) {
+        throw new Error('No hay modelos de horarios pico entrenados');
+      }
+
+      const filepath = path.join(this.modelsDir, jsonFiles[0]);
+      const content = await fs.readFile(filepath, 'utf8');
+      const modelData = JSON.parse(content);
+
+      // Cargar modelos
+      const entranceModel = new LinearRegression();
+      entranceModel.setParams(modelData.entrance.model.params);
+
+      const exitModel = new LinearRegression();
+      exitModel.setParams(modelData.exit.model.params);
+
+      this.entranceModel = entranceModel;
+      this.exitModel = exitModel;
+
+      return {
+        entranceModel,
+        exitModel,
+        modelData,
+        filepath
+      };
+    } catch (error) {
+      throw new Error(`Error cargando modelos: ${error.message}`);
+    }
+  }
+
+  /**
+   * Predice horarios pico para las próximas 24 horas
+   */
+  async predictNext24Hours(targetDate = null) {
+    try {
+      // Cargar modelos si no están cargados
+      if (!this.entranceModel || !this.exitModel) {
+        await this.loadLatestModels();
+      }
+
+      const date = targetDate ? new Date(targetDate) : new Date();
+      const predictions = [];
+
+      // Predecir para cada hora de las próximas 24 horas
+      for (let hourOffset = 0; hourOffset < 24; hourOffset++) {
+        const predictionDate = new Date(date);
+        predictionDate.setHours(date.getHours() + hourOffset, 0, 0, 0);
+
+        // Predecir ENTRADAS
+        const entranceFeatures = this.prepareFeaturesForPrediction(predictionDate);
+        const entranceCount = this.entranceModel.predict(entranceFeatures);
+
+        // Predecir SALIDAS
+        const exitFeatures = this.prepareFeaturesForPrediction(predictionDate);
+        const exitCount = this.exitModel.predict(exitFeatures);
+
+        // Identificar si es horario pico
+        const isPeakHour = this.isPeakHourPredicted(entranceCount, exitCount, predictionDate);
+
+        predictions.push({
+          timestamp: predictionDate.toISOString(),
+          fecha: predictionDate.toISOString().split('T')[0],
+          hora: predictionDate.getHours(),
+          dia_semana: this.getDayName(predictionDate.getDay()),
+          predictedEntrance: Math.round(Math.max(0, entranceCount)),
+          predictedExit: Math.round(Math.max(0, exitCount)),
+          predictedTotal: Math.round(Math.max(0, entranceCount + exitCount)),
+          isPeakHour,
+          confidence: this.calculateConfidence(entranceCount, exitCount)
+        });
+      }
+
+      // Identificar horarios pico principales
+      const peakHours = this.identifyPeakHours(predictions);
+
+      return {
+        startDate: date.toISOString(),
+        predictions,
+        peakHours,
+        summary: this.generatePredictionSummary(predictions),
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      throw new Error(`Error prediciendo próximas 24 horas: ${error.message}`);
+    }
+  }
+
+  /**
+   * Prepara características para predicción en una fecha específica
+   */
+  prepareFeaturesForPrediction(date) {
+    const diaSemana = date.getDay();
+    const mes = date.getMonth() + 1;
+    const semanaAnio = this.getWeekOfYear(date);
+
+    return [
+      date.getHours(),
+      diaSemana,
+      mes,
+      (diaSemana === 0 || diaSemana === 6) ? 1 : 0,
+      this.isHoliday(date) ? 1 : 0,
+      semanaAnio
+    ];
+  }
+
+  /**
+   * Determina si es horario pico predicho
+   */
+  isPeakHourPredicted(entranceCount, exitCount, date) {
+    const hour = date.getHours();
+    const total = entranceCount + exitCount;
+
+    // Horarios conocidos como pico (7-9, 17-19)
+    const knownPeakHours = [7, 8, 9, 17, 18, 19];
+    const isKnownPeak = knownPeakHours.includes(hour);
+
+    // Umbral dinámico basado en promedio estimado
+    const threshold = 50; // Umbral de accesos para considerar pico
+
+    return isKnownPeak || total >= threshold;
+  }
+
+  /**
+   * Calcula confianza de la predicción
+   */
+  calculateConfidence(entranceCount, exitCount) {
+    // Confianza basada en valores razonables (no negativos, no extremos)
+    const total = entranceCount + exitCount;
+    
+    if (total < 0) return 0.3;
+    if (total > 500) return 0.5; // Valores extremos tienen menos confianza
+    
+    // Confianza aumenta con valores en rango esperado
+    return Math.min(0.95, 0.6 + (total / 500) * 0.35);
+  }
+
+  /**
+   * Identifica horarios pico principales
+   */
+  identifyPeakHours(predictions) {
+    // Ordenar por total predicho
+    const sorted = [...predictions].sort((a, b) => 
+      b.predictedTotal - a.predictedTotal
+    );
+
+    // Top 5 horarios pico
+    return sorted.slice(0, 5).map(p => ({
+      hora: p.hora,
+      fecha: p.fecha,
+      predictedEntrance: p.predictedEntrance,
+      predictedExit: p.predictedExit,
+      predictedTotal: p.predictedTotal,
+      confidence: p.confidence
+    }));
+  }
+
+  /**
+   * Genera resumen de predicción
+   */
+  generatePredictionSummary(predictions) {
+    const peakHours = predictions.filter(p => p.isPeakHour);
+    const totalEntrance = predictions.reduce((sum, p) => sum + p.predictedEntrance, 0);
+    const totalExit = predictions.reduce((sum, p) => sum + p.predictedExit, 0);
+    const avgConfidence = predictions.reduce((sum, p) => sum + p.confidence, 0) / predictions.length;
+
+    return {
+      totalHours: predictions.length,
+      peakHoursCount: peakHours.length,
+      peakHours: peakHours.map(p => p.hora),
+      totalPredictedEntrance: Math.round(totalEntrance),
+      totalPredictedExit: Math.round(totalExit),
+      totalPredicted: Math.round(totalEntrance + totalExit),
+      averageConfidence: parseFloat(avgConfidence.toFixed(2)),
+      peakHoursDetails: peakHours.map(p => ({
+        hora: p.hora,
+        total: p.predictedTotal,
+        confidence: p.confidence
+      }))
+    };
+  }
+
+  /**
+   * Obtiene nombre del día
+   */
+  getDayName(dayIndex) {
+    const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    return days[dayIndex];
+  }
+
+  /**
+   * Valida precisión del modelo
+   */
+  async validateAccuracy(options = {}) {
+    const {
+      months = 3,
+      testSize = 0.2,
+      targetAccuracy = 0.8
+    } = options;
+
+    try {
+      // Recopilar datos
+      const collectionResult = await this.collector.collectHistoricalDataset({
+        months,
+        includeFeatures: true,
+        outputFormat: 'json'
+      });
+
+      const datasetContent = await fs.readFile(collectionResult.filepath, 'utf8');
+      const dataset = JSON.parse(datasetContent);
+
+      // Preparar datos
+      const { X_entrance, y_entrance, X_exit, y_exit } = 
+        this.preparePeakHoursData(dataset);
+
+      // Cargar modelos
+      const { entranceModel, exitModel } = await this.loadLatestModels();
+
+      // Evaluar precisión en datos de prueba
+      const splitIndex = Math.floor(X_entrance.length * (1 - testSize));
+      
+      const X_entrance_test = X_entrance.slice(splitIndex);
+      const y_entrance_test = y_entrance.slice(splitIndex);
+      const X_exit_test = X_exit.slice(splitIndex);
+      const y_exit_test = y_exit.slice(splitIndex);
+
+      const entranceEval = entranceModel.evaluate(X_entrance_test, y_entrance_test);
+      const exitEval = exitModel.evaluate(X_exit_test, y_exit_test);
+
+      const entranceAccuracy = this.calculateAccuracy(entranceEval, y_entrance_test);
+      const exitAccuracy = this.calculateAccuracy(exitEval, y_exit_test);
+      const overallAccuracy = (entranceAccuracy + exitAccuracy) / 2;
+
+      return {
+        entrance: {
+          accuracy: entranceAccuracy,
+          metrics: entranceEval,
+          meetsThreshold: entranceAccuracy >= targetAccuracy
+        },
+        exit: {
+          accuracy: exitAccuracy,
+          metrics: exitEval,
+          meetsThreshold: exitAccuracy >= targetAccuracy
+        },
+        overall: {
+          accuracy: overallAccuracy,
+          meetsThreshold: overallAccuracy >= targetAccuracy
+        }
+      };
+    } catch (error) {
+      throw new Error(`Error validando precisión: ${error.message}`);
+    }
+  }
+
+  /**
+   * Obtiene métricas del modelo
+   */
+  async getModelMetrics() {
+    try {
+      const { modelData } = await this.loadLatestModels();
+
+      return {
+        entrance: {
+          accuracy: modelData.entrance.metrics.accuracy,
+          r2: modelData.entrance.metrics.test.r2,
+          rmse: modelData.entrance.metrics.test.rmse,
+          meetsThreshold: modelData.entrance.meetsAccuracyThreshold
+        },
+        exit: {
+          accuracy: modelData.exit.metrics.accuracy,
+          r2: modelData.exit.metrics.test.r2,
+          rmse: modelData.exit.metrics.test.rmse,
+          meetsThreshold: modelData.exit.meetsAccuracyThreshold
+        },
+        overall: {
+          accuracy: (modelData.entrance.metrics.accuracy + modelData.exit.metrics.accuracy) / 2,
+          meetsThreshold: modelData.meetsAccuracyThreshold
+        },
+        createdAt: modelData.createdAt
+      };
+    } catch (error) {
+      throw new Error(`Error obteniendo métricas: ${error.message}`);
+    }
+  }
+
+  /**
+   * ALIAS: Método compatible con backend principal
+   * Llama a trainPredictiveModels internamente
+   */
+  async trainPeakHoursModel(options = {}) {
+    return await this.trainPredictiveModels(options);
+  }
+
+  /**
+   * ALIAS: Método compatible con backend principal
+   * Predice próximas 24 horas usando el modelo entrenado
+   */
+  async predictNext24Hours() {
+    try {
+      // Cargar modelos si no están en memoria
+      if (!this.entranceModel || !this.exitModel) {
+        const modelData = await this.loadModels();
+        this.entranceModel = modelData.entrance;
+        this.exitModel = modelData.exit;
+      }
+
+      const predictions = [];
+      const now = new Date();
+
+      for (let i = 0; i < 24; i++) {
+        const futureTime = new Date(now.getTime() + (i * 60 * 60 * 1000));
+        const features = this.extractFeaturesForHour({}, futureTime);
+        
+        const featureArray = [
+          features.hora,
+          features.dia_semana,
+          features.mes,
+          features.es_fin_semana,
+          features.es_feriado,
+          features.semana_anio
+        ];
+
+        const entrancePred = this.entranceModel.model.predict([featureArray])[0];
+        const exitPred = this.exitModel.model.predict([featureArray])[0];
+
+        predictions.push({
+          hora: futureTime.getHours(),
+          fecha_hora: futureTime.toISOString(),
+          predicciones: {
+            entrada: Math.max(0, Math.round(entrancePred)),
+            salida: Math.max(0, Math.round(exitPred)),
+            total: Math.max(0, Math.round(entrancePred + exitPred))
+          },
+          es_pico: (entrancePred + exitPred) > 50, // umbral configurable
+          confianza: Math.min(
+            this.entranceModel.metrics.accuracy,
+            this.exitModel.metrics.accuracy
+          )
+        });
+      }
+
+      return {
+        success: true,
+        generatedAt: new Date().toISOString(),
+        predictions,
+        modelMetrics: {
+          entrance: this.entranceModel.metrics,
+          exit: this.exitModel.metrics
+        }
+      };
+    } catch (error) {
+      throw new Error(`Error prediciendo próximas 24 horas: ${error.message}`);
+    }
   }
 }
 
 module.exports = PeakHoursPredictiveModel;
+

@@ -1,8 +1,0 @@
-{
-  "enabled": true,
-  "cronExpression": "0 2 * * 0",
-  "autoRetrain": true,
-  "backupPreviousModel": true,
-  "performanceTreshold": 0.75,
-  "rollbackOnFailure": true
-}
