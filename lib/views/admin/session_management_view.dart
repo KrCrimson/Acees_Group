@@ -226,8 +226,99 @@ class _SessionManagementViewState extends State<SessionManagementView> {
 
     return Column(
       children: [
-        SizedBox(height: 16),
-        ..._sesionesActivas.map((sesion) => _buildSesionCard(sesion)),
+        // Lista de sesiones activas (parte superior)
+        Expanded(
+          flex: 2,
+          child: _sesionesActivas.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.check_circle_outline, size: 64, color: Colors.green),
+                      SizedBox(height: 16),
+                      Text(
+                        'No hay sesiones activas',
+                        style: GoogleFonts.lato(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: EdgeInsets.all(16),
+                  itemCount: _sesionesActivas.length,
+                  itemBuilder: (context, index) {
+                    return _buildSesionCard(_sesionesActivas[index]);
+                  },
+                ),
+        ),
+        
+        // Consola de logs (parte inferior)
+        Container(
+          height: 200,
+          decoration: BoxDecoration(
+            color: Color(0xFF1E1E1E),
+            border: Border(top: BorderSide(color: Colors.grey[300]!, width: 2)),
+          ),
+          child: Column(
+            children: [
+              // Header
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Color(0xFF2D2D2D),
+                  border: Border(bottom: BorderSide(color: Colors.grey[700]!)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.bug_report, color: Colors.green, size: 16),
+                    SizedBox(width: 8),
+                    Text(
+                      'LOGS DE DEBUGGING',
+                      style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                    Spacer(),
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _logs.clear();
+                        });
+                      },
+                      child: Text('LIMPIAR', style: TextStyle(color: Colors.red, fontSize: 11)),
+                    ),
+                  ],
+                ),
+              ),
+              // Logs
+              Expanded(
+                child: _logs.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No hay logs aún',
+                          style: TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: _logScrollController,
+                        padding: EdgeInsets.all(8),
+                        itemCount: _logs.length,
+                        itemBuilder: (context, index) {
+                          return Padding(
+                            padding: EdgeInsets.symmetric(vertical: 1),
+                            child: Text(
+                              _logs[index],
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }

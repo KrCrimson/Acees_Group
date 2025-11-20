@@ -146,10 +146,6 @@ class _AdminViewState extends State<AdminView> {
             icon: Icon(Icons.history),
             label: 'Historial',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bug_report),
-            label: 'Logs',
-          ),
         ],
       ),
     );

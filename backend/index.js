@@ -1720,14 +1720,338 @@ function calcularTiempoPromedio(estudiantesPresentes) {
   return tiempos.length > 0 ? tiempos.reduce((a, b) => a + b) / tiempos.length : 0;
 }
 
+// ==================== ENDPOINTS MACHINE LEARNING ====================
+
+// Importar servicios ML
+const MLETLService = require('./ml/ml_etl_service');
+const PeakHoursPredictiveModel = require('./ml/peak_hours_predictive_model');
+const CongestionAlertSystem = require('./ml/congestion_alert_system');
+const DatasetCollector = require('./ml/dataset_collector');
+const WeeklyModelUpdateService = require('./ml/weekly_model_update_service');
+
+// Inicializar servicios ML
+let etlService = null;
+let peakModel = null;
+let alertSystem = null;
+let datasetCollector = null;
+let updateService = null;
+
+// Función para inicializar servicios ML
+async function initializeMLServices() {
+  try {
+    etlService = new MLETLService(Asistencia);
+    peakModel = new PeakHoursPredictiveModel(Asistencia);
+    alertSystem = new CongestionAlertSystem(Asistencia);
+    datasetCollector = new DatasetCollector(Asistencia);
+    updateService = new WeeklyModelUpdateService(Asistencia);
+    
+    await alertSystem.initialize();
+    await updateService.initialize();
+    console.log('🤖 Servicios ML inicializados correctamente');
+  } catch (error) {
+    console.error('❌ Error inicializando servicios ML:', error.message);
+  }
+}
+
+// DATASET ENDPOINTS
+app.post('/ml/dataset/collect', async (req, res) => {
+  try {
+    if (!datasetCollector) {
+      return res.status(500).json({ error: 'Servicio ML no inicializado' });
+    }
+    
+    const { months = 3, outputFormat = 'json' } = req.body;
+    const result = await datasetCollector.collectHistoricalDataset({ months, outputFormat });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/ml/dataset/validate', async (req, res) => {
+  try {
+    if (!datasetCollector) {
+      return res.status(500).json({ error: 'Servicio ML no inicializado' });
+    }
+    
+    const validation = await datasetCollector.validateDatasetAvailability();
+    res.json(validation);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/ml/dataset/statistics', async (req, res) => {
+  try {
+    if (!datasetCollector) {
+      return res.status(500).json({ error: 'Servicio ML no inicializado' });
+    }
+    
+    const stats = await datasetCollector.getDatasetStatistics();
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ETL ENDPOINTS
+app.post('/ml/etl/run-pipeline', async (req, res) => {
+  try {
+    if (!etlService) {
+      return res.status(500).json({ error: 'Servicio ETL no inicializado' });
+    }
+    
+    const { months = 3, validateData = true, cleanData = true } = req.body;
+    const result = await etlService.runETLPipeline({ months, validateData, cleanData });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PREDICTION ENDPOINTS
+app.post('/ml/prediction/peak-hours/train', async (req, res) => {
+  try {
+    if (!peakModel) {
+      return res.status(500).json({ error: 'Modelo predictivo no inicializado' });
+    }
+    
+    const { months = 3, testSize = 0.2 } = req.body;
+    const result = await peakModel.trainPeakHoursModel({ months, testSize });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/ml/prediction/peak-hours/next-24h', async (req, res) => {
+  try {
+    if (!peakModel) {
+      return res.status(500).json({ error: 'Modelo predictivo no inicializado' });
+    }
+    
+    const predictions = await peakModel.predictNext24Hours();
+    res.json(predictions);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// CONGESTION ALERTS ENDPOINTS
+app.post('/ml/congestion-alerts/configure', async (req, res) => {
+  try {
+    if (!alertSystem) {
+      return res.status(500).json({ error: 'Sistema de alertas no inicializado' });
+    }
+    
+    const { thresholds } = req.body;
+    if (!thresholds) {
+      return res.status(400).json({ error: 'Thresholds requeridos' });
+    }
+    
+    const result = await alertSystem.configureThresholds(thresholds);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/ml/congestion-alerts/check', async (req, res) => {
+  try {
+    if (!alertSystem) {
+      return res.status(500).json({ error: 'Sistema de alertas no inicializado' });
+    }
+    
+    const result = await alertSystem.checkAndGenerateAlerts();
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// TRAINING PIPELINE ENDPOINT
+app.post('/ml/pipeline/train', async (req, res) => {
+  try {
+    if (!etlService || !peakModel || !alertSystem) {
+      return res.status(500).json({ error: 'Servicios ML no inicializados completamente' });
+    }
+    
+    console.log('🚀 Iniciando pipeline completo de entrenamiento ML...');
+    
+    // 1. Ejecutar ETL
+    const etlResult = await etlService.runETLPipeline({
+      months: 3,
+      validateData: true,
+      cleanData: true
+    });
+    
+    // 2. Entrenar modelo
+    const trainingResult = await peakModel.trainPeakHoursModel({
+      months: 3,
+      testSize: 0.2
+    });
+    
+    // 3. Verificar alertas
+    const alertCheck = await alertSystem.checkAndGenerateAlerts();
+    
+    const overallAccuracy = trainingResult.metrics.overall.accuracy;
+    const meetsRequirement = overallAccuracy > 0.8;
+    
+    res.json({
+      success: true,
+      pipeline: {
+        etl: {
+          records: etlResult.transform.records,
+          features: etlResult.transform.features
+        },
+        training: {
+          accuracy: overallAccuracy,
+          meetsRequirement: meetsRequirement,
+          metrics: trainingResult.metrics
+        },
+        alerts: {
+          generated: alertCheck.alertsGenerated
+        }
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// WEEKLY UPDATE ENDPOINTS
+app.post('/ml/update/schedule', async (req, res) => {
+  try {
+    if (!updateService) {
+      return res.status(500).json({ error: 'Servicio de actualización no inicializado' });
+    }
+    
+    const result = await updateService.startScheduler();
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/ml/update/schedule/status', async (req, res) => {
+  try {
+    if (!updateService) {
+      return res.status(500).json({ error: 'Servicio de actualización no inicializado' });
+    }
+    
+    const status = updateService.getSchedulerStatus();
+    res.json({ success: true, status });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/ml/update/schedule/stop', async (req, res) => {
+  try {
+    if (!updateService) {
+      return res.status(500).json({ error: 'Servicio de actualización no inicializado' });
+    }
+    
+    const result = await updateService.stopScheduler();
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/ml/update/weekly', async (req, res) => {
+  try {
+    if (!updateService) {
+      return res.status(500).json({ error: 'Servicio de actualización no inicializado' });
+    }
+    
+    const result = await updateService.executeManualUpdate();
+    res.json({ success: true, result });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/ml/update/history', async (req, res) => {
+  try {
+    if (!updateService) {
+      return res.status(500).json({ error: 'Servicio de actualización no inicializado' });
+    }
+    
+    const { limit = 20 } = req.query;
+    const history = updateService.getUpdateHistory(parseInt(limit));
+    res.json({ success: true, history });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/ml/update/configure', async (req, res) => {
+  try {
+    if (!updateService) {
+      return res.status(500).json({ error: 'Servicio de actualización no inicializado' });
+    }
+    
+    const { config } = req.body;
+    if (!config) {
+      return res.status(400).json({ error: 'Configuración requerida' });
+    }
+    
+    const result = await updateService.configureScheduler(config);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ML STATUS ENDPOINT
+app.get('/ml/status', async (req, res) => {
+  try {
+    const status = {
+      services: {
+        etl: !!etlService,
+        peakModel: !!peakModel,
+        alertSystem: !!alertSystem,
+        datasetCollector: !!datasetCollector,
+        updateService: !!updateService
+      },
+      scheduler: updateService ? updateService.getSchedulerStatus() : null,
+      database: {
+        connected: mongoose.connection.readyState === 1,
+        collections: {
+          asistencias: await Asistencia.countDocuments(),
+          alumnos: await Alumno.countDocuments(),
+          usuarios: await User.countDocuments()
+        }
+      },
+      lastUpdated: new Date().toISOString()
+    };
+    
+    res.json({
+      success: true,
+      status: status,
+      message: 'Sistema ML operativo'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Configuración de puerto para Railway
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 
-app.listen(PORT, HOST, () => {
+app.listen(PORT, HOST, async () => {
   console.log(`🚀 Servidor ejecutándose en ${HOST}:${PORT}`);
   console.log(`📡 Ambiente: ${process.env.NODE_ENV || 'development'}`);
   console.log(`💾 Base de datos: ${mongoose.connection.readyState === 1 ? 'Conectada' : 'Desconectada'}`);
+  console.log(`🤖 Sistema ML: Endpoints disponibles en /ml/*`);
+  
+  // Inicializar servicios ML después de que el servidor esté en funcionamiento
+  setTimeout(() => {
+    initializeMLServices();
+  }, 2000);
 });
 
 
