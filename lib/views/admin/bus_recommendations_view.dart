@@ -67,6 +67,34 @@ class _BusRecommendationsViewState extends State<BusRecommendationsView> {
     }
   }
 
+  Future<void> _checkDataCount() async {
+    _addToDebugLog('Verificando datos en BD...');
+
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/ml/debug/data-count'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final total = data['data']['total'];
+        final recent = data['data']['recent3Months'];
+
+        _addToDebugLog('📊 DATOS TOTALES:');
+        _addToDebugLog('   - Asistencias: ${total['asistencias']}');
+        _addToDebugLog('   - Entradas: ${total['entradas']}');
+        _addToDebugLog('   - Salidas: ${total['salidas']}');
+        _addToDebugLog('📊 ÚLTIMOS 3 MESES:');
+        _addToDebugLog('   - Total: ${recent['total']}');
+        _addToDebugLog('   - Entradas: ${recent['entradas']}');
+        _addToDebugLog('   - Salidas: ${recent['salidas']}');
+      }
+    } catch (e) {
+      _addToDebugLog('❌ Error verificando datos: $e');
+    }
+  }
+
   Future<void> _trainModel() async {
     setState(() {
       _training = true;
@@ -215,6 +243,15 @@ class _BusRecommendationsViewState extends State<BusRecommendationsView> {
                   onPressed: _loading ? null : _loadRecommendations,
                   icon: Icon(Icons.refresh),
                   label: Text('Actualizar'),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _checkDataCount,
+                  icon: Icon(Icons.analytics),
+                  label: Text('Verificar BD'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purple,
+                    foregroundColor: Colors.white,
+                  ),
                 ),
                 if (_error != null && _error!.contains('Datos insuficientes'))
                   ElevatedButton.icon(
