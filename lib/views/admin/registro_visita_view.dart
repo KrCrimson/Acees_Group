@@ -114,8 +114,8 @@ class RegistroVisitaView extends StatelessWidget {
                           ),
                           const SizedBox(height: 16),
                           TextField(
-                            controller: TextEditingController(text: viewModel.nombreCompleto),
-                            enabled: viewModel.isManualMode, // Solo editable en modo manual
+                            key: ValueKey(viewModel.isManualMode),
+                            enabled: viewModel.isManualMode,
                             decoration: InputDecoration(
                               labelText: 'Nombre Completo',
                               hintText: 'Nombres y Apellidos',
@@ -124,6 +124,8 @@ class RegistroVisitaView extends StatelessWidget {
                               filled: !viewModel.isManualMode,
                               fillColor: viewModel.isManualMode ? null : Colors.grey[100],
                             ),
+                            controller: TextEditingController(text: viewModel.nombreCompleto)
+                              ..selection = TextSelection.collapsed(offset: viewModel.nombreCompleto.length),
                             onChanged: viewModel.setNombreCompleto,
                           ),
                         ],

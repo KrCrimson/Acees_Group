@@ -295,40 +295,74 @@ class ApiService {
 
   Future<ExternoModel> registrarVisitaExterno(ExternoModel externo) async {
     try {
+      print('🔍 [API] Registrando externo: ${externo.nombreCompleto}');
+      print('🔍 [API] URL: ${ApiConfig.baseUrl}/externos');
+      print('🔍 [API] Payload: ${json.encode(externo.toJson())}');
+      
       final response = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/externos'),
         headers: _headers,
         body: json.encode(externo.toJson()),
       );
 
+      print('🔍 [API] Status Code: ${response.statusCode}');
+      print('🔍 [API] Response Body: ${response.body}');
+
       if (response.statusCode == 201) {
         return ExternoModel.fromJson(json.decode(response.body));
+      } else if (response.statusCode == 200) {
+        // Algunos backends retornan 200 en lugar de 201
+        return ExternoModel.fromJson(json.decode(response.body));
       } else {
-        final error = json.decode(response.body);
-        throw Exception(error['error'] ?? 'Error al registrar visita externa');
+        // Intentar parsear el error
+        try {
+          final error = json.decode(response.body);
+          throw Exception(error['error'] ?? 'Error al registrar visita externa');
+        } catch (parseError) {
+          // Si no se puede parsear, mostrar el body crudo
+          throw Exception('Error ${response.statusCode}: ${response.body}');
+        }
       }
     } catch (e) {
+      print('❌ [API] Error: $e');
       throw Exception('Error de conexión: $e');
     }
   }
 
-  // Simulación de consulta RENIEC (o implementación real si hay API Key)
+  // Consulta RENIEC usando API de apiperu.dev
   Future<Map<String, String>> consultarDniReniec(String dni) async {
     try {
-      // TODO: Reemplazar con llamada real si se dispone de API Key
-      // Por ahora simulamos un delay y retornamos datos dummy o error si no es válido
-      await Future.delayed(const Duration(seconds: 1));
-      
       if (dni.length != 8) {
-        throw Exception('DNI inválido');
+        throw Exception('DNI debe tener 8 dígitos');
       }
 
-      // Simulación de éxito
-      return {
-        'nombre': 'JUAN PEREZ', // Placeholder
-        'apellido': 'DEL EXTERNO', // Placeholder
-        'nombre_completo': 'JUAN PEREZ DEL EXTERNO'
-      };
+      final response = await http.post(
+        Uri.parse('https://apiperu.dev/api/dni'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer d73dcd7d399aa4187e4f7c475aeca9108197ffb6c37b43ed6d1cea41d8f153d4',
+        },
+        body: json.encode({'dni': dni}),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        // La API retorna: {success: true, data: {numero, nombre_completo, nombres, apellido_paterno, apellido_materno}}
+        if (data['success'] == true && data['data'] != null) {
+          final personData = data['data'];
+          return {
+            'nombre_completo': personData['nombre_completo'] ?? '',
+            'nombres': personData['nombres'] ?? '',
+            'apellido_paterno': personData['apellido_paterno'] ?? '',
+            'apellido_materno': personData['apellido_materno'] ?? '',
+          };
+        } else {
+          throw Exception('DNI no encontrado en RENIEC');
+        }
+      } else {
+        throw Exception('Error al consultar RENIEC: ${response.statusCode}');
+      }
     } catch (e) {
       throw Exception('Error al consultar RENIEC: $e');
     }

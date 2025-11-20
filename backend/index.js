@@ -1020,6 +1020,49 @@ const concurrencyMiddleware = async (req, res, next) => {
   }
 };
 
+// Ruta para registrar visita externa
+app.post('/externos', async (req, res) => {
+  try {
+    console.log('🔍 [EXTERNOS] Request recibido:', req.body);
+
+    const {
+      nombre_completo,
+      dni,
+      razon,
+      guardia_id,
+      guardia_nombre,
+      descripcion_ubicacion,
+      tipo
+    } = req.body;
+
+    // Validación básica
+    if (!nombre_completo || !dni || !razon || !guardia_id) {
+      console.log('❌ [EXTERNOS] Faltan datos requeridos');
+      return res.status(400).json({ error: 'Faltan datos requeridos' });
+    }
+
+    const nuevoExterno = new Externo({
+      _id: new mongoose.Types.ObjectId().toString(),
+      nombre_completo,
+      dni,
+      razon,
+      tipo: tipo || 'entrada',
+      estado: 'autorizado',
+      descripcion_ubicacion,
+      guardia_id,
+      guardia_nombre,
+      fecha_hora: getPeruDate()
+    });
+
+    await nuevoExterno.save();
+    console.log('✅ [EXTERNOS] Registrado exitosamente:', nuevoExterno._id);
+    res.status(201).json(nuevoExterno);
+  } catch (error) {
+    console.error('❌ [EXTERNOS] Error:', error);
+    res.status(500).json({ error: 'Error al registrar visita externa', details: error.message });
+  }
+});
+
 // Iniciar sesión de guardia
 app.post('/sesiones/iniciar', concurrencyMiddleware, async (req, res) => {
   try {
@@ -1642,45 +1685,6 @@ app.listen(PORT, HOST, () => {
   console.log(`🚀 Servidor ejecutándose en ${HOST}:${PORT}`);
   console.log(`📡 Ambiente: ${process.env.NODE_ENV || 'development'}`);
   console.log(`💾 Base de datos: ${mongoose.connection.readyState === 1 ? 'Conectada' : 'Desconectada'}`);
-});
-
-// Ruta para registrar visita externa
-app.post('/externos', async (req, res) => {
-  try {
-    const {
-      nombre_completo,
-      dni,
-      razon,
-      guardia_id,
-      guardia_nombre,
-      descripcion_ubicacion,
-      tipo
-    } = req.body;
-
-    // Validación básica
-    if (!nombre_completo || !dni || !razon || !guardia_id) {
-      return res.status(400).json({ error: 'Faltan datos requeridos' });
-    }
-
-    const nuevoExterno = new Externo({
-      _id: new mongoose.Types.ObjectId().toString(),
-      nombre_completo,
-      dni,
-      razon,
-      tipo: tipo || 'entrada',
-      estado: 'autorizado',
-      descripcion_ubicacion,
-      guardia_id,
-      guardia_nombre,
-      fecha_hora: getPeruDate()
-    });
-
-    await nuevoExterno.save();
-    res.status(201).json(nuevoExterno);
-  } catch (error) {
-    console.error('Error registrando externo:', error);
-    res.status(500).json({ error: 'Error al registrar visita externa' });
-  }
 });
 
 
