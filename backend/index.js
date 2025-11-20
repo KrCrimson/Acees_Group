@@ -1066,19 +1066,28 @@ app.post('/externos', async (req, res) => {
 // Iniciar sesión de guardia
 app.post('/sesiones/iniciar', concurrencyMiddleware, async (req, res) => {
   try {
+    console.log('🔍 [SESIONES-INICIAR] Request recibido:', JSON.stringify(req.body, null, 2));
     const { guardia_id, guardia_nombre, punto_control, device_info } = req.body;
 
+    if (!guardia_id || !guardia_nombre || !punto_control) {
+      console.log('❌ [SESIONES-INICIAR] Faltan datos requeridos');
+      return res.status(400).json({ error: 'Faltan datos requeridos: guardia_id, guardia_nombre, punto_control' });
+    }
+
+    console.log(`🔍 [SESIONES-INICIAR] Finalizando sesiones anteriores del guardia: ${guardia_id}`);
     // Finalizar cualquier sesión anterior del mismo guardia
-    await SessionGuard.updateMany(
+    const sesionesAnteriores = await SessionGuard.updateMany(
       { guardia_id, is_active: true },
       {
         is_active: false,
-        fecha_fin: new Date()
+        fecha_fin: getPeruDate()
       }
     );
+    console.log(`✅ [SESIONES-INICIAR] Sesiones anteriores finalizadas: ${sesionesAnteriores.modifiedCount}`);
 
     // Crear nueva sesión
     const sessionToken = require('crypto').randomUUID();
+    const ahora = getPeruDate();
     const nuevaSesion = new SessionGuard({
       _id: sessionToken,
       guardia_id,
@@ -1086,11 +1095,20 @@ app.post('/sesiones/iniciar', concurrencyMiddleware, async (req, res) => {
       punto_control,
       session_token: sessionToken,
       device_info: device_info || {},
-      last_activity: new Date(),
-      is_active: true
+      last_activity: ahora,
+      is_active: true,
+      fecha_inicio: ahora
     });
 
     await nuevaSesion.save();
+    console.log(`✅ [SESIONES-INICIAR] Nueva sesión creada:`, {
+      session_token: sessionToken,
+      guardia_id,
+      guardia_nombre,
+      punto_control,
+      fecha_inicio: ahora,
+      is_active: true
+    });
 
     res.status(201).json({
       session_token: sessionToken,
@@ -1098,34 +1116,42 @@ app.post('/sesiones/iniciar', concurrencyMiddleware, async (req, res) => {
       session: nuevaSesion
     });
   } catch (err) {
+    console.error('❌ [SESIONES-INICIAR] Error:', err);
     res.status(500).json({ error: 'Error al iniciar sesión', details: err.message });
   }
 });
 
-// Heartbeat - Mantener sesión activa
+// Actualizar actividad de sesión (heartbeat)
 app.post('/sesiones/heartbeat', async (req, res) => {
   try {
+    console.log('🔍 [SESIONES-HEARTBEAT] Request:', req.body);
     const { session_token } = req.body;
 
+    if (!session_token) {
+      console.log('❌ [SESIONES-HEARTBEAT] Falta session_token');
+      return res.status(400).json({ error: 'session_token es requerido' });
+    }
+
+    const ahora = getPeruDate();
     const sesion = await SessionGuard.findOneAndUpdate(
       { session_token, is_active: true },
-      { last_activity: new Date() },
+      { last_activity: ahora },
       { new: true }
     );
 
     if (!sesion) {
-      return res.status(404).json({
-        error: 'Sesión no encontrada o inactiva',
-        session_expired: true
-      });
+      console.log('❌ [SESIONES-HEARTBEAT] Sesión no encontrada:', session_token);
+      return res.status(404).json({ error: 'Sesión no encontrada' });
     }
 
+    console.log(`✅ [SESIONES-HEARTBEAT] Actividad actualizada para sesión: ${session_token}`);
     res.json({
-      message: 'Heartbeat registrado',
+      message: 'Actividad actualizada',
       last_activity: sesion.last_activity
     });
   } catch (err) {
-    res.status(500).json({ error: 'Error en heartbeat', details: err.message });
+    console.error('❌ [SESIONES-HEARTBEAT] Error:', err);
+    res.status(500).json({ error: 'Error al actualizar actividad', details: err.message });
   }
 });
 
@@ -1165,37 +1191,45 @@ app.post('/sesiones/finalizar', async (req, res) => {
 // Obtener sesiones activas
 app.get('/sesiones/activas', async (req, res) => {
   try {
+    console.log('🔍 [SESIONES-ACTIVAS] Consultando sesiones activas...');
     const sesionesActivas = await SessionGuard.find({ is_active: true });
+    console.log(`✅ [SESIONES-ACTIVAS] Encontradas ${sesionesActivas.length} sesiones activas`);
     res.json(sesionesActivas);
   } catch (err) {
-    res.status(500).json({ error: 'Error al obtener sesiones activas' });
+    console.error('❌ [SESIONES-ACTIVAS] Error:', err);
+    res.status(500).json({ error: 'Error al obtener sesiones activas', details: err.message });
   }
 });
 
-// Forzar finalización de sesión (para administradores)
+// Forzar finalización de sesión (admin)
 app.post('/sesiones/forzar-finalizacion', async (req, res) => {
   try {
-    const { guardia_id, admin_id } = req.body;
+    console.log('🔍 [SESIONES-FORZAR] Request:', req.body);
+    const { session_token, admin_id } = req.body;
 
-    // Verificar que quien hace la petición es admin
-    const admin = await User.findOne({ _id: admin_id, rango: 'admin' });
-    if (!admin) {
-      return res.status(403).json({ error: 'Solo administradores pueden forzar finalización' });
+    if (!session_token) {
+      console.log('❌ [SESIONES-FORZAR] Falta session_token');
+      return res.status(400).json({ error: 'session_token es requerido' });
     }
 
+    // Si no se proporciona session_token específico, finalizar todas las activas
+    const filter = session_token === 'all' ? { is_active: true } : { session_token, is_active: true };
+    console.log('🔍 [SESIONES-FORZAR] Filtro:', filter);
+
+    const ahora = getPeruDate();
     const resultado = await SessionGuard.updateMany(
-      { guardia_id, is_active: true },
+      filter,
       {
         is_active: false,
-        fecha_fin: new Date()
+        fecha_fin: ahora,
+        forced_by_admin: admin_id || 'unknown'
       }
     );
 
-    res.json({
-      message: 'Sesiones finalizadas por administrador',
-      sessions_affected: resultado.modifiedCount
-    });
+    console.log(`✅ [SESIONES-FORZAR] ${resultado.modifiedCount} sesión(es) finalizada(s)`);
+    res.json({ message: `${resultado.modifiedCount} sesión(es) finalizada(s)` });
   } catch (err) {
+    console.error('❌ [SESIONES-FORZAR] Error:', err);
     res.status(500).json({ error: 'Error al forzar finalización', details: err.message });
   }
 });
