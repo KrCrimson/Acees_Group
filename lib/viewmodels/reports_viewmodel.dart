@@ -15,6 +15,18 @@ class ReportsViewModel extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
 
+  // Filtros para Asistencias
+  String _asistenciaSearchQuery = '';
+  String? _selectedFacultadFilter;
+  String? _selectedEscuelaFilter;
+  String? _selectedTipoFilter;
+
+  // Filtros para Estudiantes
+  String _estudianteSearchQuery = '';
+  String? _selectedFacultadFilterEst;
+  String? _selectedEscuelaFilterEst;
+  String? _selectedEstadoFilter;
+
   // Getters
   List<AsistenciaModel> get asistencias => _asistencias;
   List<FacultadModel> get facultades => _facultades;
@@ -22,6 +34,70 @@ class ReportsViewModel extends ChangeNotifier {
   List<AlumnoModel> get alumnos => _alumnos;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+
+  // Getters de filtros - Asistencias
+  String? get selectedFacultadFilter => _selectedFacultadFilter;
+  String? get selectedEscuelaFilter => _selectedEscuelaFilter;
+  String? get selectedTipoFilter => _selectedTipoFilter;
+  bool get hasAsistenciaFilters => _asistenciaSearchQuery.isNotEmpty || _selectedFacultadFilter != null || _selectedEscuelaFilter != null || _selectedTipoFilter != null;
+
+  // Getters de filtros - Estudiantes
+  String? get selectedFacultadFilterEst => _selectedFacultadFilterEst;
+  String? get selectedEscuelaFilterEst => _selectedEscuelaFilterEst;
+  String? get selectedEstadoFilter => _selectedEstadoFilter;
+  bool get hasEstudianteFilters => _estudianteSearchQuery.isNotEmpty || _selectedFacultadFilterEst != null || _selectedEscuelaFilterEst != null || _selectedEstadoFilter != null;
+
+  // Listas filtradas
+  List<AsistenciaModel> get filteredAsistencias {
+    var filtered = _asistencias;
+    
+    if (_asistenciaSearchQuery.isNotEmpty) {
+      filtered = filtered.where((a) =>
+        a.nombreCompleto.toLowerCase().contains(_asistenciaSearchQuery.toLowerCase()) ||
+        a.codigoUniversitario.toLowerCase().contains(_asistenciaSearchQuery.toLowerCase())
+      ).toList();
+    }
+    
+    if (_selectedFacultadFilter != null) {
+      filtered = filtered.where((a) => a.siglasFacultad == _selectedFacultadFilter).toList();
+    }
+    
+    if (_selectedEscuelaFilter != null) {
+      filtered = filtered.where((a) => a.siglasEscuela == _selectedEscuelaFilter).toList();
+    }
+    
+    if (_selectedTipoFilter != null) {
+      filtered = filtered.where((a) => a.entradaTipo.toLowerCase().contains(_selectedTipoFilter!.toLowerCase())).toList();
+    }
+    
+    return filtered;
+  }
+
+  List<AlumnoModel> get filteredEstudiantes {
+    var filtered = _alumnos;
+    
+    if (_estudianteSearchQuery.isNotEmpty) {
+      filtered = filtered.where((a) =>
+        a.nombreCompleto.toLowerCase().contains(_estudianteSearchQuery.toLowerCase()) ||
+        a.codigoUniversitario.toLowerCase().contains(_estudianteSearchQuery.toLowerCase())
+      ).toList();
+    }
+    
+    if (_selectedFacultadFilterEst != null) {
+      filtered = filtered.where((a) => a.siglasFacultad == _selectedFacultadFilterEst).toList();
+    }
+    
+    if (_selectedEscuelaFilterEst != null) {
+      filtered = filtered.where((a) => a.siglasEscuela == _selectedEscuelaFilterEst).toList();
+    }
+    
+    if (_selectedEstadoFilter != null) {
+      final isActive = _selectedEstadoFilter == 'activo';
+      filtered = filtered.where((a) => a.isActive == isActive).toList();
+    }
+    
+    return filtered;
+  }
 
   // Cargar todos los datos
   Future<void> loadAllData() async {
@@ -140,6 +216,130 @@ class ReportsViewModel extends ChangeNotifier {
           ..sort((a, b) => b.value.compareTo(a.value));
 
     return sorted.take(limit).toList();
+  }
+
+  // Top escuelas con más asistencias
+  List<MapEntry<String, int>> getTopEscuelas({int limit = 5}) {
+    Map<String, int> asistenciasPorEscuela = {};
+    for (var asistencia in _asistencias) {
+      asistenciasPorEscuela[asistencia.siglasEscuela] = (asistenciasPorEscuela[asistencia.siglasEscuela] ?? 0) + 1;
+    }
+    var sorted = asistenciasPorEscuela.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    return sorted.take(limit).toList();
+  }
+
+  // Entradas vs Salidas
+  Map<String, int> getEntradasVsSalidas() {
+    int entradas = 0;
+    int salidas = 0;
+    final hoy = DateTime.now();
+    for (var asistencia in getAsistenciasByDate(hoy)) {
+      if (asistencia.entradaTipo.toLowerCase().contains('entrada')) {
+        entradas++;
+      } else {
+        salidas++;
+      }
+    }
+    return {'entradas': entradas, 'salidas': salidas};
+  }
+
+  // Tendencia semanal
+  List<Map<String, dynamic>> getTendenciaSemanal() {
+    final ahora = DateTime.now();
+    List<Map<String, dynamic>> tendencia = [];
+    for (int i = 6; i >= 0; i--) {
+      final dia = ahora.subtract(Duration(days: i));
+      final count = getAsistenciasByDate(dia).length;
+      tendencia.add({
+        'label': ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][dia.weekday % 7],
+        'count': count,
+      });
+    }
+    return tendencia;
+  }
+
+  // Top estudiantes más activos
+  List<Map<String, dynamic>> getTopEstudiantes({int limit = 10}) {
+    Map<String, int> asistenciasPorEstudiante = {};
+    for (var asistencia in _asistencias) {
+      asistenciasPorEstudiante[asistencia.nombreCompleto] = (asistenciasPorEstudiante[asistencia.nombreCompleto] ?? 0) + 1;
+    }
+    var sorted = asistenciasPorEstudiante.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    return sorted.take(limit).map((e) => {'nombre': e.key, 'count': e.value}).toList();
+  }
+
+  // Comparativa mensual
+  List<Map<String, dynamic>> getComparativaMensual() {
+    final ahora = DateTime.now();
+    List<Map<String, dynamic>> comparativa = [];
+    for (int i = 2; i >= 0; i--) {
+      final mes = DateTime(ahora.year, ahora.month - i, 1);
+      final siguienteMes = DateTime(ahora.year, ahora.month - i + 1, 1);
+      final count = getAsistenciasByDateRange(mes, siguienteMes).length;
+      comparativa.add({
+        'mes': ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'][mes.month - 1],
+        'count': count,
+      });
+    }
+    return comparativa;
+  }
+
+  // Métodos de filtrado - Asistencias
+  void setAsistenciaSearchQuery(String query) {
+    _asistenciaSearchQuery = query;
+    notifyListeners();
+  }
+
+  void setFacultadFilter(String? facultad) {
+    _selectedFacultadFilter = facultad;
+    notifyListeners();
+  }
+
+  void setEscuelaFilter(String? escuela) {
+    _selectedEscuelaFilter = escuela;
+    notifyListeners();
+  }
+
+  void setTipoFilter(String? tipo) {
+    _selectedTipoFilter = tipo;
+    notifyListeners();
+  }
+
+  void clearAsistenciaFilters() {
+    _asistenciaSearchQuery = '';
+    _selectedFacultadFilter = null;
+    _selectedEscuelaFilter = null;
+    _selectedTipoFilter = null;
+    notifyListeners();
+  }
+
+  // Métodos de filtrado - Estudiantes
+  void setEstudianteSearchQuery(String query) {
+    _estudianteSearchQuery = query;
+    notifyListeners();
+  }
+
+  void setFacultadFilterEst(String? facultad) {
+    _selectedFacultadFilterEst = facultad;
+    notifyListeners();
+  }
+
+  void setEscuelaFilterEst(String? escuela) {
+    _selectedEscuelaFilterEst = escuela;
+    notifyListeners();
+  }
+
+  void setEstadoFilter(String? estado) {
+    _selectedEstadoFilter = estado;
+    notifyListeners();
+  }
+
+  void clearEstudianteFilters() {
+    _estudianteSearchQuery = '';
+    _selectedFacultadFilterEst = null;
+    _selectedEscuelaFilterEst = null;
+    _selectedEstadoFilter = null;
+    notifyListeners();
   }
 
   // Métodos privados
