@@ -242,6 +242,66 @@ class _PresenciaDashboardViewState extends State<PresenciaDashboardView>
                           ),
                         ),
                       ),
+                      
+                      // Indicadores de filtros activos
+                      if (_autorizacionService.hayFiltrosActivos)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                if (_autorizacionService.filtroFechaInicio != null)
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: Chip(
+                                      avatar: Icon(Icons.calendar_today, size: 16, color: Colors.white),
+                                      label: Text(
+                                        '${_autorizacionService.filtroFechaInicio!.day}/${_autorizacionService.filtroFechaInicio!.month} - ${_autorizacionService.filtroFechaFin?.day}/${_autorizacionService.filtroFechaFin?.month}',
+                                        style: TextStyle(color: Colors.white, fontSize: 12),
+                                      ),
+                                      backgroundColor: Colors.indigo,
+                                      deleteIcon: Icon(Icons.close, size: 16, color: Colors.white),
+                                      onDeleted: () => _autorizacionService.limpiarFiltros(),
+                                    ),
+                                  ),
+                                if (_autorizacionService.filtroCarrera != null)
+                                  Chip(
+                                    avatar: Icon(Icons.school, size: 16, color: Colors.white),
+                                    label: Text(
+                                      _autorizacionService.filtroCarrera!,
+                                      style: TextStyle(color: Colors.white, fontSize: 12),
+                                    ),
+                                    backgroundColor: Colors.purple,
+                                    deleteIcon: Icon(Icons.close, size: 16, color: Colors.white),
+                                    onDeleted: () => _autorizacionService.setFiltros(
+                                      inicio: _autorizacionService.filtroFechaInicio,
+                                      fin: _autorizacionService.filtroFechaFin,
+                                      carrera: null,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        
+                      const SizedBox(height: 12),
+                      
+                      // Botón de Búsqueda Profunda
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _mostrarDialogoFiltros,
+                          icon: Icon(Icons.filter_list),
+                          label: Text('Búsqueda Profunda y Filtros'),
+                          style: OutlinedButton.styleFrom(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -688,5 +748,118 @@ class _PresenciaDashboardViewState extends State<PresenciaDashboardView>
         ),
       );
     }
+  }
+  }
+
+  void _mostrarDialogoFiltros() {
+    DateTime? fechaInicio = _autorizacionService.filtroFechaInicio;
+    DateTime? fechaFin = _autorizacionService.filtroFechaFin;
+    String? carreraSeleccionada = _autorizacionService.filtroCarrera;
+    final carreras = _autorizacionService.carrerasDisponibles;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Text('Filtros Avanzados'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Rango de Fechas:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () async {
+                            final picked = await showDateRangePicker(
+                              context: context,
+                              firstDate: DateTime(2024),
+                              lastDate: DateTime.now(),
+                              initialDateRange: fechaInicio != null && fechaFin != null
+                                  ? DateTimeRange(start: fechaInicio!, end: fechaFin!)
+                                  : null,
+                            );
+                            if (picked != null) {
+                              setState(() {
+                                fechaInicio = picked.start;
+                                fechaFin = picked.end;
+                              });
+                            }
+                          },
+                          child: Text(
+                            fechaInicio == null
+                                ? 'Seleccionar Fechas'
+                                : '${fechaInicio!.day}/${fechaInicio!.month} - ${fechaFin!.day}/${fechaFin!.month}',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ),
+                      if (fechaInicio != null)
+                        IconButton(
+                          icon: Icon(Icons.clear, size: 20),
+                          onPressed: () {
+                            setState(() {
+                              fechaInicio = null;
+                              fechaFin = null;
+                            });
+                          },
+                        ),
+                    ],
+                  ),
+                  SizedBox(height: 16),
+                  Text('Carrera / Escuela:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: carreraSeleccionada,
+                    decoration: InputDecoration(
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    hint: Text('Todas las carreras'),
+                    items: [
+                      DropdownMenuItem(value: null, child: Text('Todas las carreras')),
+                      ...carreras.map((c) => DropdownMenuItem(
+                            value: c,
+                            child: Text(
+                              c.length > 25 ? c.substring(0, 22) + '...' : c,
+                              style: TextStyle(fontSize: 13),
+                            ),
+                          )),
+                    ],
+                    onChanged: (value) {
+                      setState(() => carreraSeleccionada = value);
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  _autorizacionService.limpiarFiltros();
+                  Navigator.pop(context);
+                },
+                child: Text('Limpiar Todo', style: TextStyle(color: Colors.red)),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  _autorizacionService.setFiltros(
+                    inicio: fechaInicio,
+                    fin: fechaFin,
+                    carrera: carreraSeleccionada,
+                  );
+                  Navigator.pop(context);
+                },
+                child: Text('Aplicar Filtros'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 }
