@@ -33,10 +33,8 @@ mongoose.set('strictQuery', false);
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
       dbName: 'ASISTENCIA',
-      // Configuraciones adicionales para Railway
+      // Configuraciones optimizadas para Mongoose 8.x
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
