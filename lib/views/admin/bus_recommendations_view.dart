@@ -10,7 +10,6 @@ class BusRecommendationsView extends StatefulWidget {
 
 class _BusRecommendationsViewState extends State<BusRecommendationsView> {
   bool _loading = false;
-  bool _training = false;
   String? _error;
   List<dynamic> _recommendations = [];
   String _debugLog = 'Debug Log:\n';
@@ -25,112 +24,6 @@ class _BusRecommendationsViewState extends State<BusRecommendationsView> {
     setState(() {
       _debugLog += '${DateTime.now().toString().substring(11, 19)}: $message\n';
     });
-  }
-
-  Future<void> _generateTestData() async {
-    setState(() {
-      _training = true;
-      _error = null;
-    });
-
-    _addToDebugLog('Generando datos de prueba...');
-
-    try {
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/ml/generate-test-data'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'days': 120, 'recordsPerDay': 50}),
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        _addToDebugLog('✅ Datos generados: ${data['generated']} registros');
-        _addToDebugLog(
-            '📊 Total: ${data['totals']['total']}, Entradas: ${data['totals']['entradas']}, Salidas: ${data['totals']['salidas']}');
-        setState(() {
-          _training = false;
-        });
-      } else {
-        final errorData = json.decode(response.body);
-        _addToDebugLog('❌ Error generando datos: ${errorData['error']}');
-        setState(() {
-          _error = errorData['error'] ?? 'Error generando datos';
-          _training = false;
-        });
-      }
-    } catch (e) {
-      _addToDebugLog('❌ Excepción: $e');
-      setState(() {
-        _error = e.toString();
-        _training = false;
-      });
-    }
-  }
-
-  Future<void> _checkDataCount() async {
-    _addToDebugLog('Verificando datos en BD...');
-
-    try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/ml/debug/data-count'),
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final total = data['data']['total'];
-        final recent = data['data']['recent3Months'];
-
-        _addToDebugLog('📊 DATOS TOTALES:');
-        _addToDebugLog('   - Asistencias: ${total['asistencias']}');
-        _addToDebugLog('   - Entradas: ${total['entradas']}');
-        _addToDebugLog('   - Salidas: ${total['salidas']}');
-        _addToDebugLog('📊 ÚLTIMOS 3 MESES:');
-        _addToDebugLog('   - Total: ${recent['total']}');
-        _addToDebugLog('   - Entradas: ${recent['entradas']}');
-        _addToDebugLog('   - Salidas: ${recent['salidas']}');
-      }
-    } catch (e) {
-      _addToDebugLog('❌ Error verificando datos: $e');
-    }
-  }
-
-  Future<void> _trainModel() async {
-    setState(() {
-      _training = true;
-      _error = null;
-    });
-
-    _addToDebugLog('Iniciando entrenamiento del modelo ML...');
-
-    try {
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/ml/bus-recommendations/auto-train'),
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        _addToDebugLog('✅ Modelo entrenado exitosamente');
-        setState(() {
-          _training = false;
-        });
-        // Recargar recomendaciones después del entrenamiento
-        _loadRecommendations();
-      } else {
-        final errorData = json.decode(response.body);
-        _addToDebugLog('❌ Error entrenando: ${errorData['error']}');
-        setState(() {
-          _error = errorData['error'] ?? 'Error entrenando modelo';
-          _training = false;
-        });
-      }
-    } catch (e) {
-      _addToDebugLog('❌ Excepción: $e');
-      setState(() {
-        _error = e.toString();
-        _training = false;
-      });
-    }
   }
 
   Future<void> _loadRecommendations() async {
@@ -183,34 +76,37 @@ class _BusRecommendationsViewState extends State<BusRecommendationsView> {
       separatorBuilder: (_, __) => Divider(),
       itemBuilder: (context, index) {
         final rec = _recommendations[index];
-        final hora = rec['hora'];
-        final pred = rec['predicciones'] ?? {};
-        final total = pred['total'] ?? 0;
-        final entrada = pred['entrada'] ?? 0;
-        final salida = pred['salida'] ?? 0;
-        final buses = rec['recommendedBuses'] ?? 0;
-        final confianza = (rec['confianza'] ?? 0).toString();
+        final hora = rec['hora'] ?? 0;
+        final entradas = rec['entradas'] ?? 0;
+        final salidas = rec['salidas'] ?? 0;
+        final total = rec['total'] ?? 0;
+        final buses = rec['buses_recomendados'] ?? 0;
+        final esPico = rec['es_hora_pico'] ?? false;
 
         return ListTile(
           leading: CircleAvatar(
-            child: Text(hora.toString()),
+            backgroundColor: esPico ? Colors.red : Colors.blue,
+            child: Text(hora.toString(), style: TextStyle(color: Colors.white)),
           ),
-          title: Text('Hora: ${hora.toString().padLeft(2, '0')}:00'),
+          title: Text('Hora: ${hora.toString().padLeft(2, '0')}:00', 
+            style: TextStyle(fontWeight: esPico ? FontWeight.bold : FontWeight.normal)),
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                  'Total estimado: $total — Entrada: $entrada, Salida: $salida'),
-              Text('Confianza: $confianza'),
+              Text('Entradas: $entradas | Salidas: $salidas'),
+              Text('Total: $total personas'),
             ],
           ),
           trailing: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.directions_bus, color: Theme.of(context).primaryColor),
+              Icon(Icons.directions_bus, 
+                color: esPico ? Colors.red : Theme.of(context).primaryColor),
               SizedBox(height: 4),
-              Text('$buses buses',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+              Text('$buses buses', style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: esPico ? Colors.red : Colors.black
+              )),
             ],
           ),
         );
@@ -234,57 +130,14 @@ class _BusRecommendationsViewState extends State<BusRecommendationsView> {
             ),
             SizedBox(height: 12),
 
-            // Botones de acción
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+            // Botón simple
+            Row(
               children: [
                 ElevatedButton.icon(
                   onPressed: _loading ? null : _loadRecommendations,
                   icon: Icon(Icons.refresh),
                   label: Text('Actualizar'),
                 ),
-                ElevatedButton.icon(
-                  onPressed: _checkDataCount,
-                  icon: Icon(Icons.analytics),
-                  label: Text('Verificar BD'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.purple,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-                if (_error != null && _error!.contains('Datos insuficientes'))
-                  ElevatedButton.icon(
-                    onPressed: _training ? null : _generateTestData,
-                    icon: _training
-                        ? SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : Icon(Icons.data_usage),
-                    label: Text(_training ? 'Generando...' : 'Generar Datos'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                if (_error != null &&
-                    (_error!.contains('no entrenado') ||
-                        _error!.contains('Datos insuficientes')))
-                  ElevatedButton.icon(
-                    onPressed: _training ? null : _trainModel,
-                    icon: _training
-                        ? SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2))
-                        : Icon(Icons.school),
-                    label: Text(_training ? 'Entrenando...' : 'Entrenar ML'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
               ],
             ),
             SizedBox(height: 16),

@@ -1835,52 +1835,82 @@ app.get('/ml/prediction/peak-hours/next-24h', async (req, res) => {
   }
 });
 
-// RECOMMENDATIONS FOR BUSES (based on peak hours predictions)
+// RECOMMENDATIONS FOR BUSES (VERSIÓN SIMPLIFICADA - SIN ML)
 app.get('/ml/bus-recommendations', async (req, res) => {
   try {
-    if (!peakModel) {
-      return res.status(500).json({ error: 'Modelo predictivo no inicializado' });
-    }
-
-    // Verificar si el modelo está entrenado
-    if (!peakModel.entranceModel || !peakModel.exitModel) {
-      return res.status(400).json({ 
-        error: 'Modelo no entrenado. Use POST /ml/pipeline/train para entrenar el modelo primero.',
-        needsTraining: true 
+    const capacidadBus = 50; // Capacidad fija de cada bus
+    
+    // Analizar asistencias de las últimas 4 semanas
+    const fechaLimite = new Date();
+    fechaLimite.setDate(fechaLimite.getDate() - 28); // 4 semanas
+    
+    // Agrupar asistencias por hora
+    const asistenciasPorHora = await Asistencia.aggregate([
+      {
+        $match: {
+          fecha_hora: { $exists: true }
+        }
+      },
+      {
+        $addFields: {
+          fechaObj: { $toDate: "$fecha_hora" }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            hora: { $hour: "$fechaObj" },
+            tipo: "$tipo"
+          },
+          cantidad: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { "_id.hora": 1 }
+      }
+    ]);
+    
+    // Crear resumen por hora (0-23)
+    const horarios = [];
+    for (let hora = 6; hora <= 20; hora++) {
+      const entradas = asistenciasPorHora.find(
+        a => a._id.hora === hora && a._id.tipo === 'entrada'
+      )?.cantidad || 0;
+      
+      const salidas = asistenciasPorHora.find(
+        a => a._id.hora === hora && a._id.tipo === 'salida'
+      )?.cantidad || 0;
+      
+      const total = entradas + salidas;
+      const busesRecomendados = Math.ceil(total / capacidadBus);
+      
+      horarios.push({
+        hora: hora,
+        entradas: entradas,
+        salidas: salidas,
+        total: total,
+        buses_recomendados: busesRecomendados,
+        es_hora_pico: total > (capacidadBus * 2) // Más de 2 buses
       });
     }
-
-    // Parámetros opcionales: capacidad por bus y margen de seguridad
-    const busCapacity = parseInt(req.query.busCapacity) || 40;
-    const safetyMargin = parseFloat(req.query.safetyMargin) || 1.2; // 20% extra
-
-    const predictionsResult = await peakModel.predictNext24Hours();
-
-    // Mapear predicciones a recomendaciones de buses
-    const recommendations = predictionsResult.predictions.map(p => {
-      const total = p.predicciones.total || 0;
-      const recommendedBuses = Math.max(0, Math.ceil((total * safetyMargin) / busCapacity));
-
-      return {
-        hora: p.hora,
-        fecha_hora: p.fecha_hora,
-        predicciones: p.predicciones,
-        es_pico: p.es_pico,
-        confianza: p.confianza,
-        recommendedBuses,
-        busCapacity,
-        safetyMargin
-      };
-    });
-
+    
     res.json({
       success: true,
-      generatedAt: predictionsResult.generatedAt,
-      recommendations,
-      modelMetrics: predictionsResult.modelMetrics
+      capacidad_por_bus: capacidadBus,
+      periodo_analizado: "Últimas 4 semanas",
+      horarios: horarios,
+      resumen: {
+        hora_mas_congestionada: horarios.reduce((max, h) => h.total > max.total ? h : max, horarios[0]),
+        buses_maximos_requeridos: Math.max(...horarios.map(h => h.buses_recomendados))
+      }
     });
+    
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('❌ Error generando recomendaciones:', error);
+    res.status(500).json({ 
+      error: error.message,
+      details: 'Error al analizar datos de asistencias'
+    });
   }
 });
 
