@@ -58,12 +58,19 @@ db.on('error', console.error.bind(console, '❌ Error de conexión MongoDB:'));
 db.on('disconnected', () => console.log('⚠️ MongoDB desconectado'));
 db.on('reconnected', () => console.log('🔄 MongoDB reconectado'));
 
+// Función helper para obtener hora de Perú (UTC-5)
+const getPeruDate = () => {
+  const now = new Date();
+  // Restar 5 horas (5 * 60 * 60 * 1000 ms)
+  return new Date(now.getTime() - (5 * 60 * 60 * 1000));
+};
+
 // Endpoint de health check para verificar conectividad
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
     message: 'Server is running',
-    timestamp: new Date().toISOString(),
+    timestamp: getPeruDate().toISOString(),
     database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
   });
 });
@@ -95,7 +102,7 @@ const AsistenciaSchema = new mongoose.Schema({
   siglas_facultad: { type: String, required: true },
   siglas_escuela: { type: String, required: true },
   tipo: { type: String, required: true, enum: ['entrada', 'salida'] },
-  fecha_hora: { type: Date, required: true, default: Date.now },
+  fecha_hora: { type: Date, required: true, default: getPeruDate },
   entrada_tipo: { type: String, required: true, default: 'nfc' },
   puerta: { type: String, required: true, default: 'Principal' },
   // Nuevos campos para US025-US030
@@ -125,7 +132,7 @@ const DecisionManualSchema = new mongoose.Schema({
   guardia_nombre: String,
   autorizado: Boolean,
   razon: String,
-  timestamp: { type: Date, default: Date.now },
+  timestamp: { type: Date, default: getPeruDate },
   punto_control: String,
   tipo_acceso: String,
   datos_estudiante: Object
@@ -158,14 +165,14 @@ const SessionGuardSchema = new mongoose.Schema({
   guardia_nombre: String,
   punto_control: String,
   session_token: String,
-  last_activity: { type: Date, default: Date.now },
+  last_activity: { type: Date, default: getPeruDate },
   is_active: { type: Boolean, default: true },
   device_info: {
     platform: String,
     device_id: String,
     app_version: String
   },
-  fecha_inicio: { type: Date, default: Date.now },
+  fecha_inicio: { type: Date, default: getPeruDate },
   fecha_fin: Date
 }, { collection: 'sesiones_guardias', strict: false, _id: false });
 const SessionGuard = mongoose.model('sesiones_guardias', SessionGuardSchema);
@@ -182,8 +189,8 @@ const UserSchema = new mongoose.Schema({
   estado: { type: String, enum: ['activo', 'inactivo'], default: 'activo' },
   puerta_acargo: String,
   telefono: String,
-  fecha_creacion: { type: Date, default: Date.now },
-  fecha_actualizacion: { type: Date, default: Date.now }
+  fecha_creacion: { type: Date, default: getPeruDate },
+  fecha_actualizacion: { type: Date, default: getPeruDate }
 }, { collection: 'usuarios', strict: false, _id: false });
 
 // Middleware para hashear contraseña antes de guardar
@@ -609,14 +616,14 @@ app.post('/asistencias/completa', async (req, res) => {
     // Asegurar que tenga todos los campos necesarios
     const datosCompletos = {
       ...req.body,
-      fecha_hora: req.body.fecha_hora || new Date().toISOString(),
+      fecha_hora: req.body.fecha_hora || getPeruDate().toISOString(),
       entrada_tipo: req.body.entrada_tipo || 'nfc',
       puerta: req.body.puerta || 'Principal',
       autorizacion_manual: req.body.autorizacion_manual || false,
       version_registro: req.body.version_registro || 'v2_con_guardia',
       version_registro: req.body.version_registro || 'v2_con_guardia',
       // Timestamp de creación para auditoría
-      timestamp_creacion: new Date().toISOString(),
+      timestamp_creacion: getPeruDate().toISOString(),
       // Asegurar que campos opcionales existan como null si no vienen
       razon_decision: req.body.razon_decision || null,
       timestamp_decision: req.body.timestamp_decision || null,
@@ -734,7 +741,7 @@ app.put('/asistencias/:id/estado', async (req, res) => {
       return res.status(404).json({ error: 'Asistencia no encontrada' });
     }
 
-    const ahora = new Date();
+    const ahora = getPeruDate();
     const LIMITE_TIEMPO_MS = 5 * 60 * 1000; // 5 minutos
 
     // VALIDACIÓN DE TIEMPO PARA DENEGAR
@@ -767,7 +774,7 @@ app.put('/asistencias/:id/estado', async (req, res) => {
     const updateData = {
       estado,
       razon_decision: razon_decision || null,
-      timestamp_decision: new Date()
+      timestamp_decision: getPeruDate()
     };
 
     const asistencia = await Asistencia.findByIdAndUpdate(
@@ -789,7 +796,7 @@ app.put('/asistencias/:id/estado', async (req, res) => {
         if (presencia) {
           presencia.esta_dentro = false;
           presencia.punto_salida = 'ENTRADA_DENEGADA'; // Marcador especial
-          presencia.hora_salida = new Date();
+          presencia.hora_salida = getPeruDate();
           presencia.guardia_salida = asistencia.guardia_id; // El guardia que denegó
           presencia.tiempo_en_campus = 0; // No contó como tiempo válido
 
@@ -909,7 +916,7 @@ app.post('/presencia/actualizar', async (req, res) => {
         estudiante_nombre: `${estudiante.nombre} ${estudiante.apellido}`,
         facultad: estudiante.siglas_facultad,
         escuela: estudiante.siglas_escuela,
-        hora_entrada: new Date(),
+        hora_entrada: getPeruDate(),
         punto_entrada: punto_control,
         esta_dentro: true,
         guardia_entrada: guardia_id
@@ -927,7 +934,7 @@ app.post('/presencia/actualizar', async (req, res) => {
         return;
       }
 
-      const horaSalida = new Date();
+      const horaSalida = getPeruDate();
       const tiempoEnCampus = horaSalida - presencia.hora_entrada;
 
       presencia.hora_salida = horaSalida;
