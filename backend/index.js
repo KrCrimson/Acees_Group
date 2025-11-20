@@ -2043,24 +2043,29 @@ app.get('/ml/debug/verificar-datos', async (req, res) => {
     // Obtener algunos ejemplos
     const ejemplos = await Asistencia.find().limit(3);
     
-    // Verificar estructura de fechas
+    // Verificar estructura de fechas (simplificado)
     const fechaStats = await Asistencia.aggregate([
       {
         $project: {
           fecha_hora: 1,
           tipo: 1,
-          año: { $year: { $dateFromString: { dateString: "$fecha_hora" } } },
-          mes: { $month: { $dateFromString: { dateString: "$fecha_hora" } } }
+          fecha_tipo: { $type: "$fecha_hora" }
         }
       },
       {
         $group: {
-          _id: { año: "$año", mes: "$mes" },
-          count: { $sum: 1 }
+          _id: "$fecha_tipo",
+          count: { $sum: 1 },
+          ejemplos: { $push: "$fecha_hora" }
         }
       },
-      { $sort: { "_id.año": -1, "_id.mes": -1 } },
-      { $limit: 6 }
+      {
+        $project: {
+          _id: 1,
+          count: 1,
+          ejemplos: { $slice: ["$ejemplos", 3] }
+        }
+      }
     ]);
 
     res.json({
@@ -2071,7 +2076,7 @@ app.get('/ml/debug/verificar-datos', async (req, res) => {
         salidas: salidas,
         recientes_3_meses: recientes,
         fecha_limite_consulta: fechaLimiteISO,
-        distribucion_mensual: fechaStats,
+        tipos_de_fecha: fechaStats,
         ejemplos_registros: ejemplos.map(a => ({
           _id: a._id,
           tipo: a.tipo,
