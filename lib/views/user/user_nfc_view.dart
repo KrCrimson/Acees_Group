@@ -11,6 +11,7 @@ import '../../widgets/conflict_alert_widget.dart';
 import '../login_view.dart';
 import '../student_verification_view.dart';
 import '../admin/presencia_dashboard_view.dart';
+import '../admin/registro_visita_view.dart';
 
 class UserNfcView extends StatefulWidget {
   @override
@@ -470,6 +471,25 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
             width: double.infinity,
             backgroundColor: Colors.indigo,
             onPressed: () => _mostrarDashboardPresencia(nfcViewModel),
+          ),
+        ],
+
+        // Botón de Registro Visita Externa
+        if (nfcViewModel.guardiaId != null) ...[
+          SizedBox(height: 12),
+          CustomButton(
+            text: 'Registrar Visita Externa',
+            icon: Icons.person_add_alt_1,
+            width: double.infinity,
+            backgroundColor: Colors.teal[700],
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const RegistroVisitaView(),
+                ),
+              );
+            },
           ),
         ],
 

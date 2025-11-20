@@ -230,10 +230,18 @@ const AlumnoSchema = new mongoose.Schema({
 const Alumno = mongoose.model('alumnos', AlumnoSchema);
 
 // Modelo de externos - EXACTO como en MongoDB Atlas
+// Modelo de externos - ACTUALIZADO para registro completo
 const ExternoSchema = new mongoose.Schema({
   _id: String,
-  nombre: String,
-  dni: { type: String, unique: true, index: true }
+  nombre_completo: { type: String, required: true },
+  dni: { type: String, required: true, index: true },
+  razon: { type: String, required: true },
+  tipo: { type: String, required: true, enum: ['entrada', 'salida'], default: 'entrada' },
+  estado: { type: String, default: 'autorizado' },
+  descripcion_ubicacion: String,
+  guardia_id: { type: String, required: true },
+  guardia_nombre: { type: String, required: true },
+  fecha_hora: { type: Date, default: getPeruDate }
 }, { collection: 'externos', strict: false, _id: false });
 const Externo = mongoose.model('externos', ExternoSchema);
 
@@ -1635,3 +1643,44 @@ app.listen(PORT, HOST, () => {
   console.log(`📡 Ambiente: ${process.env.NODE_ENV || 'development'}`);
   console.log(`💾 Base de datos: ${mongoose.connection.readyState === 1 ? 'Conectada' : 'Desconectada'}`);
 });
+
+// Ruta para registrar visita externa
+app.post('/externos', async (req, res) => {
+  try {
+    const {
+      nombre_completo,
+      dni,
+      razon,
+      guardia_id,
+      guardia_nombre,
+      descripcion_ubicacion,
+      tipo
+    } = req.body;
+
+    // Validación básica
+    if (!nombre_completo || !dni || !razon || !guardia_id) {
+      return res.status(400).json({ error: 'Faltan datos requeridos' });
+    }
+
+    const nuevoExterno = new Externo({
+      _id: new mongoose.Types.ObjectId().toString(),
+      nombre_completo,
+      dni,
+      razon,
+      tipo: tipo || 'entrada',
+      estado: 'autorizado',
+      descripcion_ubicacion,
+      guardia_id,
+      guardia_nombre,
+      fecha_hora: getPeruDate()
+    });
+
+    await nuevoExterno.save();
+    res.status(201).json(nuevoExterno);
+  } catch (error) {
+    console.error('Error registrando externo:', error);
+    res.status(500).json({ error: 'Error al registrar visita externa' });
+  }
+});
+
+

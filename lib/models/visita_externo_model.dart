@@ -49,22 +49,4 @@ class VisitaModel {
       '${fechaHora.day}/${fechaHora.month}/${fechaHora.year} ${fechaHora.hour}:${fechaHora.minute.toString().padLeft(2, '0')}';
 }
 
-class ExternoModel {
-  final String id;
-  final String nombre;
-  final String dni;
 
-  ExternoModel({required this.id, required this.nombre, required this.dni});
-
-  factory ExternoModel.fromJson(Map<String, dynamic> json) {
-    return ExternoModel(
-      id: json['_id'] ?? '',
-      nombre: json['nombre'] ?? '',
-      dni: json['dni'] ?? '',
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {'_id': id, 'nombre': nombre, 'dni': dni};
-  }
-}

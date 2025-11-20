@@ -4,6 +4,7 @@ import '../../models/presencia_model.dart';
 import '../../models/decision_manual_model.dart';
 import '../../services/autorizacion_service.dart';
 import 'deep_search_view.dart';
+import 'registro_visita_view.dart';
 
 
 class PresenciaDashboardView extends StatefulWidget {
@@ -270,6 +271,8 @@ class _PresenciaDashboardViewState extends State<PresenciaDashboardView>
                           ),
                         ),
                       ),
+
+
                     ],
                   ),
                 ),

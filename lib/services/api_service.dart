@@ -8,6 +8,7 @@ import '../models/facultad_escuela_model.dart';
 import '../models/visita_externo_model.dart';
 import '../models/decision_manual_model.dart';
 import '../models/presencia_model.dart';
+import '../models/externo_model.dart'; // Importar nuevo modelo
 import '../config/api_config.dart';
 
 class ApiService {
@@ -289,6 +290,47 @@ class ApiService {
       }
     } catch (e) {
       throw Exception('Error de conexión: $e');
+    }
+  }
+
+  Future<ExternoModel> registrarVisitaExterno(ExternoModel externo) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/externos'),
+        headers: _headers,
+        body: json.encode(externo.toJson()),
+      );
+
+      if (response.statusCode == 201) {
+        return ExternoModel.fromJson(json.decode(response.body));
+      } else {
+        final error = json.decode(response.body);
+        throw Exception(error['error'] ?? 'Error al registrar visita externa');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión: $e');
+    }
+  }
+
+  // Simulación de consulta RENIEC (o implementación real si hay API Key)
+  Future<Map<String, String>> consultarDniReniec(String dni) async {
+    try {
+      // TODO: Reemplazar con llamada real si se dispone de API Key
+      // Por ahora simulamos un delay y retornamos datos dummy o error si no es válido
+      await Future.delayed(const Duration(seconds: 1));
+      
+      if (dni.length != 8) {
+        throw Exception('DNI inválido');
+      }
+
+      // Simulación de éxito
+      return {
+        'nombre': 'JUAN PEREZ', // Placeholder
+        'apellido': 'DEL EXTERNO', // Placeholder
+        'nombre_completo': 'JUAN PEREZ DEL EXTERNO'
+      };
+    } catch (e) {
+      throw Exception('Error al consultar RENIEC: $e');
     }
   }
 
