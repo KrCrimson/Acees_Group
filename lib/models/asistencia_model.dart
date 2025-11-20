@@ -52,7 +52,7 @@ class AsistenciaModel {
       siglasFacultad: json['siglas_facultad'] ?? '',
       siglasEscuela: json['siglas_escuela'] ?? '',
       tipo: json['tipo'] ?? '',
-      fechaHora: DateTime.parse(json['fecha_hora']),
+      fechaHora: DateTime.parse(json['fecha_hora'].toString().replaceAll('Z', '')),
       entradaTipo: json['entrada_tipo'] ?? '',
       puerta: json['puerta'] ?? '',
       guardiaId: json['guardia_id'],
@@ -60,7 +60,7 @@ class AsistenciaModel {
       autorizacionManual: json['autorizacion_manual'],
       razonDecision: json['razon_decision'],
       timestampDecision: json['timestamp_decision'] != null
-          ? DateTime.parse(json['timestamp_decision'])
+          ? DateTime.parse(json['timestamp_decision'].toString().replaceAll('Z', ''))
           : null,
       coordenadas: json['coordenadas'],
       descripcionUbicacion: json['descripcion_ubicacion'],

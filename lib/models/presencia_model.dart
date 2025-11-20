@@ -39,10 +39,10 @@ class PresenciaModel {
       estudianteNombre: json['estudiante_nombre'] ?? '',
       facultad: json['facultad'] ?? '',
       escuela: json['escuela'] ?? '',
-      horaEntrada: DateTime.parse(json['hora_entrada']),
+      horaEntrada: DateTime.parse(json['hora_entrada'].toString().replaceAll('Z', '')),
       horaSalida:
           json['hora_salida'] != null
-              ? DateTime.parse(json['hora_salida'])
+              ? DateTime.parse(json['hora_salida'].toString().replaceAll('Z', ''))
               : null,
       puntoEntrada: json['punto_entrada'] ?? '',
       puntoSalida: json['punto_salida'],

@@ -37,7 +37,7 @@ class DecisionManualModel {
       guardiaNombre: json['guardia_nombre'] ?? '',
       autorizado: json['autorizado'] ?? false,
       razon: json['razon'] ?? '',
-      timestamp: DateTime.parse(json['timestamp']),
+      timestamp: DateTime.parse(json['timestamp'].toString().replaceAll('Z', '')),
       puntoControl: json['punto_control'] ?? '',
       tipoAcceso: json['tipo_acceso'] ?? 'entrada',
       datosEstudiante: json['datos_estudiante'],
