@@ -14,12 +14,6 @@ class AutorizacionService extends ChangeNotifier {
   List<DecisionManualModel> _historialDecisiones = [];
   List<PresenciaModel> _presenciaActual = [];
   
-  // Datos crudos y filtros
-  List<DecisionManualModel> _todasLasAsistenciasRaw = [];
-  DateTime? _filtroFechaInicio;
-  DateTime? _filtroFechaFin;
-  String? _filtroCarrera;
-  
   bool _isLoading = false;
 
   // Getters
@@ -29,24 +23,7 @@ class AutorizacionService extends ChangeNotifier {
       List.unmodifiable(_presenciaActual);
   bool get isLoading => _isLoading;
   
-  // Getters de filtros activos
-  DateTime? get filtroFechaInicio => _filtroFechaInicio;
-  DateTime? get filtroFechaFin => _filtroFechaFin;
-  String? get filtroCarrera => _filtroCarrera;
-  bool get hayFiltrosActivos => 
-      _filtroFechaInicio != null || _filtroFechaFin != null || _filtroCarrera != null;
 
-  // Obtener lista única de carreras disponibles en el historial
-  List<String> get carrerasDisponibles {
-    final carreras = <String>{};
-    for (var decision in _todasLasAsistenciasRaw) {
-      // Extraer carrera de datosEstudiante si existe, o intentar inferir
-      if (decision.datosEstudiante != null && decision.datosEstudiante!['escuela'] != null) {
-        carreras.add(decision.datosEstudiante!['escuela']);
-      }
-    }
-    return carreras.toList()..sort();
-  }
 
   // Verificar si un estudiante está activo y puede acceder
   Future<Map<String, dynamic>> verificarEstadoEstudiante(
@@ -157,14 +134,6 @@ class AutorizacionService extends ChangeNotifier {
               ))
           .toList();
           
-      // Guardar copia completa para filtrado profundo
-      _todasLasAsistenciasRaw = List.from(_historialDecisiones);
-      
-      // Inicialmente aplicar filtro de 24h por defecto (limpiando filtros explícitos)
-      _filtroFechaInicio = null;
-      _filtroFechaFin = null;
-      _filtroCarrera = null;
-
       notifyListeners();
     } catch (e) {
       // Si falla la conexión, usar datos vacíos pero no fallar
@@ -262,61 +231,11 @@ class AutorizacionService extends ChangeNotifier {
     notifyListeners();
   }
 
-  }
 
-  // Establecer filtros avanzados
-  void setFiltros({DateTime? inicio, DateTime? fin, String? carrera}) {
-    _filtroFechaInicio = inicio;
-    _filtroFechaFin = fin;
-    _filtroCarrera = carrera;
-    notifyListeners();
-  }
-
-  // Limpiar filtros y volver a vista por defecto (24h)
-  void limpiarFiltros() {
-    _filtroFechaInicio = null;
-    _filtroFechaFin = null;
-    _filtroCarrera = null;
-    notifyListeners();
-  }
 
   List<DecisionManualModel> get decisionesFiltradas {
-    List<DecisionManualModel> baseList;
-    
-    // 1. Determinar lista base según filtros de fecha
-    if (hayFiltrosActivos) {
-      // Si hay filtros activos, usamos la lista completa RAW
-      baseList = _todasLasAsistenciasRaw;
-      
-      // Filtrar por rango de fechas si aplica
-      if (_filtroFechaInicio != null) {
-        baseList = baseList.where((d) => 
-            d.timestamp.isAfter(_filtroFechaInicio!) || 
-            d.timestamp.isAtSameMomentAs(_filtroFechaInicio!)).toList();
-      }
-      
-      if (_filtroFechaFin != null) {
-        // Ajustar fin al final del día
-        final finAjustado = DateTime(
-            _filtroFechaFin!.year, _filtroFechaFin!.month, _filtroFechaFin!.day, 23, 59, 59);
-        baseList = baseList.where((d) => 
-            d.timestamp.isBefore(finAjustado) || 
-            d.timestamp.isAtSameMomentAs(finAjustado)).toList();
-      }
-      
-      // Filtrar por carrera si aplica
-      if (_filtroCarrera != null && _filtroCarrera!.isNotEmpty) {
-        baseList = baseList.where((d) {
-          final escuela = d.datosEstudiante?['escuela']?.toString() ?? '';
-          return escuela == _filtroCarrera;
-        }).toList();
-      }
-    } else {
-      // Si no hay filtros, comportamiento por defecto: últimas 24h
-      baseList = decisionesRecientes;
-    }
+    final baseList = decisionesRecientes;
 
-    // 2. Aplicar búsqueda de texto sobre la lista base
     if (_searchQuery.isEmpty) {
       return baseList;
     }
