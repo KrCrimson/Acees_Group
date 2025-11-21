@@ -740,6 +740,26 @@ class ApiService {
     }
   }
 
+  // ==================== ESTADÍSTICAS Y REPORTES ====================
+
+  /// Obtener estadísticas de entradas vs salidas de hoy
+  Future<Map<String, dynamic>> getEntradasVsSalidasHoy() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/asistencias/hoy'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        throw Exception('Error al obtener estadísticas: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión al obtener estadísticas: $e');
+    }
+  }
+
   // ==================== MÉTODOS PARA SINCRONIZACIÓN AVANZADA ====================
 
   /// Obtener versiones de las colecciones del servidor

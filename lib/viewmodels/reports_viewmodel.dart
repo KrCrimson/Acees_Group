@@ -228,19 +228,18 @@ class ReportsViewModel extends ChangeNotifier {
     return sorted.take(limit).toList();
   }
 
-  // Entradas vs Salidas
-  Map<String, int> getEntradasVsSalidas() {
-    int entradas = 0;
-    int salidas = 0;
-    final hoy = DateTime.now();
-    for (var asistencia in getAsistenciasByDate(hoy)) {
-      if (asistencia.entradaTipo.toLowerCase().contains('entrada')) {
-        entradas++;
-      } else {
-        salidas++;
-      }
+  // Entradas vs Salidas - Usando endpoint del backend
+  Future<Map<String, int>> getEntradasVsSalidas() async {
+    try {
+      final response = await _apiService.getEntradasVsSalidasHoy();
+      return {
+        'entradas': response['entradas'] ?? 0,
+        'salidas': response['salidas'] ?? 0,
+      };
+    } catch (e) {
+      print('Error obteniendo entradas vs salidas: $e');
+      return {'entradas': 0, 'salidas': 0};
     }
-    return {'entradas': entradas, 'salidas': salidas};
   }
 
   // Tendencia semanal

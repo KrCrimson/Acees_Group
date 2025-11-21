@@ -264,63 +264,73 @@ class _ReportsViewState extends State<ReportsView>
   }
 
   Widget _buildEntradasVsSalidas(ReportsViewModel reportsViewModel) {
-    final stats = reportsViewModel.getEntradasVsSalidas();
     return Card(
       child: Padding(
         padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+        child: FutureBuilder<Map<String, int>>(
+          future: reportsViewModel.getEntradasVsSalidas(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(child: CircularProgressIndicator());
+            }
+            
+            final stats = snapshot.data ?? {'entradas': 0, 'salidas': 0};
+            
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.swap_horiz, color: Colors.purple),
-                SizedBox(width: 8),
-                Text('Entradas vs Salidas (Hoy)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.green[50],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.green[200]!),
-                    ),
-                    child: Column(
-                      children: [
-                        Icon(Icons.login, color: Colors.green, size: 32),
-                        SizedBox(height: 8),
-                        Text('${stats['entradas']}', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.green)),
-                        Text('Entradas', style: TextStyle(color: Colors.grey[600])),
-                      ],
-                    ),
-                  ),
+                Row(
+                  children: [
+                    Icon(Icons.swap_horiz, color: Colors.purple),
+                    SizedBox(width: 8),
+                    Text('Entradas vs Salidas (Hoy)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  ],
                 ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Container(
-                    padding: EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.orange[50],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.orange[200]!),
+                SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        padding: EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.green[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.green[200]!),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(Icons.login, color: Colors.green, size: 32),
+                            SizedBox(height: 8),
+                            Text('${stats['entradas']}', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.green)),
+                            Text('Entradas', style: TextStyle(color: Colors.grey[600])),
+                          ],
+                        ),
+                      ),
                     ),
-                    child: Column(
-                      children: [
-                        Icon(Icons.logout, color: Colors.orange, size: 32),
-                        SizedBox(height: 8),
-                        Text('${stats['salidas']}', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.orange)),
-                        Text('Salidas', style: TextStyle(color: Colors.grey[600])),
-                      ],
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        padding: EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[50],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange[200]!),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(Icons.logout, color: Colors.orange, size: 32),
+                            SizedBox(height: 8),
+                            Text('${stats['salidas']}', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.orange)),
+                            Text('Salidas', style: TextStyle(color: Colors.grey[600])),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ],
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
