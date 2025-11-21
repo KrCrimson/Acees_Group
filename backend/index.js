@@ -320,6 +320,49 @@ app.get('/asistencias/con-guardia', async (req, res) => {
   }
 });
 
+// Ruta para obtener estadísticas de HOY (entradas vs salidas)
+app.get('/asistencias/hoy', async (req, res) => {
+  try {
+    // Obtener inicio y fin del día actual
+    const inicioHoy = new Date();
+    inicioHoy.setHours(0, 0, 0, 0);
+    
+    const finHoy = new Date();
+    finHoy.setHours(23, 59, 59, 999);
+
+    // Contar entradas de hoy
+    const entradasHoy = await Asistencia.countDocuments({
+      tipo: 'entrada',
+      fecha_hora: {
+        $gte: inicioHoy.toISOString(),
+        $lte: finHoy.toISOString()
+      }
+    });
+
+    // Contar salidas de hoy
+    const salidasHoy = await Asistencia.countDocuments({
+      tipo: 'salida',
+      fecha_hora: {
+        $gte: inicioHoy.toISOString(),
+        $lte: finHoy.toISOString()
+      }
+    });
+
+    // Total de hoy
+    const totalHoy = entradasHoy + salidasHoy;
+
+    res.json({
+      fecha: inicioHoy.toISOString().split('T')[0],
+      entradas: entradasHoy,
+      salidas: salidasHoy,
+      total: totalHoy
+    });
+  } catch (err) {
+    console.error('❌ Error al obtener estadísticas de hoy:', err);
+    res.status(500).json({ error: 'Error al obtener estadísticas de hoy' });
+  }
+});
+
 // Ruta para obtener estadísticas de asistencias
 app.get('/asistencias/estadisticas', async (req, res) => {
   try {
