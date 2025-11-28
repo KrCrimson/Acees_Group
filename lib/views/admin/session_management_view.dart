@@ -252,7 +252,8 @@ class _SessionManagementViewState extends State<SessionManagementView> {
                 ),
         ),
         
-        // Consola de logs (parte inferior)
+        // Consola de logs (parte inferior) - DESHABILITADA POR SEGURIDAD
+        /*
         Container(
           height: 200,
           decoration: BoxDecoration(
@@ -319,6 +320,7 @@ class _SessionManagementViewState extends State<SessionManagementView> {
             ],
           ),
         ),
+        */
       ],
     );
   }

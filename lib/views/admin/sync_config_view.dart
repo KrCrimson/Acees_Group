@@ -58,8 +58,8 @@ class _SyncConfigViewState extends State<SyncConfigView> {
                   _buildQuickActions(syncService),
                   SizedBox(height: 16),
 
-                  // Log de sincronización
-                  _buildSyncLog(syncService),
+                  // Log de sincronización - DESHABILITADO POR SEGURIDAD
+                  // _buildSyncLog(syncService),
                 ],
               ),
             );
@@ -268,6 +268,8 @@ class _SyncConfigViewState extends State<SyncConfigView> {
     );
   }
 
+  // LOG DE SINCRONIZACIÓN DESHABILITADO POR SEGURIDAD
+  /*
   Widget _buildSyncLog(SyncService syncService) {
     return Card(
       child: Padding(
@@ -325,6 +327,7 @@ class _SyncConfigViewState extends State<SyncConfigView> {
       ),
     );
   }
+  */
 
   Widget _buildStatusRow(String label, String value, Color color) {
     return Padding(

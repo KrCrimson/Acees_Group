@@ -315,8 +315,8 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
 
                     SizedBox(height: 24),
 
-                    // Sección de logs en tiempo real
-                    _buildDebugLogsSection(nfcViewModel),
+                    // Sección de logs en tiempo real - DESHABILITADA POR SEGURIDAD
+                    // _buildDebugLogsSection(nfcViewModel),
 
                     SizedBox(height: 32),
 
@@ -732,7 +732,8 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
     return '${now.day}/${now.month}/${now.year} ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
   }
 
-  // Widget para mostrar logs de debugging en tiempo real
+  // Widget para mostrar logs de debugging en tiempo real - DESHABILITADO POR SEGURIDAD
+  /*
   Widget _buildDebugLogsSection(NfcViewModel nfcViewModel) {
     return Container(
       width: double.infinity,
@@ -848,6 +849,7 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
       ),
     );
   }
+  */
 
   // Diálogo de confirmación para detener el escáner
   void _showStopScannerDialog(NfcViewModel nfcViewModel) {

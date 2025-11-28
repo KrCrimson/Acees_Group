@@ -45,9 +45,10 @@ class _BusRecommendationsViewState extends State<BusRecommendationsView> {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final horarios = data['horarios'];
-        
+
         if (horarios != null && horarios is List) {
-          _addToDebugLog('✅ Recomendaciones cargadas: ${horarios.length} horarios');
+          _addToDebugLog(
+              '✅ Recomendaciones cargadas: ${horarios.length} horarios');
           setState(() {
             _recommendations = horarios;
             _loading = false;
@@ -196,6 +197,8 @@ class _BusRecommendationsViewState extends State<BusRecommendationsView> {
                 ),
               ),
 
+            // TERMINAL DE DEBUG DESHABILITADO POR SEGURIDAD
+            /*
             SizedBox(height: 24),
 
             // Terminal de debug
@@ -224,6 +227,7 @@ class _BusRecommendationsViewState extends State<BusRecommendationsView> {
                 ),
               ),
             ),
+            */
           ],
         ),
       ),
