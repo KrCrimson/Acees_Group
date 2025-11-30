@@ -495,9 +495,19 @@ app.put('/usuarios/:id/password', async (req, res) => {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
-    user.password = password; // Se hashea automáticamente
-    user.fecha_actualizacion = new Date();
-    await user.save();
+    // Hashear la contraseña manualmente
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Actualizar solo password y fecha_actualizacion sin validar otros campos
+    await User.updateOne(
+      { _id: req.params.id },
+      { 
+        $set: { 
+          password: hashedPassword,
+          fecha_actualizacion: new Date()
+        } 
+      }
+    );
 
     res.json({ message: 'Contraseña actualizada exitosamente' });
   } catch (err) {
@@ -541,8 +551,9 @@ app.post('/login', async (req, res) => {
 // Ruta para actualizar usuario
 app.put('/usuarios/:id', async (req, res) => {
   try {
-    const { password, ...updateData } = req.body;
+    const { password, fecha_creacion, ...updateData } = req.body;
 
+    // Solo actualizar fecha_actualizacion, no fecha_creacion
     updateData.fecha_actualizacion = new Date();
 
     const user = await User.findByIdAndUpdate(
@@ -557,7 +568,8 @@ app.put('/usuarios/:id', async (req, res) => {
 
     res.json(user);
   } catch (err) {
-    res.status(500).json({ error: 'Error al actualizar usuario' });
+    console.error('Error actualizando usuario:', err);
+    res.status(500).json({ error: 'Error al actualizar usuario: ' + err.message });
   }
 });
 
