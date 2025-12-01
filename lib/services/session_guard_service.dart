@@ -236,16 +236,33 @@ class SessionGuardService extends ChangeNotifier {
         body: json.encode({'session_token': _sessionToken}),
       );
 
-      if (response.statusCode == 404) {
-        // Sesión expirada o no encontrada
+      if (response.statusCode == 404 || response.statusCode == 403) {
+        // Sesión expirada, no encontrada, o finalizada por admin
         final data = json.decode(response.body);
-        if (data['session_expired'] == true) {
+        if (data['session_expired'] == true || data['forced_closure'] == true) {
+          debugPrint('⚠️ [SESSION] Sesión cerrada remotamente: ${data['error']}');
           _limpiarSesion();
+          // Notificar al UI que la sesión fue cerrada
+          _notificarCierreRemoto(data['forced_closure'] == true);
+        }
+      } else if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        // Verificar is_active por si acaso
+        if (data['is_active'] == false) {
+          debugPrint('⚠️ [SESSION] Sesión marcada como inactiva');
+          _limpiarSesion();
+          _notificarCierreRemoto(true);
         }
       }
     } catch (e) {
       debugPrint('Error en heartbeat: $e');
     }
+  }
+
+  /// Notificar cierre remoto de sesión
+  void _notificarCierreRemoto(bool forzado) {
+    // Puedes agregar un callback aquí para mostrar un diálogo al usuario
+    debugPrint('🔴 [SESSION] Sesión cerrada ${forzado ? "por administrador" : "automáticamente"}');
   }
 
   /// Monitoreo periódico de conflictos

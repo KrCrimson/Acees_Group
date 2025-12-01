@@ -1201,22 +1201,39 @@ app.post('/sesiones/heartbeat', async (req, res) => {
       return res.status(400).json({ error: 'session_token es requerido' });
     }
 
-    const ahora = getPeruDate();
-    const sesion = await SessionGuard.findOneAndUpdate(
-      { session_token, is_active: true },
-      { last_activity: ahora },
-      { new: true }
-    );
-
+    // Primero buscar la sesión
+    const sesion = await SessionGuard.findOne({ session_token });
+    
     if (!sesion) {
       console.log('❌ [SESIONES-HEARTBEAT] Sesión no encontrada:', session_token);
-      return res.status(404).json({ error: 'Sesión no encontrada' });
+      return res.status(404).json({ 
+        error: 'Sesión no encontrada',
+        session_expired: true,
+        is_active: false
+      });
     }
+
+    // Si la sesión existe pero is_active es false, informar al cliente
+    if (!sesion.is_active) {
+      console.log('⚠️ [SESIONES-HEARTBEAT] Sesión inactiva (cerrada por admin):', session_token);
+      return res.status(403).json({
+        error: 'Sesión finalizada por administrador',
+        session_expired: true,
+        is_active: false,
+        forced_closure: true
+      });
+    }
+    
+    // Actualizar last_activity si está activa
+    const ahora = getPeruDate();
+    sesion.last_activity = ahora;
+    await sesion.save();
 
     console.log(`✅ [SESIONES-HEARTBEAT] Actividad actualizada para sesión: ${session_token}`);
     res.json({
       message: 'Actividad actualizada',
-      last_activity: sesion.last_activity
+      last_activity: sesion.last_activity,
+      is_active: true
     });
   } catch (err) {
     console.error('❌ [SESIONES-HEARTBEAT] Error:', err);
@@ -1274,15 +1291,22 @@ app.get('/sesiones/activas', async (req, res) => {
 app.post('/sesiones/forzar-finalizacion', async (req, res) => {
   try {
     console.log('🔍 [SESIONES-FORZAR] Request:', req.body);
-    const { session_token, admin_id } = req.body;
+    const { guardia_id, session_token, admin_id } = req.body;
 
-    if (!session_token) {
-      console.log('❌ [SESIONES-FORZAR] Falta session_token');
-      return res.status(400).json({ error: 'session_token es requerido' });
+    if (!guardia_id && !session_token) {
+      console.log('❌ [SESIONES-FORZAR] Falta guardia_id o session_token');
+      return res.status(400).json({ error: 'guardia_id o session_token es requerido' });
     }
 
-    // Si no se proporciona session_token específico, finalizar todas las activas
-    const filter = session_token === 'all' ? { is_active: true } : { session_token, is_active: true };
+    // Determinar filtro según parámetros
+    let filter;
+    if (guardia_id) {
+      filter = { guardia_id, is_active: true };
+    } else if (session_token === 'all') {
+      filter = { is_active: true };
+    } else {
+      filter = { session_token, is_active: true };
+    }
     console.log('🔍 [SESIONES-FORZAR] Filtro:', filter);
 
     const ahora = getPeruDate();
@@ -1296,7 +1320,10 @@ app.post('/sesiones/forzar-finalizacion', async (req, res) => {
     );
 
     console.log(`✅ [SESIONES-FORZAR] ${resultado.modifiedCount} sesión(es) finalizada(s)`);
-    res.json({ message: `${resultado.modifiedCount} sesión(es) finalizada(s)` });
+    res.json({ 
+      message: `${resultado.modifiedCount} sesión(es) finalizada(s)`,
+      count: resultado.modifiedCount 
+    });
   } catch (err) {
     console.error('❌ [SESIONES-FORZAR] Error:', err);
     res.status(500).json({ error: 'Error al forzar finalización', details: err.message });
