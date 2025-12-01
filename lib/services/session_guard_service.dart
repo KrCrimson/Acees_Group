@@ -392,6 +392,9 @@ class SessionResult {
     this.conflictData,
   });
 
+  // Getter para compatibilidad
+  bool get success => isSuccess;
+
   factory SessionResult.success({
     required String sessionToken,
     required String message,

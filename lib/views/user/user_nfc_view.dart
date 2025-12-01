@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../viewmodels/nfc_viewmodel.dart';
 import '../../viewmodels/auth_viewmodel.dart';
 import '../../services/autorizacion_service.dart';
+import '../../services/session_guard_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/status_widgets.dart';
 import '../../widgets/session_status_widget.dart';
@@ -19,12 +20,18 @@ class UserNfcView extends StatefulWidget {
 }
 
 class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
+  final SessionGuardService _sessionGuardService = SessionGuardService();
+  
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _checkNfcAvailability();
     _configurarGuardia();
+    _iniciarSesionGuardia();
+
+    // Escuchar cambios en la sesión
+    _sessionGuardService.addListener(_onSessionChanged);
 
     // Agregar log inicial
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -47,9 +54,64 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _iniciarSesionGuardia() async {
+    final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
+    
+    if (authViewModel.currentUser != null) {
+      final resultado = await _sessionGuardService.iniciarSesion(
+        guardiaId: authViewModel.currentUser!.id,
+        guardiaNombre: authViewModel.currentUser!.nombreCompleto,
+        puntoControl: authViewModel.currentUser!.puertaACargo ?? 'Principal',
+      );
+
+      if (!resultado.success) {
+        debugPrint('⚠️ Error al iniciar sesión de guardia: ${resultado.message}');
+      } else {
+        debugPrint('✅ Sesión de guardia iniciada correctamente');
+      }
+    }
+  }
+
+  void _onSessionChanged() {
+    // Si la sesión ya no está activa, cerrar la app del guardia
+    if (!_sessionGuardService.isSessionActive && mounted) {
+      _cerrarSesionPorAdmin();
+    }
+  }
+
+  void _cerrarSesionPorAdmin() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Sesión Finalizada'),
+          ],
+        ),
+        content: Text(
+          'Su sesión ha sido finalizada por un administrador. La aplicación se cerrará.',
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _handleLogout();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: Text('Entendido'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _sessionGuardService.removeListener(_onSessionChanged);
     // Detener cualquier escaneo en curso
     final nfcViewModel = Provider.of<NfcViewModel>(context, listen: false);
     nfcViewModel.stopNfcScan();
@@ -103,11 +165,12 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
 
   void _procesarDenegacion(NfcViewModel nfcViewModel, String razon) async {
     final asistenciaId = nfcViewModel.lastAsistenciaId;
-    
+
     if (asistenciaId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error: No se pudo identificar la asistencia para denegar'),
+          content:
+              Text('Error: No se pudo identificar la asistencia para denegar'),
           backgroundColor: Colors.red,
         ),
       );
@@ -115,19 +178,20 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
     }
 
     try {
-      final authService = Provider.of<AutorizacionService>(context, listen: false);
-      await authService.actualizarEstadoAsistencia(asistenciaId, 'denegado', razon);
-      
+      final authService =
+          Provider.of<AutorizacionService>(context, listen: false);
+      await authService.actualizarEstadoAsistencia(
+          asistenciaId, 'denegado', razon);
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Acceso DENEGADO correctamente'),
           backgroundColor: Colors.orange,
         ),
       );
-      
+
       // Limpiar la pantalla después de denegar
       nfcViewModel.clearScan();
-      
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
