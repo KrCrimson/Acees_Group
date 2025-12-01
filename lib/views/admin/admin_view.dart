@@ -25,10 +25,10 @@ class _AdminViewState extends State<AdminView> {
     UserManagementView(),
     ReportsView(),
     BusRecommendationsView(),
-    SessionConfigView(),
-    SyncConfigView(),
-    SessionManagementView(adminId: '', adminName: 'Admin'),
-    HistorialView(),
+    SessionManagementView(adminId: '', adminName: 'Admin'), // GESTIÓN DE GUARDIAS
+    // SessionConfigView(), // OCULTA - Configuración de sesión no necesaria
+    // SyncConfigView(), // OCULTA - NO FUNCIONA
+    // HistorialView(), // OCULTA - NO FUNCIONA
   ];
 
   void _handleLogout() {
@@ -135,6 +135,12 @@ class _AdminViewState extends State<AdminView> {
             label: 'Buses',
           ),
           BottomNavigationBarItem(
+            icon: Icon(Icons.supervisor_account),
+            label: 'Gestión',
+          ),
+          // PESTAÑAS OCULTAS POR NO FUNCIONAR CORRECTAMENTE
+          /*
+          BottomNavigationBarItem(
             icon: Icon(Icons.timer),
             label: 'Sesión',
           ),
@@ -143,13 +149,10 @@ class _AdminViewState extends State<AdminView> {
             label: 'Sync',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.supervisor_account),
-            label: 'Gestión',
-          ),
-          BottomNavigationBarItem(
             icon: Icon(Icons.history),
             label: 'Historial',
           ),
+          */
         ],
       ),
     );
