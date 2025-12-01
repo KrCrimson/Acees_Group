@@ -22,7 +22,7 @@ class _SessionManagementViewState extends State<SessionManagementView> {
   List<Map<String, dynamic>> _sesionesActivas = [];
   bool _isLoading = true;
   String? _errorMessage;
-  
+
   // Lista de logs
   final List<String> _logs = [];
   final ScrollController _logScrollController = ScrollController();
@@ -70,17 +70,18 @@ class _SessionManagementViewState extends State<SessionManagementView> {
     try {
       _addLog('📡 Consultando endpoint: /sesiones/activas');
       final sesiones = await _apiService.getSesionesActivas();
-      
+
       _addLog('✅ Respuesta recibida: ${sesiones.length} sesiones');
-      
+
       for (var i = 0; i < sesiones.length; i++) {
         final s = sesiones[i];
-        _addLog('📋 Sesión ${i + 1}: ${s['guardia_nombre']} - ${s['punto_control']}');
+        _addLog(
+            '📋 Sesión ${i + 1}: ${s['guardia_nombre']} - ${s['punto_control']}');
         _addLog('   ID: ${s['guardia_id']}');
         _addLog('   Token: ${s['session_token']}');
         _addLog('   Activa: ${s['is_active']}');
       }
-      
+
       setState(() {
         _sesionesActivas = sesiones;
         _isLoading = false;
@@ -101,28 +102,27 @@ class _SessionManagementViewState extends State<SessionManagementView> {
   ) async {
     final confirmacion = await showDialog<bool>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Text('Confirmar Finalización'),
-            content: Text(
-              '¿Está seguro de que desea finalizar la sesión de $guardiaNombre?\n\n'
-              'Esta acción cerrará todas las sesiones activas del guardia.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: Text('Cancelar'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                ),
-                child: Text('Finalizar'),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: Text('Confirmar Finalización'),
+        content: Text(
+          '¿Está seguro de que desea finalizar la sesión de $guardiaNombre?\n\n'
+          'Esta acción cerrará todas las sesiones activas del guardia.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('Cancelar'),
           ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Finalizar'),
+          ),
+        ],
+      ),
     );
 
     if (confirmacion == true) {
@@ -234,11 +234,13 @@ class _SessionManagementViewState extends State<SessionManagementView> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.check_circle_outline, size: 64, color: Colors.green),
+                      Icon(Icons.check_circle_outline,
+                          size: 64, color: Colors.green),
                       SizedBox(height: 16),
                       Text(
                         'No hay sesiones activas',
-                        style: GoogleFonts.lato(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: GoogleFonts.lato(
+                            fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -251,7 +253,7 @@ class _SessionManagementViewState extends State<SessionManagementView> {
                   },
                 ),
         ),
-        
+
         // Consola de logs (parte inferior) - DESHABILITADA POR SEGURIDAD
         /*
         Container(
@@ -477,10 +479,9 @@ class _SessionManagementViewState extends State<SessionManagementView> {
                       isRecentActivity ? Colors.green[100] : Colors.orange[100],
                   child: Icon(
                     Icons.person,
-                    color:
-                        isRecentActivity
-                            ? Colors.green[700]
-                            : Colors.orange[700],
+                    color: isRecentActivity
+                        ? Colors.green[700]
+                        : Colors.orange[700],
                   ),
                 ),
                 SizedBox(width: 12),
@@ -508,20 +509,18 @@ class _SessionManagementViewState extends State<SessionManagementView> {
                 Container(
                   padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color:
-                        isRecentActivity
-                            ? Colors.green[100]
-                            : Colors.orange[100],
+                    color: isRecentActivity
+                        ? Colors.green[100]
+                        : Colors.orange[100],
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
                     isRecentActivity ? 'Activo' : 'Inactivo',
                     style: GoogleFonts.lato(
                       fontSize: 12,
-                      color:
-                          isRecentActivity
-                              ? Colors.green[800]
-                              : Colors.orange[800],
+                      color: isRecentActivity
+                          ? Colors.green[800]
+                          : Colors.orange[800],
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -555,8 +554,8 @@ class _SessionManagementViewState extends State<SessionManagementView> {
                 ),
                 SizedBox(width: 8),
                 ElevatedButton.icon(
-                  onPressed:
-                      () => _forzarFinalizacion(guardiaId, guardiaNombre),
+                  onPressed: () =>
+                      _forzarFinalizacion(guardiaId, guardiaNombre),
                   icon: Icon(Icons.stop),
                   label: Text('Finalizar'),
                   style: ElevatedButton.styleFrom(
@@ -595,67 +594,66 @@ class _SessionManagementViewState extends State<SessionManagementView> {
   void _mostrarDetallesSesion(Map<String, dynamic> sesion) {
     showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Text('Detalles de Sesión'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildDetalleCompleto(
-                    'Guardia',
-                    sesion['guardia_nombre'] ?? 'N/A',
-                  ),
-                  _buildDetalleCompleto(
-                    'ID Guardia',
-                    sesion['guardia_id'] ?? 'N/A',
-                  ),
-                  _buildDetalleCompleto(
-                    'Punto Control',
-                    sesion['punto_control'] ?? 'N/A',
-                  ),
-                  _buildDetalleCompleto(
-                    'Token Sesión',
-                    sesion['session_token'] ?? 'N/A',
-                  ),
-                  _buildDetalleCompleto(
-                    'Fecha Inicio',
-                    sesion['fecha_inicio'] ?? 'N/A',
-                  ),
-                  _buildDetalleCompleto(
-                    'Última Actividad',
-                    sesion['last_activity'] ?? 'N/A',
-                  ),
-                  if (sesion['device_info'] != null) ...[
-                    SizedBox(height: 8),
-                    Text(
-                      'Información del Dispositivo:',
-                      style: GoogleFonts.lato(fontWeight: FontWeight.bold),
-                    ),
-                    _buildDetalleCompleto(
-                      'Plataforma',
-                      sesion['device_info']['platform'] ?? 'N/A',
-                    ),
-                    _buildDetalleCompleto(
-                      'ID Dispositivo',
-                      sesion['device_info']['device_id'] ?? 'N/A',
-                    ),
-                    _buildDetalleCompleto(
-                      'Versión App',
-                      sesion['device_info']['app_version'] ?? 'N/A',
-                    ),
-                  ],
-                ],
+      builder: (context) => AlertDialog(
+        title: Text('Detalles de Sesión'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildDetalleCompleto(
+                'Guardia',
+                sesion['guardia_nombre'] ?? 'N/A',
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text('Cerrar'),
+              _buildDetalleCompleto(
+                'ID Guardia',
+                sesion['guardia_id'] ?? 'N/A',
               ),
+              _buildDetalleCompleto(
+                'Punto Control',
+                sesion['punto_control'] ?? 'N/A',
+              ),
+              _buildDetalleCompleto(
+                'Token Sesión',
+                sesion['session_token'] ?? 'N/A',
+              ),
+              _buildDetalleCompleto(
+                'Fecha Inicio',
+                sesion['fecha_inicio'] ?? 'N/A',
+              ),
+              _buildDetalleCompleto(
+                'Última Actividad',
+                sesion['last_activity'] ?? 'N/A',
+              ),
+              if (sesion['device_info'] != null) ...[
+                SizedBox(height: 8),
+                Text(
+                  'Información del Dispositivo:',
+                  style: GoogleFonts.lato(fontWeight: FontWeight.bold),
+                ),
+                _buildDetalleCompleto(
+                  'Plataforma',
+                  sesion['device_info']['platform'] ?? 'N/A',
+                ),
+                _buildDetalleCompleto(
+                  'ID Dispositivo',
+                  sesion['device_info']['device_id'] ?? 'N/A',
+                ),
+                _buildDetalleCompleto(
+                  'Versión App',
+                  sesion['device_info']['app_version'] ?? 'N/A',
+                ),
+              ],
             ],
           ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Cerrar'),
+          ),
+        ],
+      ),
     );
   }
 

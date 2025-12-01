@@ -25,7 +25,8 @@ class _AdminViewState extends State<AdminView> {
     UserManagementView(),
     ReportsView(),
     BusRecommendationsView(),
-    SessionManagementView(adminId: '', adminName: 'Admin'), // GESTIÓN DE GUARDIAS
+    SessionManagementView(
+        adminId: '', adminName: 'Admin'), // GESTIÓN DE GUARDIAS
     // SessionConfigView(), // OCULTA - Configuración de sesión no necesaria
     // SyncConfigView(), // OCULTA - NO FUNCIONA
     // HistorialView(), // OCULTA - NO FUNCIONA

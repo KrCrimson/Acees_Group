@@ -39,63 +39,93 @@ class ReportsViewModel extends ChangeNotifier {
   String? get selectedFacultadFilter => _selectedFacultadFilter;
   String? get selectedEscuelaFilter => _selectedEscuelaFilter;
   String? get selectedTipoFilter => _selectedTipoFilter;
-  bool get hasAsistenciaFilters => _asistenciaSearchQuery.isNotEmpty || _selectedFacultadFilter != null || _selectedEscuelaFilter != null || _selectedTipoFilter != null;
+  bool get hasAsistenciaFilters =>
+      _asistenciaSearchQuery.isNotEmpty ||
+      _selectedFacultadFilter != null ||
+      _selectedEscuelaFilter != null ||
+      _selectedTipoFilter != null;
 
   // Getters de filtros - Estudiantes
   String? get selectedFacultadFilterEst => _selectedFacultadFilterEst;
   String? get selectedEscuelaFilterEst => _selectedEscuelaFilterEst;
   String? get selectedEstadoFilter => _selectedEstadoFilter;
-  bool get hasEstudianteFilters => _estudianteSearchQuery.isNotEmpty || _selectedFacultadFilterEst != null || _selectedEscuelaFilterEst != null || _selectedEstadoFilter != null;
+  bool get hasEstudianteFilters =>
+      _estudianteSearchQuery.isNotEmpty ||
+      _selectedFacultadFilterEst != null ||
+      _selectedEscuelaFilterEst != null ||
+      _selectedEstadoFilter != null;
 
   // Listas filtradas
   List<AsistenciaModel> get filteredAsistencias {
     var filtered = _asistencias;
-    
+
     if (_asistenciaSearchQuery.isNotEmpty) {
-      filtered = filtered.where((a) =>
-        a.nombreCompleto.toLowerCase().contains(_asistenciaSearchQuery.toLowerCase()) ||
-        a.codigoUniversitario.toLowerCase().contains(_asistenciaSearchQuery.toLowerCase())
-      ).toList();
+      filtered = filtered
+          .where((a) =>
+              a.nombreCompleto
+                  .toLowerCase()
+                  .contains(_asistenciaSearchQuery.toLowerCase()) ||
+              a.codigoUniversitario
+                  .toLowerCase()
+                  .contains(_asistenciaSearchQuery.toLowerCase()))
+          .toList();
     }
-    
+
     if (_selectedFacultadFilter != null) {
-      filtered = filtered.where((a) => a.siglasFacultad == _selectedFacultadFilter).toList();
+      filtered = filtered
+          .where((a) => a.siglasFacultad == _selectedFacultadFilter)
+          .toList();
     }
-    
+
     if (_selectedEscuelaFilter != null) {
-      filtered = filtered.where((a) => a.siglasEscuela == _selectedEscuelaFilter).toList();
+      filtered = filtered
+          .where((a) => a.siglasEscuela == _selectedEscuelaFilter)
+          .toList();
     }
-    
+
     if (_selectedTipoFilter != null) {
-      filtered = filtered.where((a) => a.entradaTipo.toLowerCase().contains(_selectedTipoFilter!.toLowerCase())).toList();
+      filtered = filtered
+          .where((a) => a.entradaTipo
+              .toLowerCase()
+              .contains(_selectedTipoFilter!.toLowerCase()))
+          .toList();
     }
-    
+
     return filtered;
   }
 
   List<AlumnoModel> get filteredEstudiantes {
     var filtered = _alumnos;
-    
+
     if (_estudianteSearchQuery.isNotEmpty) {
-      filtered = filtered.where((a) =>
-        a.nombreCompleto.toLowerCase().contains(_estudianteSearchQuery.toLowerCase()) ||
-        a.codigoUniversitario.toLowerCase().contains(_estudianteSearchQuery.toLowerCase())
-      ).toList();
+      filtered = filtered
+          .where((a) =>
+              a.nombreCompleto
+                  .toLowerCase()
+                  .contains(_estudianteSearchQuery.toLowerCase()) ||
+              a.codigoUniversitario
+                  .toLowerCase()
+                  .contains(_estudianteSearchQuery.toLowerCase()))
+          .toList();
     }
-    
+
     if (_selectedFacultadFilterEst != null) {
-      filtered = filtered.where((a) => a.siglasFacultad == _selectedFacultadFilterEst).toList();
+      filtered = filtered
+          .where((a) => a.siglasFacultad == _selectedFacultadFilterEst)
+          .toList();
     }
-    
+
     if (_selectedEscuelaFilterEst != null) {
-      filtered = filtered.where((a) => a.siglasEscuela == _selectedEscuelaFilterEst).toList();
+      filtered = filtered
+          .where((a) => a.siglasEscuela == _selectedEscuelaFilterEst)
+          .toList();
     }
-    
+
     if (_selectedEstadoFilter != null) {
       final isActive = _selectedEstadoFilter == 'activo';
       filtered = filtered.where((a) => a.isActive == isActive).toList();
     }
-    
+
     return filtered;
   }
 
@@ -211,9 +241,8 @@ class ReportsViewModel extends ChangeNotifier {
           (asistenciasPorFacultad[asistencia.siglasFacultad] ?? 0) + 1;
     }
 
-    var sorted =
-        asistenciasPorFacultad.entries.toList()
-          ..sort((a, b) => b.value.compareTo(a.value));
+    var sorted = asistenciasPorFacultad.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
 
     return sorted.take(limit).toList();
   }
@@ -222,9 +251,11 @@ class ReportsViewModel extends ChangeNotifier {
   List<MapEntry<String, int>> getTopEscuelas({int limit = 5}) {
     Map<String, int> asistenciasPorEscuela = {};
     for (var asistencia in _asistencias) {
-      asistenciasPorEscuela[asistencia.siglasEscuela] = (asistenciasPorEscuela[asistencia.siglasEscuela] ?? 0) + 1;
+      asistenciasPorEscuela[asistencia.siglasEscuela] =
+          (asistenciasPorEscuela[asistencia.siglasEscuela] ?? 0) + 1;
     }
-    var sorted = asistenciasPorEscuela.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    var sorted = asistenciasPorEscuela.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
     return sorted.take(limit).toList();
   }
 
@@ -250,7 +281,15 @@ class ReportsViewModel extends ChangeNotifier {
       final dia = ahora.subtract(Duration(days: i));
       final count = getAsistenciasByDate(dia).length;
       tendencia.add({
-        'label': ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][dia.weekday % 7],
+        'label': [
+          'Dom',
+          'Lun',
+          'Mar',
+          'Mié',
+          'Jue',
+          'Vie',
+          'Sáb'
+        ][dia.weekday % 7],
         'count': count,
       });
     }
@@ -261,10 +300,15 @@ class ReportsViewModel extends ChangeNotifier {
   List<Map<String, dynamic>> getTopEstudiantes({int limit = 10}) {
     Map<String, int> asistenciasPorEstudiante = {};
     for (var asistencia in _asistencias) {
-      asistenciasPorEstudiante[asistencia.nombreCompleto] = (asistenciasPorEstudiante[asistencia.nombreCompleto] ?? 0) + 1;
+      asistenciasPorEstudiante[asistencia.nombreCompleto] =
+          (asistenciasPorEstudiante[asistencia.nombreCompleto] ?? 0) + 1;
     }
-    var sorted = asistenciasPorEstudiante.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-    return sorted.take(limit).map((e) => {'nombre': e.key, 'count': e.value}).toList();
+    var sorted = asistenciasPorEstudiante.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return sorted
+        .take(limit)
+        .map((e) => {'nombre': e.key, 'count': e.value})
+        .toList();
   }
 
   // Comparativa mensual
@@ -276,7 +320,20 @@ class ReportsViewModel extends ChangeNotifier {
       final siguienteMes = DateTime(ahora.year, ahora.month - i + 1, 1);
       final count = getAsistenciasByDateRange(mes, siguienteMes).length;
       comparativa.add({
-        'mes': ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'][mes.month - 1],
+        'mes': [
+          'Ene',
+          'Feb',
+          'Mar',
+          'Abr',
+          'May',
+          'Jun',
+          'Jul',
+          'Ago',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Dic'
+        ][mes.month - 1],
         'count': count,
       });
     }

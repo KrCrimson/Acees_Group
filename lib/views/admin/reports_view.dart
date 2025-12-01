@@ -236,27 +236,33 @@ class _ReportsViewState extends State<ReportsView>
               children: [
                 Icon(Icons.school, color: Colors.orange),
                 SizedBox(width: 8),
-                Text('Top Escuelas por Asistencias', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Text('Top Escuelas por Asistencias',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             ),
             SizedBox(height: 12),
             ...topEscuelas.map((entry) => Padding(
-              padding: EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(child: Text(entry.key)),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.orange[100],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text('${entry.value}', style: TextStyle(color: Colors.orange[700], fontWeight: FontWeight.bold)),
+                  padding: EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(child: Text(entry.key)),
+                      Container(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.orange[100],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text('${entry.value}',
+                            style: TextStyle(
+                                color: Colors.orange[700],
+                                fontWeight: FontWeight.bold)),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            )),
+                )),
           ],
         ),
       ),
@@ -273,9 +279,9 @@ class _ReportsViewState extends State<ReportsView>
             if (snapshot.connectionState == ConnectionState.waiting) {
               return Center(child: CircularProgressIndicator());
             }
-            
+
             final stats = snapshot.data ?? {'entradas': 0, 'salidas': 0};
-            
+
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -283,7 +289,9 @@ class _ReportsViewState extends State<ReportsView>
                   children: [
                     Icon(Icons.swap_horiz, color: Colors.purple),
                     SizedBox(width: 8),
-                    Text('Entradas vs Salidas (Hoy)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    Text('Entradas vs Salidas (Hoy)',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold)),
                   ],
                 ),
                 SizedBox(height: 16),
@@ -301,8 +309,13 @@ class _ReportsViewState extends State<ReportsView>
                           children: [
                             Icon(Icons.login, color: Colors.green, size: 32),
                             SizedBox(height: 8),
-                            Text('${stats['entradas']}', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.green)),
-                            Text('Entradas', style: TextStyle(color: Colors.grey[600])),
+                            Text('${stats['entradas']}',
+                                style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green)),
+                            Text('Entradas',
+                                style: TextStyle(color: Colors.grey[600])),
                           ],
                         ),
                       ),
@@ -320,8 +333,13 @@ class _ReportsViewState extends State<ReportsView>
                           children: [
                             Icon(Icons.logout, color: Colors.orange, size: 32),
                             SizedBox(height: 8),
-                            Text('${stats['salidas']}', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.orange)),
-                            Text('Salidas', style: TextStyle(color: Colors.grey[600])),
+                            Text('${stats['salidas']}',
+                                style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.orange)),
+                            Text('Salidas',
+                                style: TextStyle(color: Colors.grey[600])),
                           ],
                         ),
                       ),
@@ -348,7 +366,9 @@ class _ReportsViewState extends State<ReportsView>
               children: [
                 Icon(Icons.trending_up, color: Colors.blue),
                 SizedBox(width: 8),
-                Text('Tendencia Semanal', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Text('Tendencia Semanal',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             ),
             SizedBox(height: 12),
@@ -359,25 +379,33 @@ class _ReportsViewState extends State<ReportsView>
                 itemCount: tendencia.length,
                 itemBuilder: (context, index) {
                   final dia = tendencia[index];
-                  final maxValue = tendencia.map((d) => d['count'] as int).reduce((a, b) => a > b ? a : b);
-                  final altura = (dia['count'] as int) == 0 ? 0.0 : ((dia['count'] as int) / maxValue) * 100;
+                  final maxValue = tendencia
+                      .map((d) => d['count'] as int)
+                      .reduce((a, b) => a > b ? a : b);
+                  final altura = (dia['count'] as int) == 0
+                      ? 0.0
+                      : ((dia['count'] as int) / maxValue) * 100;
                   return Container(
                     width: 50,
                     margin: EdgeInsets.symmetric(horizontal: 2),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        Text('${dia['count']}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                        Text('${dia['count']}',
+                            style: TextStyle(
+                                fontSize: 10, fontWeight: FontWeight.bold)),
                         Container(
                           width: 30,
                           height: altura,
                           decoration: BoxDecoration(
                             color: Colors.blue[400],
-                            borderRadius: BorderRadius.vertical(top: Radius.circular(4)),
+                            borderRadius:
+                                BorderRadius.vertical(top: Radius.circular(4)),
                           ),
                         ),
                         SizedBox(height: 4),
-                        Text(dia['label'] as String, style: TextStyle(fontSize: 10)),
+                        Text(dia['label'] as String,
+                            style: TextStyle(fontSize: 10)),
                       ],
                     ),
                   );
@@ -402,7 +430,9 @@ class _ReportsViewState extends State<ReportsView>
               children: [
                 Icon(Icons.emoji_events, color: Colors.amber),
                 SizedBox(width: 8),
-                Text('Top 10 Estudiantes Más Activos', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Text('Top 10 Estudiantes Más Activos',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             ),
             SizedBox(height: 12),
@@ -421,18 +451,30 @@ class _ReportsViewState extends State<ReportsView>
                         shape: BoxShape.circle,
                       ),
                       child: Center(
-                        child: Text('${index + 1}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: index < 3 ? Colors.amber[700] : Colors.grey[600])),
+                        child: Text('${index + 1}',
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: index < 3
+                                    ? Colors.amber[700]
+                                    : Colors.grey[600])),
                       ),
                     ),
                     SizedBox(width: 8),
-                    Expanded(child: Text(estudiante['nombre'] as String, style: TextStyle(fontSize: 13))),
+                    Expanded(
+                        child: Text(estudiante['nombre'] as String,
+                            style: TextStyle(fontSize: 13))),
                     Container(
                       padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
                         color: Colors.blue[100],
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Text('${estudiante['count']}', style: TextStyle(color: Colors.blue[700], fontWeight: FontWeight.bold, fontSize: 12)),
+                      child: Text('${estudiante['count']}',
+                          style: TextStyle(
+                              color: Colors.blue[700],
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12)),
                     ),
                   ],
                 ),
@@ -456,27 +498,33 @@ class _ReportsViewState extends State<ReportsView>
               children: [
                 Icon(Icons.calendar_month, color: Colors.teal),
                 SizedBox(width: 8),
-                Text('Comparativa Últimos 3 Meses', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Text('Comparativa Últimos 3 Meses',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             ),
             SizedBox(height: 12),
             ...comparativa.map((mes) => Padding(
-              padding: EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(mes['mes'] as String),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.teal[100],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text('${mes['count']}', style: TextStyle(color: Colors.teal[700], fontWeight: FontWeight.bold)),
+                  padding: EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(mes['mes'] as String),
+                      Container(
+                        padding:
+                            EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.teal[100],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text('${mes['count']}',
+                            style: TextStyle(
+                                color: Colors.teal[700],
+                                fontWeight: FontWeight.bold)),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            )),
+                )),
           ],
         ),
       ),
@@ -555,16 +603,14 @@ class _ReportsViewState extends State<ReportsView>
                 itemBuilder: (context, index) {
                   final hora = index;
                   final asistencias = asistenciasPorHora[hora] ?? 0;
-                  final maxAsistencias =
-                      asistenciasPorHora.values.isNotEmpty
-                          ? asistenciasPorHora.values.reduce(
-                            (a, b) => a > b ? a : b,
-                          )
-                          : 1;
-                  final altura =
-                      asistencias == 0
-                          ? 0.0
-                          : (asistencias / maxAsistencias) * 150;
+                  final maxAsistencias = asistenciasPorHora.values.isNotEmpty
+                      ? asistenciasPorHora.values.reduce(
+                          (a, b) => a > b ? a : b,
+                        )
+                      : 1;
+                  final altura = asistencias == 0
+                      ? 0.0
+                      : (asistencias / maxAsistencias) * 150;
 
                   return Container(
                     width: 30,
@@ -662,12 +708,14 @@ class _ReportsViewState extends State<ReportsView>
                 decoration: InputDecoration(
                   hintText: 'Buscar por DNI o nombre...',
                   prefixIcon: Icon(Icons.search),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8)),
                   filled: true,
                   fillColor: Colors.white,
                   contentPadding: EdgeInsets.symmetric(vertical: 8),
                 ),
-                onChanged: (value) => reportsViewModel.setAsistenciaSearchQuery(value),
+                onChanged: (value) =>
+                    reportsViewModel.setAsistenciaSearchQuery(value),
               ),
               SizedBox(height: 8),
               // Filtros en fila
@@ -702,10 +750,12 @@ class _ReportsViewState extends State<ReportsView>
                     // Limpiar filtros
                     if (reportsViewModel.hasAsistenciaFilters)
                       TextButton.icon(
-                        onPressed: () => reportsViewModel.clearAsistenciaFilters(),
+                        onPressed: () =>
+                            reportsViewModel.clearAsistenciaFilters(),
                         icon: Icon(Icons.clear, size: 16),
                         label: Text('Limpiar'),
-                        style: TextButton.styleFrom(foregroundColor: Colors.red),
+                        style:
+                            TextButton.styleFrom(foregroundColor: Colors.red),
                       ),
                   ],
                 ),
@@ -722,9 +772,11 @@ class _ReportsViewState extends State<ReportsView>
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+                        Icon(Icons.search_off,
+                            size: 64, color: Colors.grey[400]),
                         SizedBox(height: 16),
-                        Text('No se encontraron asistencias', style: TextStyle(color: Colors.grey[600])),
+                        Text('No se encontraron asistencias',
+                            style: TextStyle(color: Colors.grey[600])),
                       ],
                     ),
                   )
@@ -732,13 +784,18 @@ class _ReportsViewState extends State<ReportsView>
                     padding: EdgeInsets.all(16),
                     itemCount: reportsViewModel.filteredAsistencias.length,
                     itemBuilder: (context, index) {
-                      final asistencia = reportsViewModel.filteredAsistencias[index];
-                      final isEntrada = asistencia.entradaTipo.toLowerCase().contains('entrada');
+                      final asistencia =
+                          reportsViewModel.filteredAsistencias[index];
+                      final isEntrada = asistencia.entradaTipo
+                          .toLowerCase()
+                          .contains('entrada');
                       return Card(
                         margin: EdgeInsets.only(bottom: 8),
                         child: ListTile(
                           leading: CircleAvatar(
-                            backgroundColor: isEntrada ? Colors.green[100] : Colors.orange[100],
+                            backgroundColor: isEntrada
+                                ? Colors.green[100]
+                                : Colors.orange[100],
                             child: Icon(
                               isEntrada ? Icons.login : Icons.logout,
                               color: isEntrada ? Colors.green : Colors.orange,
@@ -749,14 +806,18 @@ class _ReportsViewState extends State<ReportsView>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text('Código: ${asistencia.codigoUniversitario}'),
-                              Text('${asistencia.siglasFacultad} - ${asistencia.siglasEscuela}'),
+                              Text(
+                                  '${asistencia.siglasFacultad} - ${asistencia.siglasEscuela}'),
                               Text('Fecha: ${asistencia.fechaFormateada}'),
                             ],
                           ),
                           trailing: Container(
-                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: isEntrada ? Colors.green[100] : Colors.orange[100],
+                              color: isEntrada
+                                  ? Colors.green[100]
+                                  : Colors.orange[100],
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -764,7 +825,9 @@ class _ReportsViewState extends State<ReportsView>
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
-                                color: isEntrada ? Colors.green[700] : Colors.orange[700],
+                                color: isEntrada
+                                    ? Colors.green[700]
+                                    : Colors.orange[700],
                               ),
                             ),
                           ),
@@ -778,7 +841,8 @@ class _ReportsViewState extends State<ReportsView>
     );
   }
 
-  Widget _buildFilterChip(String label, String? value, IconData icon, VoidCallback onTap) {
+  Widget _buildFilterChip(
+      String label, String? value, IconData icon, VoidCallback onTap) {
     final hasValue = value != null && value.isNotEmpty;
     return InkWell(
       onTap: onTap,
@@ -792,7 +856,9 @@ class _ReportsViewState extends State<ReportsView>
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: hasValue ? Colors.blue[700] : Colors.grey[600]),
+            Icon(icon,
+                size: 16,
+                color: hasValue ? Colors.blue[700] : Colors.grey[600]),
             SizedBox(width: 4),
             Text(
               hasValue ? value : label,
@@ -819,18 +885,24 @@ class _ReportsViewState extends State<ReportsView>
             children: [
               ListTile(
                 title: Text('Todas'),
-                leading: Radio(value: null, groupValue: vm.selectedFacultadFilter, onChanged: (_) {
-                  vm.setFacultadFilter(null);
-                  Navigator.pop(context);
-                }),
+                leading: Radio(
+                    value: null,
+                    groupValue: vm.selectedFacultadFilter,
+                    onChanged: (_) {
+                      vm.setFacultadFilter(null);
+                      Navigator.pop(context);
+                    }),
               ),
               ...vm.facultades.map((f) => ListTile(
-                title: Text(f.siglas),
-                leading: Radio(value: f.siglas, groupValue: vm.selectedFacultadFilter, onChanged: (_) {
-                  vm.setFacultadFilter(f.siglas);
-                  Navigator.pop(context);
-                }),
-              )),
+                    title: Text(f.siglas),
+                    leading: Radio(
+                        value: f.siglas,
+                        groupValue: vm.selectedFacultadFilter,
+                        onChanged: (_) {
+                          vm.setFacultadFilter(f.siglas);
+                          Navigator.pop(context);
+                        }),
+                  )),
             ],
           ),
         ),
@@ -849,18 +921,24 @@ class _ReportsViewState extends State<ReportsView>
             children: [
               ListTile(
                 title: Text('Todas'),
-                leading: Radio(value: null, groupValue: vm.selectedEscuelaFilter, onChanged: (_) {
-                  vm.setEscuelaFilter(null);
-                  Navigator.pop(context);
-                }),
+                leading: Radio(
+                    value: null,
+                    groupValue: vm.selectedEscuelaFilter,
+                    onChanged: (_) {
+                      vm.setEscuelaFilter(null);
+                      Navigator.pop(context);
+                    }),
               ),
               ...vm.escuelas.map((e) => ListTile(
-                title: Text(e.siglas),
-                leading: Radio(value: e.siglas, groupValue: vm.selectedEscuelaFilter, onChanged: (_) {
-                  vm.setEscuelaFilter(e.siglas);
-                  Navigator.pop(context);
-                }),
-              )),
+                    title: Text(e.siglas),
+                    leading: Radio(
+                        value: e.siglas,
+                        groupValue: vm.selectedEscuelaFilter,
+                        onChanged: (_) {
+                          vm.setEscuelaFilter(e.siglas);
+                          Navigator.pop(context);
+                        }),
+                  )),
             ],
           ),
         ),
@@ -878,24 +956,33 @@ class _ReportsViewState extends State<ReportsView>
           children: [
             ListTile(
               title: Text('Todos'),
-              leading: Radio(value: null, groupValue: vm.selectedTipoFilter, onChanged: (_) {
-                vm.setTipoFilter(null);
-                Navigator.pop(context);
-              }),
+              leading: Radio(
+                  value: null,
+                  groupValue: vm.selectedTipoFilter,
+                  onChanged: (_) {
+                    vm.setTipoFilter(null);
+                    Navigator.pop(context);
+                  }),
             ),
             ListTile(
               title: Text('Entrada'),
-              leading: Radio(value: 'entrada', groupValue: vm.selectedTipoFilter, onChanged: (_) {
-                vm.setTipoFilter('entrada');
-                Navigator.pop(context);
-              }),
+              leading: Radio(
+                  value: 'entrada',
+                  groupValue: vm.selectedTipoFilter,
+                  onChanged: (_) {
+                    vm.setTipoFilter('entrada');
+                    Navigator.pop(context);
+                  }),
             ),
             ListTile(
               title: Text('Salida'),
-              leading: Radio(value: 'salida', groupValue: vm.selectedTipoFilter, onChanged: (_) {
-                vm.setTipoFilter('salida');
-                Navigator.pop(context);
-              }),
+              leading: Radio(
+                  value: 'salida',
+                  groupValue: vm.selectedTipoFilter,
+                  onChanged: (_) {
+                    vm.setTipoFilter('salida');
+                    Navigator.pop(context);
+                  }),
             ),
           ],
         ),
@@ -917,12 +1004,14 @@ class _ReportsViewState extends State<ReportsView>
                 decoration: InputDecoration(
                   hintText: 'Buscar por código o nombre...',
                   prefixIcon: Icon(Icons.search),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8)),
                   filled: true,
                   fillColor: Colors.white,
                   contentPadding: EdgeInsets.symmetric(vertical: 8),
                 ),
-                onChanged: (value) => reportsViewModel.setEstudianteSearchQuery(value),
+                onChanged: (value) =>
+                    reportsViewModel.setEstudianteSearchQuery(value),
               ),
               SizedBox(height: 8),
               // Filtros en fila
@@ -957,10 +1046,12 @@ class _ReportsViewState extends State<ReportsView>
                     // Limpiar filtros
                     if (reportsViewModel.hasEstudianteFilters)
                       TextButton.icon(
-                        onPressed: () => reportsViewModel.clearEstudianteFilters(),
+                        onPressed: () =>
+                            reportsViewModel.clearEstudianteFilters(),
                         icon: Icon(Icons.clear, size: 16),
                         label: Text('Limpiar'),
-                        style: TextButton.styleFrom(foregroundColor: Colors.red),
+                        style:
+                            TextButton.styleFrom(foregroundColor: Colors.red),
                       ),
                   ],
                 ),
@@ -977,9 +1068,11 @@ class _ReportsViewState extends State<ReportsView>
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+                        Icon(Icons.search_off,
+                            size: 64, color: Colors.grey[400]),
                         SizedBox(height: 16),
-                        Text('No se encontraron estudiantes', style: TextStyle(color: Colors.grey[600])),
+                        Text('No se encontraron estudiantes',
+                            style: TextStyle(color: Colors.grey[600])),
                       ],
                     ),
                   )
@@ -987,15 +1080,19 @@ class _ReportsViewState extends State<ReportsView>
                     padding: EdgeInsets.all(16),
                     itemCount: reportsViewModel.filteredEstudiantes.length,
                     itemBuilder: (context, index) {
-                      final alumno = reportsViewModel.filteredEstudiantes[index];
+                      final alumno =
+                          reportsViewModel.filteredEstudiantes[index];
                       return Card(
                         margin: EdgeInsets.only(bottom: 8),
                         child: ListTile(
                           leading: CircleAvatar(
-                            backgroundColor: alumno.isActive ? Colors.green[100] : Colors.red[100],
+                            backgroundColor: alumno.isActive
+                                ? Colors.green[100]
+                                : Colors.red[100],
                             child: Icon(
                               Icons.school,
-                              color: alumno.isActive ? Colors.green : Colors.red,
+                              color:
+                                  alumno.isActive ? Colors.green : Colors.red,
                             ),
                           ),
                           title: Text(alumno.nombreCompleto),
@@ -1003,19 +1100,25 @@ class _ReportsViewState extends State<ReportsView>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text('Código: ${alumno.codigoUniversitario}'),
-                              Text('${alumno.siglasFacultad} - ${alumno.siglasEscuela}'),
+                              Text(
+                                  '${alumno.siglasFacultad} - ${alumno.siglasEscuela}'),
                             ],
                           ),
                           trailing: Container(
-                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: alumno.isActive ? Colors.green[100] : Colors.red[100],
+                              color: alumno.isActive
+                                  ? Colors.green[100]
+                                  : Colors.red[100],
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
                               alumno.isActive ? 'Activo' : 'Inactivo',
                               style: TextStyle(
-                                color: alumno.isActive ? Colors.green[700] : Colors.red[700],
+                                color: alumno.isActive
+                                    ? Colors.green[700]
+                                    : Colors.red[700],
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -1042,18 +1145,24 @@ class _ReportsViewState extends State<ReportsView>
             children: [
               ListTile(
                 title: Text('Todas'),
-                leading: Radio(value: null, groupValue: vm.selectedFacultadFilterEst, onChanged: (_) {
-                  vm.setFacultadFilterEst(null);
-                  Navigator.pop(context);
-                }),
+                leading: Radio(
+                    value: null,
+                    groupValue: vm.selectedFacultadFilterEst,
+                    onChanged: (_) {
+                      vm.setFacultadFilterEst(null);
+                      Navigator.pop(context);
+                    }),
               ),
               ...vm.facultades.map((f) => ListTile(
-                title: Text(f.siglas),
-                leading: Radio(value: f.siglas, groupValue: vm.selectedFacultadFilterEst, onChanged: (_) {
-                  vm.setFacultadFilterEst(f.siglas);
-                  Navigator.pop(context);
-                }),
-              )),
+                    title: Text(f.siglas),
+                    leading: Radio(
+                        value: f.siglas,
+                        groupValue: vm.selectedFacultadFilterEst,
+                        onChanged: (_) {
+                          vm.setFacultadFilterEst(f.siglas);
+                          Navigator.pop(context);
+                        }),
+                  )),
             ],
           ),
         ),
@@ -1072,18 +1181,24 @@ class _ReportsViewState extends State<ReportsView>
             children: [
               ListTile(
                 title: Text('Todas'),
-                leading: Radio(value: null, groupValue: vm.selectedEscuelaFilterEst, onChanged: (_) {
-                  vm.setEscuelaFilterEst(null);
-                  Navigator.pop(context);
-                }),
+                leading: Radio(
+                    value: null,
+                    groupValue: vm.selectedEscuelaFilterEst,
+                    onChanged: (_) {
+                      vm.setEscuelaFilterEst(null);
+                      Navigator.pop(context);
+                    }),
               ),
               ...vm.escuelas.map((e) => ListTile(
-                title: Text(e.siglas),
-                leading: Radio(value: e.siglas, groupValue: vm.selectedEscuelaFilterEst, onChanged: (_) {
-                  vm.setEscuelaFilterEst(e.siglas);
-                  Navigator.pop(context);
-                }),
-              )),
+                    title: Text(e.siglas),
+                    leading: Radio(
+                        value: e.siglas,
+                        groupValue: vm.selectedEscuelaFilterEst,
+                        onChanged: (_) {
+                          vm.setEscuelaFilterEst(e.siglas);
+                          Navigator.pop(context);
+                        }),
+                  )),
             ],
           ),
         ),
@@ -1101,24 +1216,33 @@ class _ReportsViewState extends State<ReportsView>
           children: [
             ListTile(
               title: Text('Todos'),
-              leading: Radio(value: null, groupValue: vm.selectedEstadoFilter, onChanged: (_) {
-                vm.setEstadoFilter(null);
-                Navigator.pop(context);
-              }),
+              leading: Radio(
+                  value: null,
+                  groupValue: vm.selectedEstadoFilter,
+                  onChanged: (_) {
+                    vm.setEstadoFilter(null);
+                    Navigator.pop(context);
+                  }),
             ),
             ListTile(
               title: Text('Activo'),
-              leading: Radio(value: 'activo', groupValue: vm.selectedEstadoFilter, onChanged: (_) {
-                vm.setEstadoFilter('activo');
-                Navigator.pop(context);
-              }),
+              leading: Radio(
+                  value: 'activo',
+                  groupValue: vm.selectedEstadoFilter,
+                  onChanged: (_) {
+                    vm.setEstadoFilter('activo');
+                    Navigator.pop(context);
+                  }),
             ),
             ListTile(
               title: Text('Inactivo'),
-              leading: Radio(value: 'inactivo', groupValue: vm.selectedEstadoFilter, onChanged: (_) {
-                vm.setEstadoFilter('inactivo');
-                Navigator.pop(context);
-              }),
+              leading: Radio(
+                  value: 'inactivo',
+                  groupValue: vm.selectedEstadoFilter,
+                  onChanged: (_) {
+                    vm.setEstadoFilter('inactivo');
+                    Navigator.pop(context);
+                  }),
             ),
           ],
         ),

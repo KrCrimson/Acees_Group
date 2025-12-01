@@ -331,7 +331,7 @@ class ApiService {
       print('🔍 [API] Registrando externo: ${externo.nombreCompleto}');
       print('🔍 [API] URL: ${ApiConfig.baseUrl}/externos');
       print('🔍 [API] Payload: ${json.encode(externo.toJson())}');
-      
+
       final response = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/externos'),
         headers: _headers,
@@ -350,7 +350,8 @@ class ApiService {
         // Intentar parsear el error
         try {
           final error = json.decode(response.body);
-          throw Exception(error['error'] ?? 'Error al registrar visita externa');
+          throw Exception(
+              error['error'] ?? 'Error al registrar visita externa');
         } catch (parseError) {
           // Si no se puede parsear, mostrar el body crudo
           throw Exception('Error ${response.statusCode}: ${response.body}');
@@ -373,14 +374,15 @@ class ApiService {
         Uri.parse('https://apiperu.dev/api/dni'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer d73dcd7d399aa4187e4f7c475aeca9108197ffb6c37b43ed6d1cea41d8f153d4',
+          'Authorization':
+              'Bearer d73dcd7d399aa4187e4f7c475aeca9108197ffb6c37b43ed6d1cea41d8f153d4',
         },
         body: json.encode({'dni': dni}),
       );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        
+
         // La API retorna: {success: true, data: {numero, nombre_completo, nombres, apellido_paterno, apellido_materno}}
         if (data['success'] == true && data['data'] != null) {
           final personData = data['data'];
@@ -684,8 +686,9 @@ class ApiService {
 
   Future<List<Map<String, dynamic>>> getSesionesActivas() async {
     try {
-      debugPrint('🔍 [API] Consultando sesiones activas en: ${ApiConfig.baseUrl}/sesiones/activas');
-      
+      debugPrint(
+          '🔍 [API] Consultando sesiones activas en: ${ApiConfig.baseUrl}/sesiones/activas');
+
       final response = await http.get(
         Uri.parse('${ApiConfig.baseUrl}/sesiones/activas'),
         headers: _headers,
@@ -697,7 +700,7 @@ class ApiService {
       if (response.statusCode == 200) {
         List<dynamic> data = json.decode(response.body);
         debugPrint('✅ [API] ${data.length} sesiones activas encontradas');
-        
+
         // Log detallado de cada sesión
         for (var i = 0; i < data.length; i++) {
           final sesion = data[i];
@@ -709,7 +712,7 @@ class ApiService {
           debugPrint('   - is_active: ${sesion['is_active']}');
           debugPrint('   - fecha_inicio: ${sesion['fecha_inicio']}');
         }
-        
+
         return data.cast<Map<String, dynamic>>();
       } else {
         debugPrint('❌ [API] Error ${response.statusCode}: ${response.body}');
@@ -753,7 +756,8 @@ class ApiService {
       if (response.statusCode == 200) {
         return json.decode(response.body);
       } else {
-        throw Exception('Error al obtener estadísticas: ${response.statusCode}');
+        throw Exception(
+            'Error al obtener estadísticas: ${response.statusCode}');
       }
     } catch (e) {
       throw Exception('Error de conexión al obtener estadísticas: $e');
@@ -873,7 +877,9 @@ class ApiService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         List<dynamic> asistencias = data['asistencias'];
-        return asistencias.map((json) => AsistenciaModel.fromJson(json)).toList();
+        return asistencias
+            .map((json) => AsistenciaModel.fromJson(json))
+            .toList();
       } else {
         throw Exception('Error al obtener asistencias: ${response.statusCode}');
       }
@@ -882,7 +888,8 @@ class ApiService {
     }
   }
 
-  Future<void> updateAsistenciaEstado(String id, String estado, String? razon) async {
+  Future<void> updateAsistenciaEstado(
+      String id, String estado, String? razon) async {
     try {
       final response = await http.put(
         Uri.parse('${ApiConfig.baseUrl}/asistencias/$id/estado'),

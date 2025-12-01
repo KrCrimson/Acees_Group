@@ -21,7 +21,7 @@ class UserNfcView extends StatefulWidget {
 
 class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
   final SessionGuardService _sessionGuardService = SessionGuardService();
-  
+
   @override
   void initState() {
     super.initState();
@@ -56,7 +56,7 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
 
   Future<void> _iniciarSesionGuardia() async {
     final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
-    
+
     if (authViewModel.currentUser != null) {
       final resultado = await _sessionGuardService.iniciarSesion(
         guardiaId: authViewModel.currentUser!.id,
@@ -65,7 +65,8 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
       );
 
       if (!resultado.success) {
-        debugPrint('⚠️ Error al iniciar sesión de guardia: ${resultado.message}');
+        debugPrint(
+            '⚠️ Error al iniciar sesión de guardia: ${resultado.message}');
       } else {
         debugPrint('✅ Sesión de guardia iniciada correctamente');
       }

@@ -37,9 +37,9 @@ class SessionGuardService extends ChangeNotifier {
 
   // Headers para requests
   Map<String, String> get _headers => {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-  };
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
 
   /// Iniciar sesión de guardia con verificación de concurrencia
   Future<SessionResult> iniciarSesion({
@@ -115,7 +115,7 @@ class SessionGuardService extends ChangeNotifier {
 
     try {
       debugPrint('🔍 [SESSION] Finalizando sesión: $_sessionToken');
-      
+
       final response = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/sesiones/finalizar'),
         headers: _headers,
@@ -134,7 +134,8 @@ class SessionGuardService extends ChangeNotifier {
         _limpiarSesion();
         return true;
       } else {
-        debugPrint('❌ [SESSION] Error ${response.statusCode}: ${response.body}');
+        debugPrint(
+            '❌ [SESSION] Error ${response.statusCode}: ${response.body}');
         return false;
       }
     } catch (e) {
@@ -189,14 +190,13 @@ class SessionGuardService extends ChangeNotifier {
         }
 
         // Verificar conflictos en nuestro punto de control
-        final conflictoEnPunto =
-            sesionesActivas
-                .where(
-                  (s) =>
-                      s['punto_control'] == _puntoControl &&
-                      s['session_token'] != _sessionToken,
-                )
-                .toList();
+        final conflictoEnPunto = sesionesActivas
+            .where(
+              (s) =>
+                  s['punto_control'] == _puntoControl &&
+                  s['session_token'] != _sessionToken,
+            )
+            .toList();
 
         if (conflictoEnPunto.isNotEmpty) {
           _hasConflict = true;
@@ -240,7 +240,8 @@ class SessionGuardService extends ChangeNotifier {
         // Sesión expirada, no encontrada, o finalizada por admin
         final data = json.decode(response.body);
         if (data['session_expired'] == true || data['forced_closure'] == true) {
-          debugPrint('⚠️ [SESSION] Sesión cerrada remotamente: ${data['error']}');
+          debugPrint(
+              '⚠️ [SESSION] Sesión cerrada remotamente: ${data['error']}');
           _limpiarSesion();
           // Notificar al UI que la sesión fue cerrada
           _notificarCierreRemoto(data['forced_closure'] == true);
@@ -262,7 +263,8 @@ class SessionGuardService extends ChangeNotifier {
   /// Notificar cierre remoto de sesión
   void _notificarCierreRemoto(bool forzado) {
     // Puedes agregar un callback aquí para mostrar un diálogo al usuario
-    debugPrint('🔴 [SESSION] Sesión cerrada ${forzado ? "por administrador" : "automáticamente"}');
+    debugPrint(
+        '🔴 [SESSION] Sesión cerrada ${forzado ? "por administrador" : "automáticamente"}');
   }
 
   /// Monitoreo periódico de conflictos

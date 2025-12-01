@@ -82,12 +82,11 @@ class _SyncConfigViewState extends State<SyncConfigView> {
                   syncService.isSyncing
                       ? Icons.sync
                       : syncService.autoSyncEnabled
-                      ? Icons.sync_alt
-                      : Icons.sync_disabled,
-                  color:
-                      syncService.isSyncing
-                          ? Colors.blue
-                          : syncService.autoSyncEnabled
+                          ? Icons.sync_alt
+                          : Icons.sync_disabled,
+                  color: syncService.isSyncing
+                      ? Colors.blue
+                      : syncService.autoSyncEnabled
                           ? Colors.green
                           : Colors.red,
                 ),
@@ -99,25 +98,21 @@ class _SyncConfigViewState extends State<SyncConfigView> {
               ],
             ),
             SizedBox(height: 12),
-
             _buildStatusRow(
               'Estado actual',
               syncService.isSyncing ? 'Sincronizando...' : 'En reposo',
               syncService.isSyncing ? Colors.blue : Colors.green,
             ),
-
             _buildStatusRow(
               'Sincronización automática',
               syncService.autoSyncEnabled ? 'Activada' : 'Desactivada',
               syncService.autoSyncEnabled ? Colors.green : Colors.red,
             ),
-
             _buildStatusRow(
               'Última sincronización',
               syncService.getLastSyncStatus(),
               Colors.grey[700]!,
             ),
-
             if (syncService.autoSyncEnabled &&
                 syncService.getTimeToNextSync() != null)
               _buildStatusRow(
@@ -125,7 +120,6 @@ class _SyncConfigViewState extends State<SyncConfigView> {
                 _formatDuration(syncService.getTimeToNextSync()!),
                 Colors.blue,
               ),
-
             if (syncService.syncError != null)
               Container(
                 width: double.infinity,
@@ -188,14 +182,13 @@ class _SyncConfigViewState extends State<SyncConfigView> {
                 onSelected: (minutes) {
                   syncService.configureSyncInterval(minutes);
                 },
-                itemBuilder:
-                    (context) => [
-                      PopupMenuItem(value: 15, child: Text('15 minutos')),
-                      PopupMenuItem(value: 30, child: Text('30 minutos')),
-                      PopupMenuItem(value: 60, child: Text('1 hora')),
-                      PopupMenuItem(value: 120, child: Text('2 horas')),
-                      PopupMenuItem(value: 240, child: Text('4 horas')),
-                    ],
+                itemBuilder: (context) => [
+                  PopupMenuItem(value: 15, child: Text('15 minutos')),
+                  PopupMenuItem(value: 30, child: Text('30 minutos')),
+                  PopupMenuItem(value: 60, child: Text('1 hora')),
+                  PopupMenuItem(value: 120, child: Text('2 horas')),
+                  PopupMenuItem(value: 240, child: Text('4 horas')),
+                ],
                 child: Icon(Icons.more_vert),
               ),
             ),
@@ -217,7 +210,6 @@ class _SyncConfigViewState extends State<SyncConfigView> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 12),
-
             Row(
               children: [
                 Expanded(
@@ -225,23 +217,22 @@ class _SyncConfigViewState extends State<SyncConfigView> {
                     text: 'Sincronizar Ahora',
                     icon: Icons.sync,
                     isLoading: syncService.isSyncing,
-                    onPressed:
-                        syncService.isSyncing
-                            ? null
-                            : () async {
-                              bool success = await syncService.performSync();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    success
-                                        ? '✅ Sincronización completada'
-                                        : '❌ Error en la sincronización',
-                                  ),
-                                  backgroundColor:
-                                      success ? Colors.green : Colors.red,
+                    onPressed: syncService.isSyncing
+                        ? null
+                        : () async {
+                            bool success = await syncService.performSync();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  success
+                                      ? '✅ Sincronización completada'
+                                      : '❌ Error en la sincronización',
                                 ),
-                              );
-                            },
+                                backgroundColor:
+                                    success ? Colors.green : Colors.red,
+                              ),
+                            );
+                          },
                   ),
                 ),
                 SizedBox(width: 12),
