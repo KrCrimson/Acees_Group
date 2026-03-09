@@ -6,7 +6,7 @@ import '../services/photo_service.dart';
 class AlumnoConfirmationCard extends StatelessWidget {
   final Map<String, dynamic> alumnoData;
   final String tipoAcceso; // 'entrada' o 'salida'
-  
+
   const AlumnoConfirmationCard({
     Key? key,
     required this.alumnoData,
@@ -18,8 +18,9 @@ class AlumnoConfirmationCard extends StatelessWidget {
     final isEntrada = tipoAcceso.toLowerCase() == 'entrada';
     final primaryColor = isEntrada ? Colors.green : Colors.orange;
     final backgroundColor = isEntrada ? Colors.green[50] : Colors.orange[50];
-    final nombreCompleto = '${alumnoData['nombre'] ?? ''} ${alumnoData['apellido'] ?? ''}';
-    
+    final nombreCompleto =
+        '${alumnoData['nombre'] ?? ''} ${alumnoData['apellido'] ?? ''}';
+
     return Card(
       elevation: 12,
       margin: EdgeInsets.zero,
@@ -72,27 +73,27 @@ class AlumnoConfirmationCard extends StatelessWidget {
                 ],
               ),
             ),
-            
+
             SizedBox(height: 24),
-            
+
             // CONTENIDO PRINCIPAL
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // FOTO DEL ALUMNO
                 _buildPhotoSection(nombreCompleto, primaryColor),
-                
+
                 SizedBox(width: 20),
-                
+
                 // INFORMACIÓN DEL ALUMNO
                 Expanded(
                   child: _buildInfoSection(nombreCompleto, primaryColor),
                 ),
               ],
             ),
-            
+
             SizedBox(height: 20),
-            
+
             // FECHA Y HORA
             _buildTimeSection(),
           ],
@@ -100,7 +101,7 @@ class AlumnoConfirmationCard extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildPhotoSection(String nombreCompleto, Color primaryColor) {
     return Container(
       width: 120,
@@ -122,7 +123,7 @@ class AlumnoConfirmationCard extends StatelessWidget {
         child: CachedNetworkImage(
           imageUrl: PhotoService.getAlumnoPhotoUrl(alumnoData['DNI']),
           fit: BoxFit.cover,
-          
+
           // Mientras carga la foto
           placeholder: (context, url) => Container(
             color: Colors.grey[100],
@@ -150,7 +151,7 @@ class AlumnoConfirmationCard extends StatelessWidget {
               ),
             ),
           ),
-          
+
           // Si no hay foto - mostrar iniciales con color
           errorWidget: (context, url, error) => Container(
             decoration: BoxDecoration(
@@ -159,7 +160,8 @@ class AlumnoConfirmationCard extends StatelessWidget {
                 end: Alignment.bottomRight,
                 colors: [
                   Color(PhotoService.getColorForName(nombreCompleto)),
-                  Color(PhotoService.getColorForName(nombreCompleto)).withOpacity(0.8),
+                  Color(PhotoService.getColorForName(nombreCompleto))
+                      .withOpacity(0.8),
                 ],
               ),
             ),
@@ -199,7 +201,7 @@ class AlumnoConfirmationCard extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildInfoSection(String nombreCompleto, Color primaryColor) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,22 +218,26 @@ class AlumnoConfirmationCard extends StatelessWidget {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
-        
+
         SizedBox(height: 12),
-        
+
         // Información detallada
-        _buildInfoRow(Icons.badge_outlined, 'DNI', alumnoData['DNI']?.toString() ?? 'N/A'),
-        _buildInfoRow(Icons.school_outlined, 'Código', alumnoData['código_universitario']?.toString() ?? 'N/A'),
-        _buildInfoRow(Icons.account_balance_outlined, 'Facultad', alumnoData['siglas_facultad']?.toString() ?? 'N/A'),
-        _buildInfoRow(Icons.class_outlined, 'Escuela', alumnoData['siglas_escuela']?.toString() ?? 'N/A'),
-        
+        _buildInfoRow(Icons.badge_outlined, 'DNI',
+            alumnoData['DNI']?.toString() ?? 'N/A'),
+        _buildInfoRow(Icons.school_outlined, 'Código',
+            alumnoData['código_universitario']?.toString() ?? 'N/A'),
+        _buildInfoRow(Icons.account_balance_outlined, 'Facultad',
+            alumnoData['siglas_facultad']?.toString() ?? 'N/A'),
+        _buildInfoRow(Icons.class_outlined, 'Escuela',
+            alumnoData['siglas_escuela']?.toString() ?? 'N/A'),
+
         // Estado adicional si existe
         if (alumnoData['estado'] != null)
           _buildStatusChip(alumnoData['estado'].toString(), primaryColor),
       ],
     );
   }
-  
+
   Widget _buildInfoRow(IconData icon, String label, String value) {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 3),
@@ -266,10 +272,11 @@ class AlumnoConfirmationCard extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildStatusChip(String estado, Color primaryColor) {
-    final isActive = estado.toLowerCase() == 'verdadero' || estado.toLowerCase() == 'activo';
-    
+    final isActive =
+        estado.toLowerCase() == 'verdadero' || estado.toLowerCase() == 'activo';
+
     return Container(
       margin: EdgeInsets.only(top: 8),
       padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -291,12 +298,12 @@ class AlumnoConfirmationCard extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildTimeSection() {
     final now = DateTime.now();
     final dateFormat = DateFormat('EEEE, dd MMMM yyyy', 'es_ES');
     final timeFormat = DateFormat('HH:mm:ss');
-    
+
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(16),

@@ -67,7 +67,8 @@ class PhotoService {
   }) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/api/fotos/alumnos-con-foto?limit=$limit&skip=$skip'),
+        Uri.parse(
+            '$baseUrl/api/fotos/alumnos-con-foto?limit=$limit&skip=$skip'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -100,7 +101,7 @@ class PhotoService {
   /// Generar iniciales del nombre para fallback
   static String getInitials(String nombre) {
     if (nombre.trim().isEmpty) return '?';
-    
+
     final names = nombre.trim().split(' ');
     if (names.length >= 2) {
       return '${names[0][0]}${names[1][0]}'.toUpperCase();
@@ -122,7 +123,7 @@ class PhotoService {
       0xFFE91E63, // Pink
       0xFF795548, // Brown
     ];
-    
+
     final index = nombre.hashCode.abs() % colors.length;
     return colors[index];
   }

@@ -57,7 +57,8 @@ class NfcViewModel extends ChangeNotifier {
   List<String> get debugLogs => List.unmodifiable(_debugLogs);
 
   // Configurar callback para mostrar confirmación con foto
-  void setOnAsistenciaRegistrada(Function(Map<String, dynamic>, String)? callback) {
+  void setOnAsistenciaRegistrada(
+      Function(Map<String, dynamic>, String)? callback) {
     _onAsistenciaRegistrada = callback;
   }
 
@@ -224,8 +225,6 @@ class NfcViewModel extends ChangeNotifier {
       addLog('   Código original: $codigoUniversitario');
 
       addLog('   Guardia: $_guardiaNombre ($_guardiaId)');
-
-
 
       // GENERAR MÚLTIPLES VARIANTES DEL CÓDIGO Y PROBAR CADA UNA
       List<String> variantes = _generarVariantesCodigoHex(codigoUniversitario);
@@ -500,7 +499,7 @@ class NfcViewModel extends ChangeNotifier {
         descripcionUbicacion:
             'Acceso ${tipoAcceso} - Punto: ${_puntoControl ?? "Principal"} - Guardia: ${_guardiaNombre}',
       );
-      
+
       _lastAsistenciaId = fechaId;
 
       addLog(

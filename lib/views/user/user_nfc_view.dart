@@ -1,16 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../viewmodels/nfc_viewmodel.dart';
 import '../../viewmodels/auth_viewmodel.dart';
-import '../../services/autorizacion_service.dart';
 import '../../services/session_guard_service.dart';
+import '../../services/photo_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/status_widgets.dart';
 import '../../widgets/session_status_widget.dart';
 import '../../widgets/connectivity_status_widget.dart';
 import '../../widgets/conflict_alert_widget.dart';
-import '../../widgets/alumno_confirmation_card.dart';
+
 import '../login_view.dart';
 import '../student_verification_view.dart';
 import '../admin/presencia_dashboard_view.dart';
@@ -40,9 +41,6 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
       final nfcViewModel = Provider.of<NfcViewModel>(context, listen: false);
       nfcViewModel.addLog('🚀 Sistema de logs iniciado');
       nfcViewModel.addLog('📱 App de Control de Acceso NFC cargada');
-      
-      // 📸 CONFIGURAR CALLBACK PARA MOSTRAR FOTO
-      nfcViewModel.setOnAsistenciaRegistrada(_mostrarConfirmacionConFoto);
     });
   }
 
@@ -85,53 +83,7 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
     }
   }
 
-  // 📸 MOSTRAR POPUP CON FOTO CUANDO SE REGISTRA ASISTENCIA
-  void _mostrarConfirmacionConFoto(Map<String, dynamic> alumnoData, String tipoAcceso) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        contentPadding: EdgeInsets.zero,
-        content: Container(
-          width: MediaQuery.of(context).size.width * 0.9,
-          child: AlumnoConfirmationCard(
-            alumnoData: alumnoData,
-            tipoAcceso: tipoAcceso,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Continuar escaneando automáticamente
-            },
-            style: TextButton.styleFrom(
-              backgroundColor: tipoAcceso.toLowerCase() == 'entrada' ? Colors.green : Colors.orange,
-              foregroundColor: Colors.white,
-              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: Text(
-              'CONTINUAR',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-    
-    // Auto-cerrar después de 4 segundos y continuar escaneando
-    Timer(Duration(seconds: 4), () {
-      if (mounted && Navigator.canPop(context)) {
-        Navigator.pop(context);
-      }
-    });
-  }
+
 
   void _cerrarSesionPorAdmin() {
     showDialog(
@@ -211,100 +163,6 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text('Entendido'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _procesarDenegacion(NfcViewModel nfcViewModel, String razon) async {
-    final asistenciaId = nfcViewModel.lastAsistenciaId;
-
-    if (asistenciaId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content:
-              Text('Error: No se pudo identificar la asistencia para denegar'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    try {
-      final authService =
-          Provider.of<AutorizacionService>(context, listen: false);
-      await authService.actualizarEstadoAsistencia(
-          asistenciaId, 'denegado', razon);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Acceso DENEGADO correctamente'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-
-      // Limpiar la pantalla después de denegar
-      nfcViewModel.clearScan();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error al denegar: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  void _mostrarDialogoDenegar(BuildContext context, NfcViewModel nfcViewModel) {
-    final razones = [
-      'Estado de ebriedad',
-      'Otro',
-      'Comportamiento agresivo',
-      'Documento de identidad inválido',
-      'Suspensión académica vigente',
-      'Falta de uniforme/vestimenta inadecuada',
-      'Portar objetos prohibidos',
-      'Intento de suplantación de identidad',
-      'Deuda administrativa pendiente',
-      'Ingreso fuera de horario permitido',
-      'Acompañante no autorizado',
-      'Negativa a revisión de seguridad',
-    ];
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.red),
-            SizedBox(width: 8),
-            Text('Denegar Acceso'),
-          ],
-        ),
-        content: Container(
-          width: double.maxFinite,
-          child: ListView.separated(
-            shrinkWrap: true,
-            itemCount: razones.length,
-            separatorBuilder: (context, index) => Divider(),
-            itemBuilder: (context, index) {
-              final razon = razones[index];
-              return ListTile(
-                title: Text(razon),
-                leading: Icon(Icons.block, color: Colors.red[300]),
-                onTap: () {
-                  Navigator.pop(context);
-                  _procesarDenegacion(nfcViewModel, razon);
-                },
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancelar'),
           ),
         ],
       ),
@@ -790,6 +648,57 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Foto del alumno centrada
+                Center(
+                  child: Container(
+                    height: 100,
+                    width: 100,
+                    margin: EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: CachedNetworkImage(
+                        imageUrl: PhotoService.getAlumnoPhotoUrl(alumno.dni),
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Container(
+                          color: Colors.grey[200],
+                          child: const Center(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Color.fromARGB(255, 11, 102, 35),
+                              ),
+                            ),
+                          ),
+                        ),
+                        errorWidget: (context, url, error) => Container(
+                          color: const Color.fromARGB(255, 11, 102, 35),
+                          child: Center(
+                            child: Text(
+                              alumno.nombreCompleto.isNotEmpty
+                                  ? alumno.nombreCompleto[0].toUpperCase()
+                                  : '?',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
                 _buildStatusInfoRow(
                     'Nombre:', alumno.nombreCompleto, Icons.person),
                 _buildStatusInfoRow(
