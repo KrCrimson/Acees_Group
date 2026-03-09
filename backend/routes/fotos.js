@@ -66,13 +66,14 @@ router.get('/alumno/:dni', async (req, res) => {
       return res.status(503).json({ error: 'Servicio no disponible - DB desconectada' });
     }
     
+    // Buscar por _id ya que los documentos usan _id personalizado en lugar de DNI
     const alumno = await db.collection('alumnos').findOne(
-      { "DNI": dni },
+      { "_id": dni },
       { projection: { foto: 1, nombre: 1, apellido: 1 } }
     );
 
     if (!alumno) {
-      console.log(`❌ Alumno no encontrado: ${dni}`);
+      console.log(`❌ Alumno no encontrado con ID: ${dni}`);
       return res.status(404).json({ error: 'Alumno no encontrado' });
     }
 

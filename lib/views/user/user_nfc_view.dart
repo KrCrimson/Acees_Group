@@ -665,7 +665,7 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: CachedNetworkImage(
-                        imageUrl: PhotoService.getAlumnoPhotoUrl(alumno.dni),
+                        imageUrl: PhotoService.getAlumnoPhotoUrl(alumno.id),
                         fit: BoxFit.cover,
                         placeholder: (context, url) => Container(
                           color: Colors.grey[200],
