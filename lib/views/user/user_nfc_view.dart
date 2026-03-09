@@ -83,8 +83,6 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
     }
   }
 
-
-
   void _cerrarSesionPorAdmin() {
     showDialog(
       context: context,
@@ -681,7 +679,8 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
                           ),
                         ),
                         errorWidget: (context, url, error) {
-                          print('❌ Error cargando foto para DNI ${alumno.dni}: $error');
+                          print(
+                              '❌ Error cargando foto para DNI ${alumno.dni}: $error');
                           print('🔗 URL intentada: $url');
                           return Container(
                             color: const Color.fromARGB(255, 11, 102, 35),

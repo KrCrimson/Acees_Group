@@ -12,9 +12,46 @@ let db;
 MongoClient.connect(mongoUrl, { useUnifiedTopology: true })
   .then(client => {
     console.log('📸 Servicio de fotos conectado a MongoDB');
+    console.log('🔗 URL MongoDB:', mongoUrl.replace(/\/\/[^:]+:[^@]+@/, '//***:***@')); // Ocultar credenciales
+    console.log('🗃️ Base de datos:', dbName);
     db = client.db(dbName);
   })
-  .catch(error => console.error('Error conectando a MongoDB:', error));
+  .catch(error => {
+    console.error('❌ Error conectando a MongoDB:', error.message);
+    console.error('🔗 URL intentada:', mongoUrl.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'));
+  });
+
+// 🩺 ENDPOINT DE DIAGNÓSTICO
+router.get('/health', async (req, res) => {
+  try {
+    const health = {
+      service: 'fotos',
+      timestamp: new Date().toISOString(),
+      mongodb: {
+        connected: !!db,
+        url: mongoUrl.replace(/\/\/[^:]+:[^@]+@/, '//***:***@'),
+        database: dbName
+      }
+    };
+    
+    if (db) {
+      // Test de conexión
+      const stats = await db.stats();
+      health.mongodb.collections = stats.collections || 0;
+    }
+    
+    res.json(health);
+  } catch (error) {
+    res.status(500).json({
+      service: 'fotos',
+      error: error.message,
+      mongodb: {
+        connected: false,
+        url: mongoUrl.replace(/\/\/[^:]+:[^@]+@/, '//***:***@')
+      }
+    });
+  }
+});
 
 // 📥 OBTENER FOTO DE ALUMNO
 router.get('/alumno/:dni', async (req, res) => {
