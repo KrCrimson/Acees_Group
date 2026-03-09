@@ -23,6 +23,9 @@ class NfcViewModel extends ChangeNotifier {
   String? _lastAccessType; // Para rastrear el último tipo de acceso
   String? _lastAsistenciaId; // ID de la última asistencia registrada
 
+  // Callback para mostrar confirmación con foto
+  Function(Map<String, dynamic>, String)? _onAsistenciaRegistrada;
+
   // Información del guardia actual
   String? _guardiaId;
   String? _guardiaNombre;
@@ -52,6 +55,11 @@ class NfcViewModel extends ChangeNotifier {
   int get queueSize => _detectionQueue.length;
   bool get isProcessingQueue => _processingQueue;
   List<String> get debugLogs => List.unmodifiable(_debugLogs);
+
+  // Configurar callback para mostrar confirmación con foto
+  void setOnAsistenciaRegistrada(Function(Map<String, dynamic>, String)? callback) {
+    _onAsistenciaRegistrada = callback;
+  }
 
   // Verificar disponibilidad NFC
   Future<bool> checkNfcAvailability() async {
@@ -283,6 +291,20 @@ class NfcViewModel extends ChangeNotifier {
           '$emoji $tipoTexto registrada: ${alumno.nombreCompleto}',
         );
         _scannedAlumno = alumno;
+
+        // 📸 MOSTRAR CONFIRMACIÓN CON FOTO
+        if (_onAsistenciaRegistrada != null) {
+          final alumnoData = {
+            'DNI': alumno.dni,
+            'nombre': alumno.nombre,
+            'apellido': alumno.apellido,
+            'código_universitario': alumno.codigoUniversitario,
+            'siglas_facultad': alumno.siglasFacultad,
+            'siglas_escuela': alumno.siglasEscuela,
+            'estado': 'verdadero', // Asumimos activo si llegó hasta aquí
+          };
+          _onAsistenciaRegistrada!(alumnoData, tipoAcceso);
+        }
 
         addLog('🎉 PROCESO COMPLETADO EXITOSAMENTE');
       } else {

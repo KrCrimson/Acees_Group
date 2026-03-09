@@ -27,6 +27,9 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Importar rutas de fotos
+const fotosRoutes = require('./routes/fotos');
+
 // Conexión a MongoDB Atlas optimizada para Railway
 mongoose.set('strictQuery', false);
 
@@ -72,6 +75,9 @@ app.get('/api/health', (req, res) => {
     database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
   });
 });
+
+// 📸 RUTAS DE FOTOS
+app.use('/api/fotos', fotosRoutes);
 
 // Modelo de facultad - EXACTO como en MongoDB Atlas (campos como strings)
 const FacultadSchema = new mongoose.Schema({

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:async';
 import '../../viewmodels/nfc_viewmodel.dart';
 import '../../viewmodels/auth_viewmodel.dart';
 import '../../services/autorizacion_service.dart';
@@ -9,6 +10,7 @@ import '../../widgets/status_widgets.dart';
 import '../../widgets/session_status_widget.dart';
 import '../../widgets/connectivity_status_widget.dart';
 import '../../widgets/conflict_alert_widget.dart';
+import '../../widgets/alumno_confirmation_card.dart';
 import '../login_view.dart';
 import '../student_verification_view.dart';
 import '../admin/presencia_dashboard_view.dart';
@@ -38,6 +40,9 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
       final nfcViewModel = Provider.of<NfcViewModel>(context, listen: false);
       nfcViewModel.addLog('🚀 Sistema de logs iniciado');
       nfcViewModel.addLog('📱 App de Control de Acceso NFC cargada');
+      
+      // 📸 CONFIGURAR CALLBACK PARA MOSTRAR FOTO
+      nfcViewModel.setOnAsistenciaRegistrada(_mostrarConfirmacionConFoto);
     });
   }
 
@@ -78,6 +83,54 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
     if (!_sessionGuardService.isSessionActive && mounted) {
       _cerrarSesionPorAdmin();
     }
+  }
+
+  // 📸 MOSTRAR POPUP CON FOTO CUANDO SE REGISTRA ASISTENCIA
+  void _mostrarConfirmacionConFoto(Map<String, dynamic> alumnoData, String tipoAcceso) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        contentPadding: EdgeInsets.zero,
+        content: Container(
+          width: MediaQuery.of(context).size.width * 0.9,
+          child: AlumnoConfirmationCard(
+            alumnoData: alumnoData,
+            tipoAcceso: tipoAcceso,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // Continuar escaneando automáticamente
+            },
+            style: TextButton.styleFrom(
+              backgroundColor: tipoAcceso.toLowerCase() == 'entrada' ? Colors.green : Colors.orange,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: Text(
+              'CONTINUAR',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    
+    // Auto-cerrar después de 4 segundos y continuar escaneando
+    Timer(Duration(seconds: 4), () {
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+    });
   }
 
   void _cerrarSesionPorAdmin() {

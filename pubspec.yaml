@@ -28,6 +28,7 @@ dependencies:
   sqflite: ^2.3.0
   connectivity_plus: ^5.0.0
   path: ^1.8.3
+  cached_network_image: ^3.3.1  # Para mostrar fotos con cache
 
 dev_dependencies:
   flutter_test:
