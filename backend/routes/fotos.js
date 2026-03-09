@@ -2,8 +2,8 @@ const express = require('express');
 const { MongoClient } = require('mongodb');
 const router = express.Router();
 
-// Configuración MongoDB
-const mongoUrl = process.env.MONGODB_URL || 'mongodb://localhost:27017';
+// Configuración MongoDB - Usar la misma variable que index.js
+const mongoUrl = process.env.MONGODB_URI || 'mongodb://localhost:27017';
 const dbName = process.env.DB_NAME || 'ASISTENCIA';
 
 let db;
