@@ -680,21 +680,36 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
                             ),
                           ),
                         ),
-                        errorWidget: (context, url, error) => Container(
-                          color: const Color.fromARGB(255, 11, 102, 35),
-                          child: Center(
-                            child: Text(
-                              alumno.nombreCompleto.isNotEmpty
-                                  ? alumno.nombreCompleto[0].toUpperCase()
-                                  : '?',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 32,
-                                fontWeight: FontWeight.bold,
-                              ),
+                        errorWidget: (context, url, error) {
+                          print('❌ Error cargando foto para DNI ${alumno.dni}: $error');
+                          print('🔗 URL intentada: $url');
+                          return Container(
+                            color: const Color.fromARGB(255, 11, 102, 35),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  alumno.nombreCompleto.isNotEmpty
+                                      ? alumno.nombreCompleto[0].toUpperCase()
+                                      : '?',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'Sin foto',
+                                  style: TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ),
+                          );
+                        },
                       ),
                     ),
                   ),

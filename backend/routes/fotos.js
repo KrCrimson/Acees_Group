@@ -23,6 +23,12 @@ router.get('/alumno/:dni', async (req, res) => {
     
     console.log(`📷 Solicitando foto para DNI: ${dni}`);
     
+    // Verificar conexión a base de datos
+    if (!db) {
+      console.error('❌ Base de datos no conectada');
+      return res.status(503).json({ error: 'Servicio no disponible - DB desconectada' });
+    }
+    
     const alumno = await db.collection('alumnos').findOne(
       { "DNI": dni },
       { projection: { foto: 1, nombre: 1, apellido: 1 } }
@@ -59,7 +65,11 @@ router.get('/alumno/:dni', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error obteniendo foto:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ 
+      error: 'Error interno del servidor', 
+      details: error.message,
+      timestamp: new Date().toISOString() 
+    });
   }
 });
 
