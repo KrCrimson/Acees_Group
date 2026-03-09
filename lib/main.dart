@@ -5,7 +5,6 @@ import 'viewmodels/nfc_viewmodel.dart';
 import 'viewmodels/admin_viewmodel.dart';
 import 'viewmodels/reports_viewmodel.dart';
 import 'services/offline_service.dart';
-import 'services/sync_service.dart';
 import 'services/session_guard_service.dart';
 import 'views/login_view.dart';
 
@@ -43,7 +42,6 @@ class _MyAppState extends State<MyApp> {
         ChangeNotifierProvider(create: (_) => AdminViewModel()),
         ChangeNotifierProvider(create: (_) => ReportsViewModel()),
         ChangeNotifierProvider(create: (_) => OfflineService()),
-        ChangeNotifierProvider(create: (_) => SyncService()),
         ChangeNotifierProvider(create: (_) => SessionGuardService()),
       ],
       child: MaterialApp(

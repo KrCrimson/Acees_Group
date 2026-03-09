@@ -6,7 +6,6 @@ import 'package:path/path.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/asistencia_model.dart';
 import 'api_service.dart';
-import 'sync_service.dart';
 
 // Enums para el sistema offline
 enum ConnectionStatus { online, offline, connecting }
@@ -83,7 +82,6 @@ class OfflineService extends ChangeNotifier {
 
   // Servicios dependientes
   final ApiService _apiService = ApiService();
-  final SyncService _syncService = SyncService();
 
   // Estado de conectividad
   ConnectionStatus _connectionStatus = ConnectionStatus.offline;
@@ -181,8 +179,8 @@ class OfflineService extends ChangeNotifier {
   /// Configurar monitoreo de conectividad
   Future<void> _setupConnectivityMonitoring() async {
     _connectivitySubscription = Connectivity().onConnectivityChanged.listen(
-      _onConnectivityChanged,
-    );
+          _onConnectivityChanged,
+        );
   }
 
   /// Verificar conectividad inicial
@@ -249,8 +247,7 @@ class OfflineService extends ChangeNotifier {
       await _processPendingEvents();
     }
 
-    // Sincronizar datos generales
-    await _syncService.performSync(isAutomatic: true);
+    // TODO: Implementar sincronización de datos generales si es necesario
   }
 
   // ==================== GESTIÓN DE EVENTOS OFFLINE ====================

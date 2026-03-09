@@ -2,14 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/auth_viewmodel.dart';
 import '../../viewmodels/reports_viewmodel.dart';
-import '../../widgets/custom_button.dart';
 import '../login_view.dart';
 import 'user_management_view.dart';
 import 'reports_view.dart';
 import 'session_config_view.dart';
 import 'session_management_view.dart';
 import 'historial_view.dart';
-import 'sync_config_view.dart';
 import 'bus_recommendations_view.dart';
 
 class AdminView extends StatefulWidget {
@@ -27,9 +25,8 @@ class _AdminViewState extends State<AdminView> {
     BusRecommendationsView(),
     SessionManagementView(
         adminId: '', adminName: 'Admin'), // GESTIÓN DE GUARDIAS
-    // SessionConfigView(), // OCULTA - Configuración de sesión no necesaria
-    // SyncConfigView(), // OCULTA - NO FUNCIONA
-    // HistorialView(), // OCULTA - NO FUNCIONA
+    SessionConfigView(), // Configuración de sesión
+    HistorialView(), // Historial de modificaciones
   ];
 
   void _handleLogout() {
@@ -139,21 +136,14 @@ class _AdminViewState extends State<AdminView> {
             icon: Icon(Icons.supervisor_account),
             label: 'Gestión',
           ),
-          // PESTAÑAS OCULTAS POR NO FUNCIONAR CORRECTAMENTE
-          /*
           BottomNavigationBarItem(
             icon: Icon(Icons.timer),
             label: 'Sesión',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.sync_alt),
-            label: 'Sync',
-          ),
-          BottomNavigationBarItem(
             icon: Icon(Icons.history),
             label: 'Historial',
           ),
-          */
         ],
       ),
     );
