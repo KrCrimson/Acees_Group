@@ -1,0 +1,111 @@
+version: '3.8'
+
+services:
+  # Servicio ML Python
+  ml-python-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models
+      - ./logs:/app/logs
+      - ./data:/app/data
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+      - REDIS_URL=redis://redis:6379
+      - ML_MODELS_PATH=/app/models/saved_models
+      - LOG_LEVEL=INFO
+      - ENVIRONMENT=production
+    depends_on:
+      - redis
+      - mongo
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Redis para cache y rate limiting
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # MongoDB (opcional si no tienes externo)
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+      - MONGO_INITDB_DATABASE=acees_db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    # Uncomment if you have external MongoDB
+    # profiles: ["dev-only"]
+
+  # Celery Worker para jobs asíncronos
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A automation.scheduled_jobs worker --loglevel=info
+    volumes:
+      - ./models:/app/models
+      - ./logs:/app/logs
+      - ./data:/app/data
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+      - REDIS_URL=redis://redis:6379
+      - ML_MODELS_PATH=/app/models/saved_models
+    depends_on:
+      - redis
+      - mongo
+    restart: unless-stopped
+
+  # Celery Beat para scheduled jobs
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A automation.scheduled_jobs beat --loglevel=info
+    volumes:
+      - ./models:/app/models
+      - ./logs:/app/logs
+      - ./data:/app/data
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+      - REDIS_URL=redis://redis:6379
+      - ML_MODELS_PATH=/app/models/saved_models
+    depends_on:
+      - redis
+      - mongo
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  mongo_data:
+
+networks:
+  default:
+    name: acees_ml_network

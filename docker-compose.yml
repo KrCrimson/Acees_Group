@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  # Servicio Node.js existente (API principal)
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb+srv://Angel:angel12345@cluster0.pas0twe.mongodb.net/ASISTENCIA?retryWrites=true&w=majority&appName=Cluster0
+      - ML_SERVICE_URL=http://ml-service:8001
+    depends_on:
+      - ml-service
+    networks:
+      - acees-network
+
+  # Nuevo Microservicio ML Python
+  ml-service:
+    build:
+      context: ./backend/ml_service
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - MONGO_URI=mongodb+srv://Angel:angel12345@cluster0.pas0twe.mongodb.net/ASISTENCIA?retryWrites=true&w=majority&appName=Cluster0
+      - PYTHONPATH=/app
+    volumes:
+      - ./backend/ml_service/models:/app/models  # Persistir modelos entrenados
+    networks:
+      - acees-network
+
+networks:
+  acees-network:
+    driver: bridge
+
+# Para ejecutar:
+# docker-compose up --build
+#
+# Servicios disponibles:
+# - Node.js API: http://localhost:3000
+# - Python ML API: http://localhost:8001
+# - Documentación ML: http://localhost:8001/docs
