@@ -66,6 +66,136 @@ const getPeruDate = () => {
   return new Date(now.getTime() - (5 * 60 * 60 * 1000));
 };
 
+// ==================== FUNCIONES HELPER PARA HISTORIAL DE ACTIVIDADES ====================
+
+// Función para calcular contadores actuales de un guardia
+async function calcularContadores(guardiaId, fechaInicio = null) {
+  try {
+    const hoy = new Date();
+    const inicioHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    const fechaConsulta = fechaInicio || inicioHoy;
+
+    const asistenciasHoy = await mongoose.model('asistencias').find({
+      guardia_id: guardiaId,
+      fecha_hora: { $gte: fechaConsulta }
+    });
+
+    const entradas = asistenciasHoy.filter(a => a.tipo === 'entrada').length;
+    const salidas = asistenciasHoy.filter(a => a.tipo === 'salida').length;
+    const manuales = asistenciasHoy.filter(a => a.autorizacion_manual === true).length;
+    const denegados = asistenciasHoy.filter(a => a.estado === 'denegado').length;
+
+    return {
+      total_registros: asistenciasHoy.length,
+      entradas,
+      salidas,
+      autorizaciones_manuales: manuales,
+      denegaciones: denegados
+    };
+  } catch (error) {
+    console.error('Error calculando contadores:', error);
+    return {
+      total_registros: 0,
+      entradas: 0,
+      salidas: 0,
+      autorizaciones_manuales: 0,
+      denegaciones: 0
+    };
+  }
+}
+
+// Función para calcular métricas de productividad
+async function calcularMetricas(guardiaId, sesionInicio = null) {
+  try {
+    const contadores = await calcularContadores(guardiaId, sesionInicio);
+    
+    let tiempoActividad = 0;
+    if (sesionInicio) {
+      const ahora = getPeruDate();
+      tiempoActividad = Math.round((ahora - sesionInicio) / (1000 * 60)); // minutos
+    }
+
+    const registrosPorHora = tiempoActividad > 0 
+      ? Math.round((contadores.total_registros / tiempoActividad) * 60 * 100) / 100 
+      : 0;
+
+    return {
+      registros_por_hora: registrosPorHora,
+      tiempo_actividad_total: tiempoActividad
+    };
+  } catch (error) {
+    console.error('Error calculando métricas:', error);
+    return {
+      registros_por_hora: 0,
+      tiempo_actividad_total: 0
+    };
+  }
+}
+
+// Función para obtener nombre del guardia
+async function obtenerNombreGuardia(guardiaId) {
+  try {
+    const usuario = await mongoose.model('usuarios').findOne({ _id: guardiaId });
+    return usuario ? `${usuario.nombre} ${usuario.apellido}` : 'Guardia Desconocido';
+  } catch (error) {
+    return 'Guardia Desconocido';
+  }
+}
+
+// Función para obtener punto de control actual del guardia
+async function obtenerPuntoControl(guardiaId) {
+  try {
+    const sesion = await mongoose.model('sesiones_guardias').findOne({ 
+      guardia_id: guardiaId, 
+      is_active: true 
+    });
+    return sesion ? sesion.punto_control : 'Principal';
+  } catch (error) {
+    return 'Principal';
+  }
+}
+
+// Función principal para registrar actividades
+async function registrarActividad({
+  guardia_id,
+  tipo_actividad,
+  estudiante_dni = null,
+  duracion_sesion = null,
+  session_token = null
+}) {
+  try {
+    const contadores = await calcularContadores(guardia_id);
+    const sesion = await mongoose.model('sesiones_guardias').findOne({
+      guardia_id,
+      is_active: true
+    });
+    
+    const metricas = await calcularMetricas(guardia_id, sesion?.fecha_inicio);
+    
+    const actividad = new mongoose.model('historial_actividades')({
+      _id: new mongoose.Types.ObjectId().toString(),
+      guardia_id,
+      guardia_nombre: await obtenerNombreGuardia(guardia_id),
+      punto_control: await obtenerPuntoControl(guardia_id),
+      fecha: getPeruDate(),
+      tipo_actividad,
+      duracion_sesion,
+      estudiante_dni,
+      contadores,
+      metricas,
+      session_token,
+      timestamp: getPeruDate()
+    });
+
+    await actividad.save();
+    console.log(`📝 Actividad registrada: ${tipo_actividad} - ${guardia_id}`);
+    return actividad;
+  } catch (error) {
+    console.error('❌ Error registrando actividad:', error);
+    throw error;
+  }
+}
+
 // Endpoint de health check para verificar conectividad
 app.get('/api/health', (req, res) => {
   res.status(200).json({
@@ -248,6 +378,55 @@ const ExternoSchema = new mongoose.Schema({
   fecha_hora: { type: Date, default: getPeruDate }
 }, { collection: 'externos', strict: false, _id: false });
 const Externo = mongoose.model('externos', ExternoSchema);
+
+// Modelo de historial de actividades de guardias
+const HistorialActividadSchema = new mongoose.Schema({
+  _id: String,
+  guardia_id: { type: String, required: true, index: true },
+  guardia_nombre: { type: String, required: true },
+  punto_control: { type: String, required: true },
+  fecha: { type: Date, required: true, index: true },
+  
+  // TIPOS DE ACTIVIDAD (SIN pausas para evitar confusiones)
+  tipo_actividad: {
+    type: String,
+    required: true,
+    enum: [
+      'sesion_iniciada',         // Inicio de sesión
+      'sesion_finalizada',       // Fin normal de sesión
+      'sesion_forzada_cierre',   // Admin cerró sesión
+      'registro_entrada',        // Registró entrada estudiante  
+      'registro_salida',         // Registró salida estudiante
+      'autorizacion_manual',     // Decisión manual autorizada
+      'denegacion_acceso'        // Denegó acceso
+    ]
+  },
+  
+  // MÉTRICAS DE LA ACTIVIDAD
+  duracion_sesion: Number,       // Solo para inicio/fin (en minutos)
+  estudiante_dni: String,        // Para registros específicos
+  
+  // CONTADORES ACUMULADOS (al momento de la actividad)
+  contadores: {
+    total_registros: { type: Number, default: 0 },
+    entradas: { type: Number, default: 0 }, 
+    salidas: { type: Number, default: 0 },
+    autorizaciones_manuales: { type: Number, default: 0 },
+    denegaciones: { type: Number, default: 0 }
+  },
+  
+  // MÉTRICAS DE PRODUCTIVIDAD
+  metricas: {
+    registros_por_hora: { type: Number, default: 0 },
+    tiempo_actividad_total: { type: Number, default: 0 }  // minutos activo
+  },
+  
+  // INFO ADICIONAL
+  session_token: String,
+  device_info: Object,
+  timestamp: { type: Date, default: getPeruDate }
+}, { collection: 'historial_actividades', strict: false, _id: false });
+const HistorialActividad = mongoose.model('historial_actividades', HistorialActividadSchema);
 
 // Modelo de visitas - EXACTO como en MongoDB Atlas
 const VisitaSchema = new mongoose.Schema({
@@ -733,6 +912,25 @@ app.post('/asistencias/completa', async (req, res) => {
     const savedAsistencia = await asistencia.save();
 
     console.log('✅ Asistencia guardada exitosamente con ID:', savedAsistencia._id);
+    
+    // REGISTRAR ACTIVIDAD del guardia
+    try {
+      let tipoActividad = 'registro_entrada';
+      if (datosCompletos.tipo === 'salida') {
+        tipoActividad = 'registro_salida';
+      } else if (datosCompletos.autorizacion_manual === true) {
+        tipoActividad = datosCompletos.estado === 'autorizado' ? 'autorizacion_manual' : 'denegacion_acceso';
+      }
+
+      await registrarActividad({
+        guardia_id: datosCompletos.guardia_id,
+        tipo_actividad: tipoActividad,
+        estudiante_dni: datosCompletos.dni
+      });
+    } catch (actividadError) {
+      console.warn('⚠️ Error registrando actividad de asistencia:', actividadError.message);
+    }
+
     res.status(201).json(savedAsistencia);
   } catch (err) {
     console.error('❌ Error al registrar asistencia:', err.message);
@@ -1185,6 +1383,17 @@ app.post('/sesiones/iniciar', concurrencyMiddleware, async (req, res) => {
       is_active: true
     });
 
+    // REGISTRAR ACTIVIDAD: Inicio de sesión
+    try {
+      await registrarActividad({
+        guardia_id,
+        tipo_actividad: 'sesion_iniciada',
+        session_token: sessionToken
+      });
+    } catch (actividadError) {
+      console.warn('⚠️ Error registrando actividad de inicio:', actividadError.message);
+    }
+
     res.status(201).json({
       session_token: sessionToken,
       message: 'Sesión iniciada exitosamente',
@@ -1272,6 +1481,19 @@ app.post('/sesiones/finalizar', async (req, res) => {
       return res.status(404).json({ error: 'Sesión no encontrada o ya finalizada' });
     }
 
+    // REGISTRAR ACTIVIDAD: Fin de sesión
+    try {
+      const duracionMinutos = Math.round((sesion.fecha_fin - sesion.fecha_inicio) / (1000 * 60));
+      await registrarActividad({
+        guardia_id: sesion.guardia_id,
+        tipo_actividad: 'sesion_finalizada',
+        duracion_sesion: duracionMinutos,
+        session_token: session_token
+      });
+    } catch (actividadError) {
+      console.warn('⚠️ Error registrando actividad de fin:', actividadError.message);
+    }
+
     console.log('✅ [SESIONES] Sesión finalizada:', sesion._id);
     res.json({ message: 'Sesión finalizada exitosamente', sesion });
   } catch (err) {
@@ -1315,6 +1537,10 @@ app.post('/sesiones/forzar-finalizacion', async (req, res) => {
     }
     console.log('🔍 [SESIONES-FORZAR] Filtro:', filter);
 
+    // Obtener las sesiones que se van a cerrar ANTES de actualizarlas
+    const sesionesACerrar = await SessionGuard.find(filter);
+    console.log(`🔍 [SESIONES-FORZAR] Sesiones a cerrar: ${sesionesACerrar.length}`);
+
     const ahora = getPeruDate();
     const resultado = await SessionGuard.updateMany(
       filter,
@@ -1324,6 +1550,21 @@ app.post('/sesiones/forzar-finalizacion', async (req, res) => {
         forced_by_admin: admin_id || 'unknown'
       }
     );
+
+    // REGISTRAR ACTIVIDAD para cada sesión cerrada
+    for (const sesion of sesionesACerrar) {
+      try {
+        const duracionMinutos = Math.round((ahora - sesion.fecha_inicio) / (1000 * 60));
+        await registrarActividad({
+          guardia_id: sesion.guardia_id,
+          tipo_actividad: 'sesion_forzada_cierre',
+          duracion_sesion: duracionMinutos,
+          session_token: sesion.session_token
+        });
+      } catch (actividadError) {
+        console.warn(`⚠️ Error registrando cierre forzado para guardia ${sesion.guardia_id}:`, actividadError.message);
+      }
+    }
 
     console.log(`✅ [SESIONES-FORZAR] ${resultado.modifiedCount} sesión(es) finalizada(s)`);
     res.json({ 
@@ -1369,6 +1610,291 @@ app.get('/visitas', async (req, res) => {
     res.json(visitas);
   } catch (err) {
     res.status(500).json({ error: 'Error al obtener visitas' });
+  }
+});
+
+// ==================== ENDPOINTS HISTORIAL DE ACTIVIDADES ====================
+
+// Obtener todas las actividades con filtros
+app.get('/guardias/historial-actividades', async (req, res) => {
+  try {
+    console.log('🔍 [HISTORIAL-ACTIVIDADES] Request:', req.query);
+    const { 
+      fecha_inicio, 
+      fecha_fin, 
+      guardia_id, 
+      tipo_actividad, 
+      punto_control,
+      page = 1,
+      limit = 50 
+    } = req.query;
+
+    // Construir filtro
+    let filtro = {};
+    
+    if (fecha_inicio || fecha_fin) {
+      filtro.fecha = {};
+      if (fecha_inicio) {
+        filtro.fecha.$gte = new Date(fecha_inicio);
+      }
+      if (fecha_fin) {
+        // Agregar 23:59:59 al final del día
+        const fechaFinCompleta = new Date(fecha_fin);
+        fechaFinCompleta.setHours(23, 59, 59, 999);
+        filtro.fecha.$lte = fechaFinCompleta;
+      }
+    }
+    
+    if (guardia_id) filtro.guardia_id = guardia_id;
+    if (tipo_actividad) filtro.tipo_actividad = tipo_actividad;
+    if (punto_control) filtro.punto_control = punto_control;
+
+    console.log('🔍 [HISTORIAL-ACTIVIDADES] Filtro aplicado:', filtro);
+
+    const actividades = await HistorialActividad.find(filtro)
+      .sort({ fecha: -1 })
+      .limit(parseInt(limit))
+      .skip((parseInt(page) - 1) * parseInt(limit));
+
+    const total = await HistorialActividad.countDocuments(filtro);
+
+    console.log(`✅ [HISTORIAL-ACTIVIDADES] Encontradas ${actividades.length} de ${total} actividades`);
+    
+    res.json({
+      actividades,
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      totalPages: Math.ceil(total / parseInt(limit))
+    });
+  } catch (err) {
+    console.error('❌ [HISTORIAL-ACTIVIDADES] Error:', err);
+    res.status(500).json({ error: 'Error al obtener historial de actividades', details: err.message });
+  }
+});
+
+// Obtener actividades de un guardia específico - HOY
+app.get('/guardias/:id/actividades/hoy', async (req, res) => {
+  try {
+    const { id: guardia_id } = req.params;
+    console.log(`🔍 [ACTIVIDADES-HOY] Guardia: ${guardia_id}`);
+    
+    // Obtener inicio y fin del día de hoy
+    const hoy = new Date();
+    const inicioHoy = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+    const finHoy = new Date(inicioHoy);
+    finHoy.setHours(23, 59, 59, 999);
+
+    const actividades = await HistorialActividad.find({
+      guardia_id,
+      fecha: { $gte: inicioHoy, $lte: finHoy }
+    }).sort({ fecha: -1 });
+
+    // Calcular resumen del día
+    const resumen = {
+      total_actividades: actividades.length,
+      sesiones_iniciadas: actividades.filter(a => a.tipo_actividad === 'sesion_iniciada').length,
+      sesiones_finalizadas: actividades.filter(a => a.tipo_actividad === 'sesion_finalizada').length,
+      registros_entrada: actividades.filter(a => a.tipo_actividad === 'registro_entrada').length,
+      registros_salida: actividades.filter(a => a.tipo_actividad === 'registro_salida').length,
+      autorizaciones_manuales: actividades.filter(a => a.tipo_actividad === 'autorizacion_manual').length,
+      denegaciones: actividades.filter(a => a.tipo_actividad === 'denegacion_acceso').length,
+      ultima_actividad: actividades[0] || null
+    };
+
+    console.log(`✅ [ACTIVIDADES-HOY] ${actividades.length} actividades encontradas`);
+    res.json({ actividades, resumen });
+  } catch (err) {
+    console.error('❌ [ACTIVIDADES-HOY] Error:', err);
+    res.status(500).json({ error: 'Error al obtener actividades del día', details: err.message });
+  }
+});
+
+// Obtener actividades de un guardia específico - SEMANA
+app.get('/guardias/:id/actividades/semana', async (req, res) => {
+  try {
+    const { id: guardia_id } = req.params;
+    console.log(`🔍 [ACTIVIDADES-SEMANA] Guardia: ${guardia_id}`);
+    
+    // Calcular inicio de la semana (lunes)
+    const hoy = new Date();
+    const diaSemana = hoy.getDay();
+    const diasHastaLunes = diaSemana === 0 ? 6 : diaSemana - 1; // Domingo = 0
+    const inicioSemana = new Date(hoy);
+    inicioSemana.setDate(hoy.getDate() - diasHastaLunes);
+    inicioSemana.setHours(0, 0, 0, 0);
+
+    const actividades = await HistorialActividad.find({
+      guardia_id,
+      fecha: { $gte: inicioSemana }
+    }).sort({ fecha: -1 });
+
+    // Agrupar por día
+    const actividadesPorDia = {};
+    actividades.forEach(actividad => {
+      const fecha = actividad.fecha.toISOString().split('T')[0]; // YYYY-MM-DD
+      if (!actividadesPorDia[fecha]) {
+        actividadesPorDia[fecha] = [];
+      }
+      actividadesPorDia[fecha].push(actividad);
+    });
+
+    console.log(`✅ [ACTIVIDADES-SEMANA] ${actividades.length} actividades de la semana`);
+    res.json({ 
+      actividades, 
+      actividades_por_dia: actividadesPorDia,
+      inicio_semana: inicioSemana 
+    });
+  } catch (err) {
+    console.error('❌ [ACTIVIDADES-SEMANA] Error:', err);
+    res.status(500).json({ error: 'Error al obtener actividades de la semana', details: err.message });
+  }
+});
+
+// Obtener resumen de productividad de un guardia
+app.get('/guardias/:id/resumen-productividad', async (req, res) => {
+  try {
+    const { id: guardia_id } = req.params;
+    const { dias = 7 } = req.query; // Por defecto últimos 7 días
+    
+    console.log(`🔍 [RESUMEN-PRODUCTIVIDAD] Guardia: ${guardia_id}, Días: ${dias}`);
+    
+    const fechaInicio = new Date();
+    fechaInicio.setDate(fechaInicio.getDate() - parseInt(dias));
+    fechaInicio.setHours(0, 0, 0, 0);
+
+    // Obtener todas las actividades del periodo
+    const actividades = await HistorialActividad.find({
+      guardia_id,
+      fecha: { $gte: fechaInicio }
+    }).sort({ fecha: -1 });
+
+    // Calcular métricas
+    const sesiones = actividades.filter(a => a.tipo_actividad === 'sesion_iniciada');
+    const totalSesiones = sesiones.length;
+    
+    // Calcular horas trabajadas total
+    let horasTrabajadas = 0;
+    actividades
+      .filter(a => ['sesion_finalizada', 'sesion_forzada_cierre'].includes(a.tipo_actividad))
+      .forEach(a => {
+        if (a.duracion_sesion) {
+          horasTrabajadas += a.duracion_sesion;
+        }
+      });
+
+    const totalRegistros = actividades.filter(a => 
+      ['registro_entrada', 'registro_salida'].includes(a.tipo_actividad)
+    ).length;
+
+    const productividad = {
+      periodo_dias: parseInt(dias),
+      total_sesiones: totalSesiones,
+      horas_trabajadas: Math.round(horasTrabajadas / 60 * 100) / 100, // Convertir a horas con 2 decimales
+      total_registros: totalRegistros,
+      registros_por_hora: horasTrabajadas > 0 ? Math.round((totalRegistros / horasTrabajadas) * 60 * 100) / 100 : 0,
+      autorizaciones_manuales: actividades.filter(a => a.tipo_actividad === 'autorizacion_manual').length,
+      denegaciones: actividades.filter(a => a.tipo_actividad === 'denegacion_acceso').length,
+      promedio_sesion_minutos: totalSesiones > 0 ? Math.round(horasTrabajadas / totalSesiones) : 0,
+      dias_activos: [...new Set(actividades.map(a => a.fecha.toISOString().split('T')[0]))].length
+    };
+
+    console.log(`✅ [RESUMEN-PRODUCTIVIDAD] Métricas calculadas:`, productividad);
+    res.json({ productividad, actividades_detalle: actividades });
+  } catch (err) {
+    console.error('❌ [RESUMEN-PRODUCTIVIDAD] Error:', err);
+    res.status(500).json({ error: 'Error al calcular productividad', details: err.message });
+  }
+});
+
+// Obtener estadísticas comparativas entre guardias
+app.get('/guardias/estadisticas/comparativo', async (req, res) => {
+  try {
+    const { dias = 7 } = req.query;
+    console.log(`🔍 [ESTADISTICAS-COMPARATIVO] Últimos ${dias} días`);
+    
+    const fechaInicio = new Date();
+    fechaInicio.setDate(fechaInicio.getDate() - parseInt(dias));
+    fechaInicio.setHours(0, 0, 0, 0);
+
+    // Obtener todas las actividades del periodo
+    const actividades = await HistorialActividad.find({
+      fecha: { $gte: fechaInicio }
+    });
+
+    // Agrupar por guardia
+    const estadisticasPorGuardia = {};
+    
+    actividades.forEach(actividad => {
+      const guardiaId = actividad.guardia_id;
+      
+      if (!estadisticasPorGuardia[guardiaId]) {
+        estadisticasPorGuardia[guardiaId] = {
+          guardia_id: guardiaId,
+          guardia_nombre: actividad.guardia_nombre,
+          total_sesiones: 0,
+          horas_trabajadas: 0,
+          total_registros: 0,
+          autorizaciones_manuales: 0,
+          denegaciones: 0,
+          actividades: []
+        };
+      }
+
+      const stats = estadisticasPorGuardia[guardiaId];
+      stats.actividades.push(actividad);
+
+      // Contar métricas
+      switch (actividad.tipo_actividad) {
+        case 'sesion_iniciada':
+          stats.total_sesiones++;
+          break;
+        case 'sesion_finalizada':
+        case 'sesion_forzada_cierre':
+          if (actividad.duracion_sesion) {
+            stats.horas_trabajadas += actividad.duracion_sesion;
+          }
+          break;
+        case 'registro_entrada':
+        case 'registro_salida':
+          stats.total_registros++;
+          break;
+        case 'autorizacion_manual':
+          stats.autorizaciones_manuales++;
+          break;
+        case 'denegacion_acceso':
+          stats.denegaciones++;
+          break;
+      }
+    });
+
+    // Calcular métricas finales y ordenar por productividad
+    const ranking = Object.values(estadisticasPorGuardia).map(stats => ({
+      ...stats,
+      horas_trabajadas: Math.round(stats.horas_trabajadas / 60 * 100) / 100,
+      registros_por_hora: stats.horas_trabajadas > 0 
+        ? Math.round((stats.total_registros / stats.horas_trabajadas) * 60 * 100) / 100 
+        : 0,
+      dias_activos: [...new Set(stats.actividades.map(a => a.fecha.toISOString().split('T')[0]))].length,
+      actividades: undefined // No incluir actividades detalladas en respuesta
+    })).sort((a, b) => b.registros_por_hora - a.registros_por_hora);
+
+    console.log(`✅ [ESTADISTICAS-COMPARATIVO] ${ranking.length} guardias analizados`);
+    res.json({ 
+      periodo_dias: parseInt(dias),
+      ranking,
+      resumen_general: {
+        total_guardias: ranking.length,
+        total_registros: ranking.reduce((sum, g) => sum + g.total_registros, 0),
+        total_horas: ranking.reduce((sum, g) => sum + g.horas_trabajadas, 0),
+        promedio_productividad: ranking.length > 0 
+          ? Math.round(ranking.reduce((sum, g) => sum + g.registros_por_hora, 0) / ranking.length * 100) / 100 
+          : 0
+      }
+    });
+  } catch (err) {
+    console.error('❌ [ESTADISTICAS-COMPARATIVO] Error:', err);
+    res.status(500).json({ error: 'Error al obtener estadísticas comparativas', details: err.message });
   }
 });
 

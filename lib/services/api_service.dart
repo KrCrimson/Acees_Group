@@ -10,6 +10,7 @@ import '../models/visita_externo_model.dart';
 import '../models/decision_manual_model.dart';
 import '../models/presencia_model.dart';
 import '../models/externo_model.dart'; // Importar nuevo modelo
+import '../models/actividad_model.dart'; // Importar modelo de actividades
 import '../config/api_config.dart';
 
 class ApiService {
@@ -906,6 +907,121 @@ class ApiService {
       }
     } catch (e) {
       throw Exception('Error de conexión: $e');
+    }
+  }
+
+  // ==================== HISTORIAL DE ACTIVIDADES ====================
+
+  // Obtener historial de actividades con filtros
+  Future<Map<String, dynamic>> getHistorialActividades({
+    DateTime? fechaInicio,
+    DateTime? fechaFin,
+    String? guardiaId,
+    String? tipoActividad,
+    String? puntoControl,
+    int page = 1,
+    int limit = 50,
+  }) async {
+    try {
+      final params = <String, String>{
+        'page': page.toString(),
+        'limit': limit.toString(),
+      };
+
+      if (fechaInicio != null) {
+        params['fecha_inicio'] = fechaInicio.toIso8601String().split('T')[0];
+      }
+      if (fechaFin != null) {
+        params['fecha_fin'] = fechaFin.toIso8601String().split('T')[0];
+      }
+      if (guardiaId != null) params['guardia_id'] = guardiaId;
+      if (tipoActividad != null) params['tipo_actividad'] = tipoActividad;
+      if (puntoControl != null) params['punto_control'] = puntoControl;
+
+      final uri = Uri.parse('${ApiConfig.baseUrl}/guardias/historial-actividades')
+          .replace(queryParameters: params);
+
+      final response = await http.get(uri, headers: _headers);
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        throw Exception('Error al obtener historial: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión al obtener historial: $e');
+    }
+  }
+
+  // Obtener actividades de hoy de un guardia
+  Future<Map<String, dynamic>> getActividadesHoy(String guardiaId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/guardias/$guardiaId/actividades/hoy'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        throw Exception('Error al obtener actividades de hoy: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión al obtener actividades de hoy: $e');
+    }
+  }
+
+  // Obtener actividades de la semana de un guardia
+  Future<Map<String, dynamic>> getActividadesSemana(String guardiaId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/guardias/$guardiaId/actividades/semana'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        throw Exception('Error al obtener actividades de la semana: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión al obtener actividades de la semana: $e');
+    }
+  }
+
+  // Obtener resumen de productividad de un guardia
+  Future<Map<String, dynamic>> getResumenProductividad(String guardiaId, {int dias = 7}) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/guardias/$guardiaId/resumen-productividad?dias=$dias'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        throw Exception('Error al obtener productividad: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión al obtener productividad: $e');
+    }
+  }
+
+  // Obtener estadísticas comparativas entre guardias
+  Future<Map<String, dynamic>> getEstadisticasComparativas({int dias = 7}) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/guardias/estadisticas/comparativo?dias=$dias'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        throw Exception('Error al obtener estadísticas comparativas: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error de conexión al obtener estadísticas comparativas: $e');
     }
   }
 }
