@@ -84,6 +84,9 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
   }
 
   void _cerrarSesionPorAdmin() {
+    // Cuando es cierre forzado por admin, NO mostrar diálogo de confirmación
+    // Cerrar directamente y mostrar solo una notificación breve
+    
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -96,20 +99,29 @@ class _UserNfcViewState extends State<UserNfcView> with WidgetsBindingObserver {
           ],
         ),
         content: Text(
-          'Su sesión ha sido finalizada por un administrador. La aplicación se cerrará.',
+          'Su sesión ha sido finalizada por un administrador. La aplicación se cerrará automáticamente.',
         ),
-        actions: [
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _handleLogout();
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: Text('Entendido'),
-          ),
-        ],
+        // NO botones - se cierra automáticamente
       ),
     );
+
+    // Cerrar automáticamente después de 2 segundos
+    Future.delayed(Duration(seconds: 2), () {
+      if (mounted) {
+        // Cerrar el diálogo
+        Navigator.of(context).pop();
+        
+        // Realizar logout directo sin confirmación adicional
+        final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
+        authViewModel.logout();
+        
+        // Navegar al login
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => LoginView()),
+        );
+      }
+    });
   }
 
   @override

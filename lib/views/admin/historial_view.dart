@@ -47,7 +47,7 @@ class _HistorialViewState extends State<HistorialView>
       child: Scaffold(
         appBar: AppBar(
           title: Text('Historial de Actividades - Guardias'),
-          backgroundColor: Colors.indigo[700],
+          backgroundColor: Theme.of(context).primaryColor,
           foregroundColor: Colors.white,
           bottom: TabBar(
             controller: _tabController,

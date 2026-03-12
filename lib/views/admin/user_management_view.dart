@@ -76,22 +76,34 @@ class _UserManagementViewState extends State<UserManagementView> {
                     ),
                   ],
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Gestión de Usuarios',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.grey[800],
-                      ),
-                    ),
-                    CustomButton(
-                      text: 'Nuevo Usuario',
-                      icon: Icons.person_add,
-                      isLoading: adminViewModel.isLoading,
-                      onPressed: _showCreateUserDialog,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Gestión de Usuarios',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 16),
+                        ElevatedButton.icon(
+                          onPressed: adminViewModel.isLoading ? null : _showCreateUserDialog,
+                          icon: Icon(Icons.person_add, size: 20),
+                          label: Text('Nuevo'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

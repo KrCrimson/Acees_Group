@@ -5,7 +5,6 @@ import '../../viewmodels/reports_viewmodel.dart';
 import '../login_view.dart';
 import 'user_management_view.dart';
 import 'reports_view.dart';
-import 'session_config_view.dart';
 import 'session_management_view.dart';
 import 'historial_view.dart';
 import 'bus_recommendations_view.dart';
@@ -25,7 +24,6 @@ class _AdminViewState extends State<AdminView> {
     BusRecommendationsView(),
     SessionManagementView(
         adminId: '', adminName: 'Admin'), // GESTIÓN DE GUARDIAS
-    SessionConfigView(), // Configuración de sesión
     HistorialView(), // Historial de modificaciones
   ];
 
@@ -135,10 +133,6 @@ class _AdminViewState extends State<AdminView> {
           BottomNavigationBarItem(
             icon: Icon(Icons.supervisor_account),
             label: 'Gestión',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.timer),
-            label: 'Sesión',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.history),
